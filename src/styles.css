@@ -7,12 +7,15 @@
   --muted: #8f7b67;
   --accent: #a16d36;
   --accent-strong: #7d4e20;
-  --paper: #f8f4eb;
+  --paper: #fefcf6;
   --paper-edge: #ece2d2;
   --card: #fbf7f0;
   --shadow: 0 8px 20px rgba(82, 60, 34, 0.05);
-  font-family: "Iowan Old Style", "Palatino Linotype", "Noto Serif SC",
-    "Songti SC", serif;
+  --ui-font: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC",
+    "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --note-font: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC",
+    "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: var(--ui-font);
   color: var(--ink);
 }
 
@@ -149,6 +152,7 @@ button {
   flex: 1;
   min-height: 0;
   resize: vertical;
+  font-family: var(--note-font);
   border: 1px solid rgba(125, 78, 32, 0.14);
   border-radius: 22px;
   padding: 20px 22px;
@@ -192,7 +196,8 @@ button {
   width: 330px;
   max-width: 100%;
   margin: 0;
-  background: #faf7f1;
+  background: #fefcf6;
+  font-family: var(--note-font);
   padding: 18px 18px 12px;
 }
 
@@ -215,7 +220,7 @@ button {
   width: 3px;
   height: 3px;
   border: 1px solid rgba(236, 231, 221, 0.94);
-  background: #faf7f1;
+  background: #fefcf6;
   pointer-events: none;
 }
 

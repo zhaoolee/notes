@@ -151,7 +151,7 @@ export default function App() {
       const dataUrl = await toPng(previewRef.current, {
         cacheBust: true,
         pixelRatio,
-        backgroundColor: "#f6f1e8",
+        backgroundColor: "#fefcf6",
         width,
         height,
         canvasWidth: width * pixelRatio,
