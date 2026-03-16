@@ -142,6 +142,8 @@ app.post("/api/export", async (request, response) => {
       message.includes("Executable doesn't exist") ||
       message.includes("Please run the following command");
 
+    console.error("Export request failed:", error);
+
     response.status(500).json({
       error: message,
       hint: isBrowserInstallError

@@ -5,6 +5,9 @@ import sampleMarkdown from "../example/程序员狠话Vol.5.md?raw";
 
 const FALLBACK_CONTENT = ``;
 const DRAFT_STORAGE_KEY = "notes.markdownDraft";
+const EXPORT_RETRY_LIMIT = 3;
+const EXPORT_RETRY_BASE_DELAY_MS = 600;
+const EXPORT_REQUEST_TIMEOUT_MS = 20_000;
 
 function readStoredValue(key) {
   if (typeof window === "undefined") {
@@ -139,23 +142,128 @@ async function saveExport(blob, filename) {
   }, 60_000);
 }
 
-async function tryServerExport(markdown, filename) {
-  const response = await fetch("/api/export", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      filename,
-      markdown,
-    }),
+function wait(ms) {
+  return new Promise((resolve) => {
+    globalThis.setTimeout(resolve, ms);
   });
+}
 
-  if (!response.ok) {
-    throw new Error(`Server export failed: ${response.status}`);
+function buildExportError(message, options = {}) {
+  const error = new Error(message);
+  error.status = options.status;
+  error.retriable = Boolean(options.retriable);
+  error.attempts = options.attempts ?? 1;
+  return error;
+}
+
+async function readExportErrorMessage(response) {
+  const contentType = response.headers.get("content-type") || "";
+  const prefix = `导出服务返回 ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`;
+
+  if (contentType.includes("application/json")) {
+    const data = await response.json().catch(() => null);
+    const parts = [data?.error, data?.hint].filter(Boolean);
+    return parts.length ? `${prefix}：${parts.join(" ")}` : prefix;
   }
 
-  return response.blob();
+  const text = await response.text().catch(() => "");
+  const details = text.replace(/\s+/g, " ").trim().slice(0, 180);
+  return details ? `${prefix}：${details}` : prefix;
+}
+
+function normalizeExportError(error, attempt) {
+  if (error?.name === "AbortError") {
+    return buildExportError(`导出请求超时（>${EXPORT_REQUEST_TIMEOUT_MS / 1000}s）`, {
+      retriable: true,
+      attempts: attempt,
+    });
+  }
+
+  if (error instanceof TypeError) {
+    return buildExportError(`导出请求未送达后端：${error.message}`, {
+      retriable: true,
+      attempts: attempt,
+    });
+  }
+
+  if (error instanceof Error) {
+    error.attempts = attempt;
+    return error;
+  }
+
+  return buildExportError("导出失败，原因未知", {
+    retriable: false,
+    attempts: attempt,
+  });
+}
+
+function shouldRetryExport(error) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return Boolean(error.retriable);
+}
+
+async function tryServerExport(markdown, filename) {
+  const maxAttempts = EXPORT_RETRY_LIMIT + 1;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeoutId = globalThis.setTimeout(() => {
+      controller.abort();
+    }, EXPORT_REQUEST_TIMEOUT_MS);
+
+    try {
+      const response = await fetch("/api/export", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          filename,
+          markdown,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw buildExportError(await readExportErrorMessage(response), {
+          status: response.status,
+          retriable: response.status >= 500 || response.status === 429,
+          attempts: attempt,
+        });
+      }
+
+      return response.blob();
+    } catch (error) {
+      const normalizedError = normalizeExportError(error, attempt);
+
+      if (attempt >= maxAttempts || !shouldRetryExport(normalizedError)) {
+        throw normalizedError;
+      }
+
+      await wait(EXPORT_RETRY_BASE_DELAY_MS * attempt);
+    } finally {
+      globalThis.clearTimeout(timeoutId);
+    }
+  }
+
+  throw buildExportError("导出失败，已超过最大重试次数", {
+    retriable: false,
+    attempts: maxAttempts,
+  });
+}
+
+function getExportErrorMessage(error) {
+  if (!(error instanceof Error)) {
+    return "导出依赖后端 Playwright 服务，当前 /api/export 不可用。";
+  }
+
+  const retryCount =
+    typeof error.attempts === "number" ? Math.max(error.attempts - 1, 0) : 0;
+  const retryLabel = retryCount > 0 ? `已自动重试 ${retryCount} 次。` : "";
+  return `${retryLabel}${error.message}`;
 }
 
 function MarkdownText({ children }) {
@@ -217,8 +325,9 @@ export default function App() {
       const filename = slugifyFilename(markdown);
       const blob = await tryServerExport(markdown, filename);
       await saveExport(blob, filename);
-    } catch {
-      setExportError("导出依赖后端 Playwright 服务，当前 /api/export 不可用。");
+    } catch (error) {
+      console.error("PNG export failed", error);
+      setExportError(getExportErrorMessage(error));
     } finally {
       setIsExporting(false);
     }
@@ -345,8 +454,10 @@ export default function App() {
                     <text x="16" y="16">T</text>
                   </svg>
                 </span>
-                <span className="sheet-footer-brand">由锤子便签发送</span>
-                <span className="sheet-footer-via">via Smartisan Notes</span>
+                <span className="sheet-footer-copy">
+                  <span className="sheet-footer-brand">由锤子便签发送</span>
+                  <span className="sheet-footer-via">via Smartisan Notes</span>
+                </span>
               </div>
             </div>
           </div>
