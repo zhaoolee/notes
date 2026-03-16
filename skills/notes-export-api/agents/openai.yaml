@@ -1,0 +1,4 @@
+interface:
+  display_name: "便签导出"
+  short_description: "把 Markdown 导出为锤子便签风格长图"
+  default_prompt: "使用 $notes-export-api 执行便签导出，把 Markdown 文本或本地 Markdown 文件导出为锤子便签风格 PNG。"

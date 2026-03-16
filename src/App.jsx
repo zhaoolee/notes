@@ -339,7 +339,12 @@ export default function App() {
               </div>
 
               <div className="sheet-footer">
-                <span className="sheet-footer-icon">T</span>
+                <span className="sheet-footer-icon" aria-hidden="true">
+                  <svg viewBox="0 0 32 32" role="img" focusable="false">
+                    <circle cx="16" cy="16" r="16" />
+                    <text x="16" y="16">T</text>
+                  </svg>
+                </span>
                 <span className="sheet-footer-brand">由锤子便签发送</span>
                 <span className="sheet-footer-via">via Smartisan Notes</span>
               </div>
