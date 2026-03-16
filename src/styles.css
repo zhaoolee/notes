@@ -1,3 +1,27 @@
+@font-face {
+  font-family: "OPPOSans";
+  src: url("./assets/fonts/OPPOSans-R.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "OPPOSans";
+  src: url("./assets/fonts/OPPOSans-M.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "OPPOSans";
+  src: url("./assets/fonts/OPPOSans-B.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
   --bg: #efe6d6;
@@ -11,12 +35,15 @@
   --paper-edge: #ece2d2;
   --card: #fbf7f0;
   --shadow: 0 8px 20px rgba(82, 60, 34, 0.05);
-  --ui-font: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC",
+  --ui-font: "OPPOSans", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --note-font: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC",
+  --note-font: "OPPOSans", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-family: var(--ui-font);
   color: var(--ink);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
@@ -142,6 +169,76 @@ button {
   border-radius: 999px;
 }
 
+.preview-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.export-status {
+  margin: 0;
+  max-width: 240px;
+  color: #9b6b3d;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.confirm-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(54, 39, 23, 0.16);
+  backdrop-filter: blur(6px);
+}
+
+.confirm-dialog {
+  width: min(100%, 360px);
+  padding: 22px 22px 18px;
+  border-radius: 22px;
+  background: rgba(255, 250, 242, 0.98);
+  box-shadow: 0 18px 44px rgba(82, 60, 34, 0.18);
+}
+
+.confirm-dialog h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.08rem;
+}
+
+.confirm-dialog p {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.confirm-dialog-actions button {
+  border: 1px solid rgba(125, 78, 32, 0.16);
+  background: rgba(255, 249, 240, 0.94);
+  color: var(--ink);
+  padding: 9px 14px;
+  border-radius: 999px;
+}
+
+.confirm-dialog-actions .primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, #b27d47 0%, #8f5d2d 100%);
+  color: #fff8f0;
+}
+
 .input-label {
   font-size: 0.92rem;
   color: var(--muted);
@@ -153,6 +250,7 @@ button {
   min-height: 0;
   resize: vertical;
   font-family: var(--note-font);
+  font-weight: 500;
   border: 1px solid rgba(125, 78, 32, 0.14);
   border-radius: 22px;
   padding: 20px 22px;
@@ -204,7 +302,7 @@ button {
 .sheet-frame {
   position: absolute;
   pointer-events: none;
-  border: 1px solid rgba(236, 231, 221, 0.94);
+  border: 1px solid rgba(237, 233, 225, 0.92);
 }
 
 .sheet-frame-outer {
@@ -219,7 +317,7 @@ button {
   position: absolute;
   width: 3px;
   height: 3px;
-  border: 1px solid rgba(236, 231, 221, 0.94);
+  border: 1px solid rgba(237, 233, 225, 0.92);
   background: #fefcf6;
   pointer-events: none;
 }
@@ -249,7 +347,7 @@ button {
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 38px;
+  gap: 40px;
   padding: 20px 18px 0;
 }
 
@@ -258,15 +356,15 @@ button {
 }
 
 .note-index {
-  margin-bottom: 14px;
+  margin-bottom: 13px;
 }
 
 .note-index p,
 .note-index strong {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.98rem;
   font-weight: 700;
-  color: rgba(73, 55, 39, 0.98);
+  color: rgba(70, 53, 38, 0.96);
 }
 
 .note-copy p {
@@ -276,17 +374,18 @@ button {
 .note-copy {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  color: rgba(109, 88, 68, 0.95);
-  font-size: 0.95rem;
-  line-height: 1.88;
-  letter-spacing: 0.01em;
+  gap: 0;
+  color: rgba(106, 86, 67, 0.92);
+  font-size: 0.93rem;
+  font-weight: 400;
+  line-height: 1.92;
+  letter-spacing: 0;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
 .note-copy p + p {
-  margin-top: 12px;
+  margin-top: 11px;
 }
 
 .note-copy p img {
@@ -310,6 +409,7 @@ button {
 
 .note-copy code {
   font-size: 0.9em;
+  font-weight: 400;
   padding: 0.08em 0.32em;
   border-radius: 0.3em;
   background: rgba(125, 78, 32, 0.08);
@@ -324,8 +424,9 @@ button {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
-  color: rgba(95, 77, 59, 0.98);
+  color: rgba(97, 79, 61, 0.94);
   font-size: 0.74rem;
+  font-weight: 400;
   line-height: 1.7;
 }
 
@@ -342,10 +443,11 @@ button {
 .note-copy blockquote {
   position: relative;
   margin: 0 0 12px;
-  padding-left: 1.25rem;
-  color: #cbc0b2;
-  font-size: 0.78rem;
-  line-height: 1.56;
+  padding-left: 1.08rem;
+  color: #cfc5b8;
+  font-size: 0.93rem;
+  font-weight: 400;
+  line-height: 1.58;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -353,12 +455,13 @@ button {
 .note-copy blockquote::before {
   content: "“";
   position: absolute;
-  left: 0;
-  top: 0.02rem;
-  font-size: 1.5rem;
-  line-height: 0.8;
-  font-weight: 700;
-  color: #e0d8cb;
+  left: -0.04rem;
+  top: 0.1rem;
+  font-family: "Georgia", "Times New Roman", serif;
+  font-size: 1.42rem;
+  line-height: 0.82;
+  font-weight: 400;
+  color: #e1d8cd;
 }
 
 .note-copy blockquote p {
@@ -407,23 +510,23 @@ button {
 .sheet-footer {
   position: relative;
   z-index: 1;
-  margin-top: 18px;
+  margin-top: 20px;
   padding: 0 7px 0;
   display: flex;
   align-items: center;
   gap: 7px;
-  color: #d7cfc3;
+  color: #dad2c7;
   font-size: 0.42rem;
   line-height: 1;
 }
 
 .sheet-footer-brand {
-  color: #cec4b6;
+  color: #d2c8ba;
   font-weight: 700;
 }
 
 .sheet-footer-via {
-  color: #ddd5ca;
+  color: #ded6cb;
   font-weight: 400;
 }
 
@@ -432,7 +535,7 @@ button {
   width: 0.82rem;
   height: 0.82rem;
   border-radius: 999px;
-  background: #d6cdc0;
+  background: #d9d0c3;
   color: transparent;
 }
 

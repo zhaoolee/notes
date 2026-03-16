@@ -1,0 +1,13 @@
+FROM mcr.microsoft.com/playwright:v1.58.2-noble
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+ENV PORT=3001
+ENV EXPORT_APP_URL=http://frontend:5173
+
+EXPOSE 3001
+
+CMD ["npm", "run", "backend:watch"]

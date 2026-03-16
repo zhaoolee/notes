@@ -1,10 +1,28 @@
-import { useRef, useState } from "react";
-import { toPng } from "html-to-image";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import sampleMarkdown from "../example/程序员狠话Vol.5.md?raw";
 
 const FALLBACK_CONTENT = ``;
+const DRAFT_STORAGE_KEY = "notes.markdownDraft";
+
+function readStoredValue(key) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return window.localStorage.getItem(key);
+}
+
+function getInitialMarkdown() {
+  const storedDraft = readStoredValue(DRAFT_STORAGE_KEY);
+
+  if (storedDraft != null) {
+    return storedDraft;
+  }
+
+  return sampleMarkdown || FALLBACK_CONTENT;
+}
 
 function normalizeSingleLineBlockquotes(markdown) {
   const lines = markdown.replace(/\r\n/g, "\n").split("\n");
@@ -82,20 +100,62 @@ function slugifyFilename(markdown) {
   return `${base.replace(/[\\/:*?"<>|]/g, "-") || "note-export"}.png`;
 }
 
-function getExportPixelRatio(width, height) {
-  const preferredRatio = 3;
-  const maxCanvasEdge = 16384;
-  const maxCanvasArea = 120_000_000;
+async function saveExport(blob, filename) {
+  const file = new File([blob], filename, { type: "image/png" });
+  const isCoarsePointer =
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(pointer: coarse)").matches;
 
-  return Math.max(
-    1,
-    Math.min(
-      preferredRatio,
-      maxCanvasEdge / width,
-      maxCanvasEdge / height,
-      Math.sqrt(maxCanvasArea / (width * height)),
-    ),
-  );
+  if (
+    isCoarsePointer &&
+    typeof navigator !== "undefined" &&
+    navigator.share &&
+    navigator.canShare?.({ files: [file] })
+  ) {
+    await navigator.share({
+      files: [file],
+      title: filename,
+    });
+    return;
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filename;
+  link.rel = "noopener";
+
+  if (isCoarsePointer) {
+    link.target = "_blank";
+    link.download = "";
+  }
+
+  document.body.append(link);
+  link.click();
+  link.remove();
+
+  window.setTimeout(() => {
+    URL.revokeObjectURL(objectUrl);
+  }, 60_000);
+}
+
+async function tryServerExport(markdown, filename) {
+  const response = await fetch("/api/export", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      filename,
+      markdown,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Server export failed: ${response.status}`);
+  }
+
+  return response.blob();
 }
 
 function MarkdownText({ children }) {
@@ -131,129 +191,185 @@ function MarkdownText({ children }) {
 }
 
 export default function App() {
-  const previewRef = useRef(null);
-  const [markdown, setMarkdown] = useState(sampleMarkdown || FALLBACK_CONTENT);
+  const [markdown, setMarkdown] = useState(getInitialMarkdown);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+  const [pendingAction, setPendingAction] = useState(null);
 
   const notes = splitSections(markdown);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(DRAFT_STORAGE_KEY, markdown);
+  }, [markdown]);
+
   async function handleExport() {
-    if (!previewRef.current || isExporting) {
+    if (isExporting) {
       return;
     }
 
     try {
       setIsExporting(true);
-      const width = Math.ceil(previewRef.current.scrollWidth);
-      const height = Math.ceil(previewRef.current.scrollHeight);
-      const pixelRatio = getExportPixelRatio(width, height);
-
-      const dataUrl = await toPng(previewRef.current, {
-        cacheBust: true,
-        pixelRatio,
-        backgroundColor: "#fefcf6",
-        width,
-        height,
-        canvasWidth: width * pixelRatio,
-        canvasHeight: height * pixelRatio,
-        style: {
-          width: `${width}px`,
-          height: `${height}px`,
-        },
-      });
-
-      const link = document.createElement("a");
-      link.download = slugifyFilename(markdown);
-      link.href = dataUrl;
-      link.click();
+      setExportError("");
+      const filename = slugifyFilename(markdown);
+      const blob = await tryServerExport(markdown, filename);
+      await saveExport(blob, filename);
+    } catch {
+      setExportError("导出依赖后端 Playwright 服务，当前 /api/export 不可用。");
     } finally {
       setIsExporting(false);
     }
   }
 
+  function requestReplaceMarkdown(nextMarkdown, title, description) {
+    setPendingAction({
+      nextMarkdown,
+      title,
+      description,
+    });
+  }
+
+  function confirmReplaceMarkdown() {
+    if (!pendingAction) {
+      return;
+    }
+
+    setMarkdown(pendingAction.nextMarkdown);
+    setPendingAction(null);
+  }
+
   return (
-    <div className="app-shell">
-      <aside className="editor-panel">
-        <div className="panel-header">
-          <div>
-            <p className="eyebrow">Markdown Note</p>
-            <h1>便签导出器</h1>
-          </div>
-        </div>
-
-        <div className="toolbar">
-          <button type="button" onClick={() => setMarkdown(sampleMarkdown)}>
-            加载示例
-          </button>
-          <button type="button" onClick={() => setMarkdown(FALLBACK_CONTENT)}>
-            清空重写
-          </button>
-        </div>
-
-        <label className="input-label" htmlFor="markdown-editor">
-          Markdown 内容
-        </label>
-        <textarea
-          id="markdown-editor"
-          className="markdown-editor"
-          value={markdown}
-          onChange={(event) => setMarkdown(event.target.value)}
-          spellCheck="false"
-        />
-
-      </aside>
-
-      <main className="preview-panel">
-        <div className="preview-header">
-          <div>
-            <p className="eyebrow">Live Preview</p>
-            <h2>导出画布</h2>
-          </div>
-          <button type="button" className="primary preview-export" onClick={handleExport}>
-            {isExporting ? "导出中..." : "导出 PNG"}
-          </button>
-        </div>
-
-        <div className="preview-stage">
-          <div className="note-sheet" ref={previewRef}>
-            <div className="sheet-frame sheet-frame-outer" />
-            <div className="sheet-frame sheet-frame-inner" />
-            <span className="sheet-corner sheet-corner-top-left" />
-            <span className="sheet-corner sheet-corner-top-right" />
-            <span className="sheet-corner sheet-corner-bottom-left" />
-            <span className="sheet-corner sheet-corner-bottom-right" />
-
-            <div className="sheet-inner">
-              {notes.map((note, index) => (
-                <article className="note-section" key={`${note.heading}-${index}`}>
-                  {note.heading ? (
-                    <header className="note-index">
-                      <MarkdownText>{note.heading}</MarkdownText>
-                    </header>
-                  ) : null}
-
-                  <div className="note-copy">
-                    <MarkdownText>{note.content || " "}</MarkdownText>
-                  </div>
-                </article>
-              ))}
-
-              {!notes.length ? (
-                <article className="note-section empty-state">
-                  <p>还没有可预览的内容。</p>
-                  <p>在左侧输入以 `##` 开头的段落即可生成便签。</p>
-                </article>
-              ) : null}
-            </div>
-
-            <div className="sheet-footer">
-              <span className="sheet-footer-icon">T</span>
-              <span className="sheet-footer-brand">由锤子便签发送</span>
-              <span className="sheet-footer-via">via Smartisan Notes</span>
+    <>
+      <div className="app-shell">
+        <aside className="editor-panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Markdown Note</p>
+              <h1>便签导出器</h1>
             </div>
           </div>
+
+          <div className="toolbar">
+            <button
+              type="button"
+              onClick={() =>
+                requestReplaceMarkdown(
+                  sampleMarkdown,
+                  "加载示例？",
+                  "这会覆盖你当前正在编辑的草稿内容。",
+                )
+              }
+            >
+              加载示例
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                requestReplaceMarkdown(
+                  FALLBACK_CONTENT,
+                  "清空重写？",
+                  "这会清空当前草稿，建议确认后再继续。",
+                )
+              }
+            >
+              清空重写
+            </button>
+          </div>
+
+          <label className="input-label" htmlFor="markdown-editor">
+            Markdown 内容
+          </label>
+          <textarea
+            id="markdown-editor"
+            className="markdown-editor"
+            value={markdown}
+            onChange={(event) => setMarkdown(event.target.value)}
+            spellCheck="false"
+          />
+
+        </aside>
+
+        <main className="preview-panel">
+          <div className="preview-header">
+            <div>
+              <p className="eyebrow">Live Preview</p>
+              <h2>导出画布</h2>
+            </div>
+            <div className="preview-actions">
+              <button type="button" className="primary preview-export" onClick={handleExport}>
+                {isExporting ? "导出中..." : "导出 PNG"}
+              </button>
+              {exportError ? <p className="export-status">{exportError}</p> : null}
+            </div>
+          </div>
+
+          <div className="preview-stage">
+            <div className="note-sheet">
+              <div className="sheet-frame sheet-frame-outer" />
+              <div className="sheet-frame sheet-frame-inner" />
+              <span className="sheet-corner sheet-corner-top-left" />
+              <span className="sheet-corner sheet-corner-top-right" />
+              <span className="sheet-corner sheet-corner-bottom-left" />
+              <span className="sheet-corner sheet-corner-bottom-right" />
+
+              <div className="sheet-inner">
+                {notes.map((note, index) => (
+                  <article className="note-section" key={`${note.heading}-${index}`}>
+                    {note.heading ? (
+                      <header className="note-index">
+                        <MarkdownText>{note.heading}</MarkdownText>
+                      </header>
+                    ) : null}
+
+                    <div className="note-copy">
+                      <MarkdownText>{note.content || " "}</MarkdownText>
+                    </div>
+                  </article>
+                ))}
+
+                {!notes.length ? (
+                  <article className="note-section empty-state">
+                    <p>还没有可预览的内容。</p>
+                    <p>在左侧输入以 `##` 开头的段落即可生成便签。</p>
+                  </article>
+                ) : null}
+              </div>
+
+              <div className="sheet-footer">
+                <span className="sheet-footer-icon">T</span>
+                <span className="sheet-footer-brand">由锤子便签发送</span>
+                <span className="sheet-footer-via">via Smartisan Notes</span>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+
+      {pendingAction ? (
+        <div className="confirm-dialog-backdrop" onClick={() => setPendingAction(null)}>
+          <div
+            className="confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-dialog-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id="confirm-dialog-title">{pendingAction.title}</h3>
+            <p>{pendingAction.description}</p>
+            <div className="confirm-dialog-actions">
+              <button type="button" onClick={() => setPendingAction(null)}>
+                取消
+              </button>
+              <button type="button" className="primary" onClick={confirmReplaceMarkdown}>
+                确认覆盖
+              </button>
+            </div>
+          </div>
         </div>
-      </main>
-    </div>
+      ) : null}
+    </>
   );
 }

@@ -1,0 +1,32 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend.dev
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_PROXY_TARGET: http://backend:3001
+      VITE_USE_POLLING: "true"
+    volumes:
+      - .:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend.dev
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: "3001"
+      EXPORT_APP_URL: http://frontend:5173
+    volumes:
+      - .:/app
+      - backend_node_modules:/app/node_modules
+
+volumes:
+  frontend_node_modules:
+  backend_node_modules:
