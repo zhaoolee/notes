@@ -60,7 +60,13 @@ npx playwright install chromium
 启动：
 
 ```bash
-docker compose up --build
+docker compose up --build -d
+```
+
+查看日志：
+
+```bash
+docker compose logs -f
 ```
 
 访问：

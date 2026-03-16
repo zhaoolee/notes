@@ -104,42 +104,53 @@ function slugifyFilename(markdown) {
 }
 
 async function saveExport(blob, filename) {
-  const file = new File([blob], filename, { type: "image/png" });
   const isCoarsePointer =
     typeof window !== "undefined" &&
     window.matchMedia?.("(pointer: coarse)").matches;
-
-  if (
-    isCoarsePointer &&
-    typeof navigator !== "undefined" &&
-    navigator.share &&
-    navigator.canShare?.({ files: [file] })
-  ) {
-    await navigator.share({
-      files: [file],
-      title: filename,
-    });
-    return;
-  }
-
   const objectUrl = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = objectUrl;
-  link.download = filename;
-  link.rel = "noopener";
 
-  if (isCoarsePointer) {
-    link.target = "_blank";
-    link.download = "";
+  try {
+    const file = new File([blob], filename, { type: "image/png" });
+
+    if (
+      isCoarsePointer &&
+      typeof navigator !== "undefined" &&
+      navigator.share &&
+      navigator.canShare?.({ files: [file] })
+    ) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: filename,
+        });
+        return;
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          return;
+        }
+
+        console.warn("Share failed, falling back to download.", error);
+      }
+    }
+
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = filename;
+    link.rel = "noopener";
+
+    if (isCoarsePointer) {
+      link.target = "_blank";
+      link.download = "";
+    }
+
+    document.body.append(link);
+    link.click();
+    link.remove();
+  } finally {
+    window.setTimeout(() => {
+      URL.revokeObjectURL(objectUrl);
+    }, 60_000);
   }
-
-  document.body.append(link);
-  link.click();
-  link.remove();
-
-  window.setTimeout(() => {
-    URL.revokeObjectURL(objectUrl);
-  }, 60_000);
 }
 
 function wait(ms) {
