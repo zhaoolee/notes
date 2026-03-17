@@ -4,13 +4,17 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "backend": "node server/index.js",
+    "backend:watch": "node --watch server/index.js",
     "dev": "vite",
+    "dev:docker": "vite --host 0.0.0.0 --port 5173",
     "build": "vite build",
     "build:static": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "html-to-image": "^1.11.11",
+    "express": "^5.2.1",
+    "playwright": "^1.58.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-markdown": "^10.1.0",
