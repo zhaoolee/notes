@@ -5,9 +5,23 @@ import sampleMarkdown from "../example/程序员狠话Vol.5.md?raw";
 
 const FALLBACK_CONTENT = ``;
 const DRAFT_STORAGE_KEY = "notes.markdownDraft";
+const THEME_STORAGE_KEY = "notes.previewTheme";
 const EXPORT_RETRY_LIMIT = 3;
 const EXPORT_RETRY_BASE_DELAY_MS = 600;
 const EXPORT_REQUEST_TIMEOUT_MS = 20_000;
+const THEME_OPTIONS = [
+  {
+    id: "default",
+    label: "默认主题",
+    description: "暖白纸感",
+  },
+  {
+    id: "smartisan-dark",
+    label: "锤子暗黑",
+    description: "深夜便签",
+  },
+];
+const DEFAULT_THEME_ID = THEME_OPTIONS[0].id;
 
 function readStoredValue(key) {
   if (typeof window === "undefined") {
@@ -25,6 +39,34 @@ function getInitialMarkdown() {
   }
 
   return sampleMarkdown || FALLBACK_CONTENT;
+}
+
+function readSearchParam(key) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return new URLSearchParams(window.location.search).get(key);
+}
+
+function isThemeId(value) {
+  return THEME_OPTIONS.some((option) => option.id === value);
+}
+
+function getInitialTheme() {
+  const searchTheme = readSearchParam("theme");
+
+  if (isThemeId(searchTheme)) {
+    return searchTheme;
+  }
+
+  const storedTheme = readStoredValue(THEME_STORAGE_KEY);
+
+  if (isThemeId(storedTheme)) {
+    return storedTheme;
+  }
+
+  return DEFAULT_THEME_ID;
 }
 
 function normalizeSingleLineBlockquotes(markdown) {
@@ -216,7 +258,7 @@ function shouldRetryExport(error) {
   return Boolean(error.retriable);
 }
 
-async function tryServerExport(markdown, filename) {
+async function tryServerExport(markdown, filename, theme) {
   const maxAttempts = EXPORT_RETRY_LIMIT + 1;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -234,6 +276,7 @@ async function tryServerExport(markdown, filename) {
         body: JSON.stringify({
           filename,
           markdown,
+          theme,
         }),
         signal: controller.signal,
       });
@@ -309,8 +352,46 @@ function MarkdownText({ children }) {
   );
 }
 
+function ThemeSelector({ value, onChange }) {
+  return (
+    <div className="theme-selector" aria-label="主题选择器">
+      <div className="theme-selector-header">
+        <p className="eyebrow">Theme</p>
+        <span className="theme-selector-caption">预览与导出同步切换</span>
+      </div>
+
+      <div className="theme-selector-options" role="tablist" aria-label="选择便签主题">
+        {THEME_OPTIONS.map((option) => {
+          const isActive = option.id === value;
+
+          return (
+            <button
+              key={option.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              className={`theme-selector-option${isActive ? " active" : ""}`}
+              onClick={() => onChange(option.id)}
+            >
+              <span
+                className={`theme-selector-swatch theme-selector-swatch-${option.id}`}
+                aria-hidden="true"
+              />
+              <span className="theme-selector-meta">
+                <span className="theme-selector-name">{option.label}</span>
+                <span className="theme-selector-copy">{option.description}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [markdown, setMarkdown] = useState(getInitialMarkdown);
+  const [selectedTheme, setSelectedTheme] = useState(getInitialTheme);
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState("");
   const [pendingAction, setPendingAction] = useState(null);
@@ -325,6 +406,15 @@ export default function App() {
     window.localStorage.setItem(DRAFT_STORAGE_KEY, markdown);
   }, [markdown]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(THEME_STORAGE_KEY, selectedTheme);
+    document.documentElement.dataset.theme = selectedTheme;
+  }, [selectedTheme]);
+
   async function handleExport() {
     if (isExporting) {
       return;
@@ -334,7 +424,7 @@ export default function App() {
       setIsExporting(true);
       setExportError("");
       const filename = slugifyFilename(markdown);
-      const blob = await tryServerExport(markdown, filename);
+      const blob = await tryServerExport(markdown, filename, selectedTheme);
       await saveExport(blob, filename);
     } catch (error) {
       console.error("PNG export failed", error);
@@ -363,13 +453,15 @@ export default function App() {
 
   return (
     <>
-      <div className="app-shell">
+      <div className="app-shell" data-theme={selectedTheme}>
         <aside className="editor-panel">
           <div className="panel-header">
             <div>
               <p className="eyebrow">Markdown Note</p>
               <h1>便签导出器</h1>
             </div>
+
+            <ThemeSelector value={selectedTheme} onChange={setSelectedTheme} />
           </div>
 
           <div className="toolbar">

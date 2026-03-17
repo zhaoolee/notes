@@ -9,17 +9,25 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
 const distDir = path.join(rootDir, "dist");
 const port = Number(process.env.PORT || 3001);
+const supportedThemes = new Set(["default", "smartisan-dark"]);
 
 let browserPromise;
 
-function getRenderUrl(request) {
+function buildRenderUrl(baseUrl, theme) {
+  const url = new URL("/", baseUrl);
+  url.searchParams.set("renderMode", "playwright");
+  url.searchParams.set("theme", theme);
+  return url.toString();
+}
+
+function getRenderUrl(request, theme) {
   if (process.env.EXPORT_APP_URL) {
-    return new URL("/?renderMode=playwright", process.env.EXPORT_APP_URL).toString();
+    return buildRenderUrl(process.env.EXPORT_APP_URL, theme);
   }
 
   const protocol = request.get("x-forwarded-proto") || request.protocol || "http";
   const host = request.get("x-forwarded-host") || request.get("host");
-  return `${protocol}://${host}/?renderMode=playwright`;
+  return buildRenderUrl(`${protocol}://${host}`, theme);
 }
 
 async function getBrowser() {
@@ -40,6 +48,14 @@ async function resolveMarkdown(body) {
   }
 
   throw new Error("Missing markdown or markdownPath");
+}
+
+function resolveTheme(body) {
+  if (typeof body.theme === "string" && supportedThemes.has(body.theme)) {
+    return body.theme;
+  }
+
+  return "default";
 }
 
 async function waitForAssets(page) {
@@ -125,12 +141,13 @@ app.use(express.json({ limit: "10mb" }));
 app.post("/api/export", async (request, response) => {
   try {
     const markdown = await resolveMarkdown(request.body || {});
+    const theme = resolveTheme(request.body || {});
     const filename =
       typeof request.body?.filename === "string" && request.body.filename.trim()
         ? request.body.filename.trim()
         : "note-export.png";
 
-    const pngBuffer = await renderNotePng(markdown, getRenderUrl(request));
+    const pngBuffer = await renderNotePng(markdown, getRenderUrl(request, theme));
 
     response.setHeader("Content-Type", "image/png");
     response.setHeader("Content-Disposition", `inline; filename="${filename}"`);

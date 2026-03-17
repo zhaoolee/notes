@@ -6,6 +6,7 @@ MARKDOWN=""
 MARKDOWN_FILE=""
 OUTPUT=""
 FILENAME=""
+THEME="default"
 
 usage() {
   cat <<'EOF'
@@ -18,6 +19,7 @@ Options:
   --markdown-file PATH    UTF-8 markdown file path
   --output PATH           Output PNG path
   --filename NAME         Filename sent to API (defaults to output basename)
+  --theme NAME            Optional theme: default or smartisan-dark (defaults to default)
   --endpoint URL          Override API endpoint
 EOF
 }
@@ -38,6 +40,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --filename)
       FILENAME="${2:-}"
+      shift 2
+      ;;
+    --theme)
+      THEME="${2:-}"
       shift 2
       ;;
     --endpoint)
@@ -81,16 +87,26 @@ if [[ -z "$FILENAME" ]]; then
   FILENAME="$(basename "$OUTPUT")"
 fi
 
+case "$THEME" in
+  default|smartisan-dark)
+    ;;
+  *)
+    echo "--theme must be one of: default, smartisan-dark" >&2
+    exit 1
+    ;;
+esac
+
 JSON_PAYLOAD="$(mktemp)"
 trap 'rm -f "$JSON_PAYLOAD"' EXIT
 
-python3 - "$MARKDOWN" "$FILENAME" > "$JSON_PAYLOAD" <<'PY'
+python3 - "$MARKDOWN" "$FILENAME" "$THEME" > "$JSON_PAYLOAD" <<'PY'
 import json
 import sys
 
 markdown = sys.argv[1]
 filename = sys.argv[2]
-json.dump({"markdown": markdown, "filename": filename}, sys.stdout, ensure_ascii=False)
+theme = sys.argv[3]
+json.dump({"markdown": markdown, "filename": filename, "theme": theme}, sys.stdout, ensure_ascii=False)
 PY
 
 curl -sS \
