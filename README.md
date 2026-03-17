@@ -1,14 +1,29 @@
-# notes
+# 锤子便签Skill
 
-一个基于 React + Vite + Express + Playwright 的 Markdown 便签导出器。
+一个锤子便签风格的导出器，支持暖白纸感，深夜便签两个主题，用来分享与openclaw的对话记录。
+
+## 通过skill调用
+
+clawhub地址 https://clawhub.ai/zhaoolee/notes-export-api
+
+```
+从clawhub安装 notes-export-api这个 skill,
+联网获取最近一周 AI 相关的新闻，将新闻转化为 markdown 生成便签图片，把便签图片绝对路径返回给我，把图片往“下载”文件夹复制一份
+```
+
+![](./README.assets/3c37864955b98ac6036e757737a00e88c86c433316dbdd4260dd4dfeb8ec08e4.png)
+
+## 网页版
+
+地址：[https://notes.fangyuanxiaozhan.com](https://notes.fangyuanxiaozhan.com)
 
 ![](./README.assets/7799cfca2928e9cee4f47c6441fa936a674b7eff2c27f1e375f7aa4f1abd86e0.png)
 
 ![](./README.assets/9a5b4bde58067218ff583c2dcd32ad457272b1d1b782c5326d8188dc996d733f.png)
 
+![](./README.assets/49b89503c2b5fa3da88175ee545318e17fb60049ec041087a0c907ce789802b3.png)
 
-
-README 只保留两种运行方式：`Docker 开发环境` 和 `Docker 生产环境`。
+![](./README.assets/4a1baea9dbaf4983689d91da41e08a5342832e5b8bfe94a6cf5b9ebe6549aef3.png)
 
 ## 环境要求
 
