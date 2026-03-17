@@ -58,6 +58,46 @@ function resolveTheme(body) {
   return "default";
 }
 
+function padDatePart(value) {
+  return String(value).padStart(2, "0");
+}
+
+function buildFallbackFilename() {
+  const now = new Date();
+  const formatted = [
+    now.getFullYear(),
+    padDatePart(now.getMonth() + 1),
+    padDatePart(now.getDate()),
+    padDatePart(now.getHours()),
+    padDatePart(now.getMinutes()),
+    padDatePart(now.getSeconds()),
+  ].join("-");
+
+  return `${formatted}-${Date.now()}.png`;
+}
+
+function resolveExportFilename(input) {
+  if (typeof input !== "string") {
+    return buildFallbackFilename();
+  }
+
+  const trimmed = input.trim();
+
+  if (!trimmed) {
+    return buildFallbackFilename();
+  }
+
+  if (
+    /[\u0000-\u001F\u007F]/.test(trimmed) ||
+    /[^\x20-\x7E]/.test(trimmed) ||
+    /[\\/:*?"<>|]/.test(trimmed)
+  ) {
+    return buildFallbackFilename();
+  }
+
+  return /\.png$/i.test(trimmed) ? trimmed : `${trimmed}.png`;
+}
+
 async function waitForAssets(page) {
   await page.evaluate(async () => {
     await document.fonts.ready;
@@ -142,10 +182,7 @@ app.post("/api/export", async (request, response) => {
   try {
     const markdown = await resolveMarkdown(request.body || {});
     const theme = resolveTheme(request.body || {});
-    const filename =
-      typeof request.body?.filename === "string" && request.body.filename.trim()
-        ? request.body.filename.trim()
-        : "note-export.png";
+    const filename = resolveExportFilename(request.body?.filename);
 
     const pngBuffer = await renderNotePng(markdown, getRenderUrl(request, theme));
 

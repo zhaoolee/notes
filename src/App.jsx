@@ -139,10 +139,63 @@ function splitSections(markdown) {
     .filter((section) => section.heading || section.content);
 }
 
-function slugifyFilename(markdown) {
-  const firstHeading = markdown.match(/^##\s+\*{0,2}([^*\n]+)\*{0,2}/m)?.[1];
-  const base = firstHeading ? firstHeading.trim() : "note-export";
-  return `${base.replace(/[\\/:*?"<>|]/g, "-") || "note-export"}.png`;
+function padDatePart(value) {
+  return String(value).padStart(2, "0");
+}
+
+function buildExportFilename() {
+  const now = new Date();
+  const formatted = [
+    now.getFullYear(),
+    padDatePart(now.getMonth() + 1),
+    padDatePart(now.getDate()),
+    padDatePart(now.getHours()),
+    padDatePart(now.getMinutes()),
+    padDatePart(now.getSeconds()),
+  ].join("-");
+
+  return `${formatted}-${Date.now()}.png`;
+}
+
+function fallbackCopyText(text) {
+  if (typeof document === "undefined") {
+    throw new Error("Clipboard is unavailable");
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.top = "0";
+  textarea.style.left = "0";
+  textarea.style.opacity = "0";
+  textarea.style.pointerEvents = "none";
+
+  document.body.append(textarea);
+  textarea.focus();
+  textarea.select();
+  textarea.setSelectionRange(0, textarea.value.length);
+
+  const copied = document.execCommand?.("copy");
+  textarea.remove();
+
+  if (!copied) {
+    throw new Error("Copy command failed");
+  }
+}
+
+async function copyTextToClipboard(text) {
+  if (
+    typeof window !== "undefined" &&
+    typeof navigator !== "undefined" &&
+    window.isSecureContext &&
+    navigator.clipboard?.writeText
+  ) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  fallbackCopyText(text);
 }
 
 async function saveExport(blob, filename) {
@@ -394,6 +447,7 @@ export default function App() {
   const [selectedTheme, setSelectedTheme] = useState(getInitialTheme);
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState("");
+  const [copyState, setCopyState] = useState("idle");
   const [pendingAction, setPendingAction] = useState(null);
 
   const notes = splitSections(markdown);
@@ -415,6 +469,20 @@ export default function App() {
     document.documentElement.dataset.theme = selectedTheme;
   }, [selectedTheme]);
 
+  useEffect(() => {
+    if (copyState === "idle") {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setCopyState("idle");
+    }, 1800);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [copyState]);
+
   async function handleExport() {
     if (isExporting) {
       return;
@@ -423,7 +491,7 @@ export default function App() {
     try {
       setIsExporting(true);
       setExportError("");
-      const filename = slugifyFilename(markdown);
+      const filename = buildExportFilename();
       const blob = await tryServerExport(markdown, filename, selectedTheme);
       await saveExport(blob, filename);
     } catch (error) {
@@ -431,6 +499,16 @@ export default function App() {
       setExportError(getExportErrorMessage(error));
     } finally {
       setIsExporting(false);
+    }
+  }
+
+  async function handleCopyMarkdown() {
+    try {
+      await copyTextToClipboard(markdown);
+      setCopyState("copied");
+    } catch (error) {
+      console.error("Markdown copy failed", error);
+      setCopyState("failed");
     }
   }
 
@@ -488,6 +566,84 @@ export default function App() {
               }
             >
               清空重写
+            </button>
+            <button
+              type="button"
+              className={`toolbar-icon-button${copyState === "copied" ? " copied" : ""}${copyState === "failed" ? " failed" : ""}`}
+              aria-label={
+                copyState === "copied"
+                  ? "已复制 Markdown"
+                  : copyState === "failed"
+                    ? "复制 Markdown 失败"
+                    : "复制 Markdown"
+              }
+              title={
+                copyState === "copied"
+                  ? "已复制 Markdown"
+                  : copyState === "failed"
+                    ? "复制失败，请重试"
+                    : "复制 Markdown"
+              }
+              onClick={handleCopyMarkdown}
+            >
+              {copyState === "copied" ? (
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path
+                    d="M6.75 12.5 10.2 16l7.05-8"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.15"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              ) : copyState === "failed" ? (
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path
+                    d="M12 7.25v5.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.15"
+                    strokeLinecap="round"
+                  />
+                  <circle cx="12" cy="16.75" r="1.15" fill="currentColor" />
+                  <path
+                    d="M10.1 3.9a2.2 2.2 0 0 1 3.8 0l6.2 10.9A2.2 2.2 0 0 1 18.2 18H5.8a2.2 2.2 0 0 1-1.9-3.2z"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <rect
+                    x="9"
+                    y="7"
+                    width="9"
+                    height="11"
+                    rx="2.2"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                  />
+                  <path
+                    d="M7 15.2H6.2A2.2 2.2 0 0 1 4 13V6.2A2.2 2.2 0 0 1 6.2 4h6.6A2.2 2.2 0 0 1 15 6.2V7"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M11.25 10.25h4.5M11.25 13h4.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              )}
             </button>
           </div>
 
