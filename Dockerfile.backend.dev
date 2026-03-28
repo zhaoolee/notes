@@ -6,8 +6,9 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 ENV PORT=3001
-ENV EXPORT_APP_URL=http://frontend:5173
+ENV EXPORT_APP_URL=http://frontend:15173
+ENV IMAGE_STORAGE_DIR=/app/storage/images
 
 EXPOSE 3001
 
-CMD ["npm", "run", "backend:watch"]
+CMD ["sh", "scripts/dev-entrypoint.sh", "backend", "npm", "run", "backend:watch"]

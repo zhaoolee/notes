@@ -5,6 +5,6 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-EXPOSE 5173
+EXPOSE 15173
 
-CMD ["npm", "run", "dev:docker"]
+CMD ["sh", "scripts/dev-entrypoint.sh", "frontend", "npm", "run", "dev:docker"]

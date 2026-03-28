@@ -4,24 +4,37 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "backend": "node server/index.js",
-    "backend:watch": "node --watch server/index.js",
+    "backend": "tsx server/index.ts",
+    "backend:watch": "tsx watch server/index.ts",
     "dev": "vite",
-    "dev:docker": "vite --host 0.0.0.0 --port 5173",
-    "build": "vite build",
-    "build:static": "vite build",
+    "dev:docker": "vite --host 0.0.0.0 --port 15173",
+    "build": "npm run typecheck && npm run build:server && vite build",
+    "build:static": "npm run typecheck:app && vite build",
+    "build:server": "tsc -p tsconfig.server.json",
+    "typecheck": "npm run typecheck:app && npm run typecheck:server",
+    "typecheck:app": "tsc --noEmit -p tsconfig.json",
+    "typecheck:server": "tsc --noEmit -p tsconfig.server.json",
     "preview": "vite preview"
   },
   "dependencies": {
     "express": "^5.2.1",
+    "multer": "^2.1.1",
     "playwright": "^1.58.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.1.0",
+    "@types/node": "^25.5.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
     "vite": "^7.1.2"
   }
 }

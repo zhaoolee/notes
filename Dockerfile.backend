@@ -1,3 +1,15 @@
+FROM mcr.microsoft.com/playwright:v1.58.2-noble AS build
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY tsconfig.server.json ./
+COPY server ./server
+
+RUN npm run build:server
+
 FROM mcr.microsoft.com/playwright:v1.58.2-noble
 
 WORKDIR /app
@@ -5,12 +17,13 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY server ./server
+COPY --from=build /app/dist-server ./dist-server
 
 ENV NODE_ENV=production
 ENV PORT=3001
 ENV EXPORT_APP_URL=http://frontend
+ENV IMAGE_STORAGE_DIR=/app/storage/images
 
 EXPOSE 3001
 
-CMD ["node", "server/index.js"]
+CMD ["node", "dist-server/index.js"]

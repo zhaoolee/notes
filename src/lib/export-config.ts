@@ -1,0 +1,3 @@
+export const EXPORT_RETRY_LIMIT = 3;
+export const EXPORT_RETRY_BASE_DELAY_MS = 600;
+export const EXPORT_REQUEST_TIMEOUT_MS = 20_000;
