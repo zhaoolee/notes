@@ -103,7 +103,7 @@ export default function App() {
           <div className="app-topbar-inner">
             <div className="app-brand">
               <div className="app-brand-mark" aria-hidden="true">
-                <img src="/public/header/logo.png" alt="" />
+                <img src="/header/logo.png" alt="" />
               </div>
               <div className="app-brand-copy">
                 <span className="app-brand-title">锤子便签Skill</span>

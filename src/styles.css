@@ -59,7 +59,7 @@
   --editor-font-size: 1.08rem;
   --editor-rule-offset-y: 0.12rem;
   --app-background:
-    url("/public/bg.jpg") left top / 420px auto repeat;
+    url("/bg.jpg") left top / 420px auto repeat;
   --preview-stage-bg:
     linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(232, 219, 199, 0.38));
   --selector-surface: rgba(255, 255, 255, 0.55);
@@ -142,7 +142,7 @@
   --app-background:
     linear-gradient(160deg, rgba(11, 13, 17, 0.88) 0%, rgba(22, 26, 32, 0.82) 55%, rgba(9, 11, 15, 0.9) 100%),
     radial-gradient(circle at top, rgba(240, 194, 133, 0.08), transparent 24%),
-    url("/public/bg.jpg") center / cover fixed no-repeat;
+    url("/bg.jpg") center / cover fixed no-repeat;
   --preview-stage-bg:
     radial-gradient(circle at top, rgba(255, 255, 255, 0.04), transparent 26%),
     linear-gradient(180deg, rgba(11, 14, 18, 0.86), rgba(20, 24, 30, 0.98));
@@ -292,7 +292,7 @@ body,
 
 .app-brand-title {
   color: rgba(255, 255, 255, 0.96);
-  font-size: 1.2rem;
+  font-size: 18px;
   font-weight: 700;
   letter-spacing: 0.01em;
 }
@@ -1170,7 +1170,7 @@ body,
   }
 
   .app-brand-title {
-    font-size: 1.02rem;
+    font-size: 18px;
   }
 
   .app-topbar-actions {
