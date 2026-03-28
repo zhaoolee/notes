@@ -40,7 +40,7 @@ docker compose -f docker-compose.dev.yml up --build
 
 访问地址：
 
-- 前端：`http://127.0.0.1:5173`
+- 前端：`http://127.0.0.1:15173`
 - 后端导出 API：`http://127.0.0.1:3001/api/export`
 
 说明：

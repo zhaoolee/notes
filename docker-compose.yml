@@ -12,3 +12,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
+    environment:
+      IMAGE_STORAGE_DIR: /app/storage/images
+    volumes:
+      - ./storage/images:/app/storage/images

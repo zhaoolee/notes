@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile.frontend.dev
     ports:
-      - "5173:5173"
+      - "15173:15173"
     environment:
       VITE_API_PROXY_TARGET: http://backend:3001
       VITE_USE_POLLING: "true"
@@ -22,10 +22,12 @@ services:
       - "3001:3001"
     environment:
       PORT: "3001"
-      EXPORT_APP_URL: http://frontend:5173
+      EXPORT_APP_URL: http://frontend:15173
+      IMAGE_STORAGE_DIR: /app/storage/images
     volumes:
       - .:/app
       - backend_node_modules:/app/node_modules
+      - ./storage/images:/app/storage/images
 
 volumes:
   frontend_node_modules:
