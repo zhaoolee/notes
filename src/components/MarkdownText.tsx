@@ -20,8 +20,6 @@ const markdownComponents: Components = {
       alt={alt ?? ""}
       loading="eager"
       decoding="sync"
-      crossOrigin="anonymous"
-      referrerPolicy="no-referrer"
     />
   ),
   code: ({ children, className }) => <code className={className}>{children}</code>,

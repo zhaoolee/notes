@@ -224,10 +224,10 @@ def upload_image(file_path: str) -> str:
     except json.JSONDecodeError as error:
         raise SystemExit(f"图片上传成功但返回了无效响应：{error}")
 
-    image_url = data.get("url") if isinstance(data, dict) else None
+    image_url = (data.get("path") or data.get("url")) if isinstance(data, dict) else None
 
     if not image_url:
-        raise SystemExit("图片上传成功但响应中缺少 url。")
+        raise SystemExit("图片上传成功但响应中缺少 path/url。")
 
     return image_url
 

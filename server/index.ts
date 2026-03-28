@@ -71,6 +71,44 @@ function getPublicBaseUrl(request: Request): string {
   return `${protocol}://${host}`;
 }
 
+function normalizeRenderableImageUrls(
+  markdown: string,
+  request: Request,
+  renderUrl: string,
+): string {
+  const knownHosts = new Set<string>(["127.0.0.1", "localhost", "::1", "frontend", "backend"]);
+
+  try {
+    knownHosts.add(new URL(renderUrl).hostname.toLowerCase());
+  } catch {
+    // Ignore invalid render URL and keep built-in host allowlist.
+  }
+
+  try {
+    knownHosts.add(new URL(getPublicBaseUrl(request)).hostname.toLowerCase());
+  } catch {
+    // Ignore invalid public base URL and keep built-in host allowlist.
+  }
+
+  return markdown.replace(/https?:\/\/[^\s<>)"'`]+/g, (value) => {
+    try {
+      const url = new URL(value);
+
+      if (!url.pathname.startsWith("/images/")) {
+        return value;
+      }
+
+      if (!knownHosts.has(url.hostname.toLowerCase())) {
+        return value;
+      }
+
+      return `${url.pathname}${url.search}${url.hash}`;
+    } catch {
+      return value;
+    }
+  });
+}
+
 async function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
     browserPromise = chromium.launch({ headless: true });
@@ -415,11 +453,16 @@ app.post(
   ) => {
     try {
       const body = request.body || {};
-      const markdown = await resolveMarkdown(body);
       const theme = resolveTheme(body);
+      const renderUrl = getRenderUrl(request, theme);
+      const markdown = normalizeRenderableImageUrls(
+        await resolveMarkdown(body),
+        request,
+        renderUrl,
+      );
       const filename = resolveExportFilename(body.filename);
 
-      const pngBuffer = await renderNotePng(markdown, getRenderUrl(request, theme));
+      const pngBuffer = await renderNotePng(markdown, renderUrl);
 
       response.setHeader("Content-Type", "image/png");
       response.setHeader("Content-Disposition", `inline; filename="${filename}"`);

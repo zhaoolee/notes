@@ -184,7 +184,7 @@ export function EditorPanel({
         typeof source === "string"
           ? await importImageUrl(source)
           : await importImageFile(source);
-      insertImageMarkdown(result.url);
+      insertImageMarkdown(result.path || result.url);
     } catch (error) {
       console.error("Image import failed", error);
       setImageImportError(
