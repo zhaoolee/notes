@@ -185,6 +185,11 @@ body,
   margin: 0;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 .app-layout {
   min-height: 100vh;
   display: flex;
@@ -729,6 +734,8 @@ body,
     var(--editor-paper-base);
   color: #635852;
   line-height: var(--editor-line-height);
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
   background-attachment: local;
   background-position:
     0 0,
@@ -1110,6 +1117,10 @@ body,
 }
 
 @media (max-width: 1180px) {
+  :root {
+    --preview-stage-padding-x: 14px;
+  }
+
   .app-shell {
     height: auto;
     max-height: none;
@@ -1149,6 +1160,13 @@ body,
 }
 
 @media (max-width: 640px) {
+  :root {
+    --editor-line-height: 52px;
+    --editor-font-size: 16px;
+    --editor-rule-offset-y: 0px;
+    --preview-stage-padding-x: 8px;
+  }
+
   .app-topbar {
     position: sticky;
     top: 0;
@@ -1183,7 +1201,7 @@ body,
 
   .app-shell {
     gap: 16px;
-    padding: 0 10px 0 0;
+    padding: 0;
   }
 
   .editor-panel {
@@ -1191,12 +1209,18 @@ body,
   }
 
   .preview-panel {
-    padding: 0;
+    padding: 0 10px;
+  }
+
+  .preview-stage {
+    overflow-x: hidden;
+    padding-top: 14px;
+    padding-bottom: 18px;
   }
 
   .markdown-editor {
-    padding-left: calc(var(--editor-gutter-width) + 20px);
-    font-size: 1rem;
+    padding:
+      0 1.1rem 1.25rem calc(var(--editor-gutter-width) + 18px);
   }
 
   .theme-selector-options {
