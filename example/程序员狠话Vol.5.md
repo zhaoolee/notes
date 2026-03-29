@@ -2,6 +2,7 @@
 > 话题：到 2027 年，美国新车将被强制配备联邦监控技术
 如果我在加州乡下家里喝了酒，深夜突然遇到山火需要逃命，我的车还会允许我开走吗？如果这辆车是政府免费送的，我也许会考虑接受这些条件；否则完全没兴趣。
 
+![dog](https://raw.githubusercontent.com/zhaoolee/notes/refs/heads/dev/README.assets/dog.jpeg)
 
 ## **0x02**
 > 话题：Han，一门用 Rust 编写的韩语编程语言
