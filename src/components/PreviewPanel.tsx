@@ -83,7 +83,8 @@ export function PreviewPanel({ notes, exportError }: PreviewPanelProps) {
 
             {!notes.length ? (
               <article className="note-section empty-state">
-                <p>不要因为走得太远，就忘了当初为什么出发。</p>
+                <p>不要因为走得太远，</p>
+                <p>就忘了当初为什么出发。</p>
                 <p>Don't forget why you started just because you've come so far.</p>
               </article>
             ) : null}

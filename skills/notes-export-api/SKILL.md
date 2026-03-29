@@ -7,6 +7,8 @@ description: 通过可配置的 notes-export-api 导出接口，把 Markdown 内
 
 直接调用导出 API 做便签导出，不在本地重写渲染逻辑。
 
+开源地址：`https://github.com/zhaoolee/notes`
+
 ## 工作流
 
 1. 使用 `scripts/export_note.sh`。
