@@ -1,110 +1,15 @@
-import { useRef, useState, type ClipboardEvent, type DragEvent } from "react";
+import { useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent } from "react";
 import { importImageFile, importImageUrl } from "../lib/images";
-import type { CopyState, ThemeId } from "../types/app";
+import type { ThemeId } from "../types/app";
 import { ThemeSelector } from "./ThemeSelector";
 
 interface EditorPanelProps {
   markdown: string;
   selectedTheme: ThemeId;
-  copyState: CopyState;
   onThemeChange: (themeId: ThemeId) => void;
   onLoadExample: () => void;
   onClearMarkdown: () => void;
-  onCopyMarkdown: () => void;
   onMarkdownChange: (markdown: string) => void;
-}
-
-function CopyActionIcon({ copyState }: { copyState: CopyState }) {
-  if (copyState === "copied") {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path
-          d="M6.75 12.5 10.2 16l7.05-8"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.15"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    );
-  }
-
-  if (copyState === "failed") {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <path
-          d="M12 7.25v5.5"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.15"
-          strokeLinecap="round"
-        />
-        <circle cx="12" cy="16.75" r="1.15" fill="currentColor" />
-        <path
-          d="M10.1 3.9a2.2 2.2 0 0 1 3.8 0l6.2 10.9A2.2 2.2 0 0 1 18.2 18H5.8a2.2 2.2 0 0 1-1.9-3.2z"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.75"
-          strokeLinejoin="round"
-        />
-      </svg>
-    );
-  }
-
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <rect
-        x="9"
-        y="7"
-        width="9"
-        height="11"
-        rx="2.2"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-      />
-      <path
-        d="M7 15.2H6.2A2.2 2.2 0 0 1 4 13V6.2A2.2 2.2 0 0 1 6.2 4h6.6A2.2 2.2 0 0 1 15 6.2V7"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M11.25 10.25h4.5M11.25 13h4.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function getCopyButtonLabel(copyState: CopyState): string {
-  if (copyState === "copied") {
-    return "已复制 Markdown";
-  }
-
-  if (copyState === "failed") {
-    return "复制 Markdown 失败";
-  }
-
-  return "复制 Markdown";
-}
-
-function getCopyButtonTitle(copyState: CopyState): string {
-  if (copyState === "copied") {
-    return "已复制 Markdown";
-  }
-
-  if (copyState === "failed") {
-    return "复制失败，请重试";
-  }
-
-  return "复制 Markdown";
 }
 
 function isHttpUrl(value: string): boolean {
@@ -142,22 +47,43 @@ function extractImageFile(files: FileList | File[]): File | null {
 export function EditorPanel({
   markdown,
   selectedTheme,
-  copyState,
   onThemeChange,
   onLoadExample,
   onClearMarkdown,
-  onCopyMarkdown,
   onMarkdownChange,
 }: EditorPanelProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const selectionRef = useRef({
+    start: markdown.length,
+    end: markdown.length,
+  });
   const [isImportingImage, setIsImportingImage] = useState(false);
   const [imageImportError, setImageImportError] = useState("");
   const [isDropTargetActive, setIsDropTargetActive] = useState(false);
 
+  function syncSelection(): void {
+    const textarea = textareaRef.current;
+
+    if (!textarea) {
+      return;
+    }
+
+    selectionRef.current = {
+      start: textarea.selectionStart ?? markdown.length,
+      end: textarea.selectionEnd ?? markdown.length,
+    };
+  }
+
   function insertImageMarkdown(imageUrl: string): void {
     const textarea = textareaRef.current;
-    const selectionStart = textarea?.selectionStart ?? markdown.length;
-    const selectionEnd = textarea?.selectionEnd ?? markdown.length;
+    const hasFocus = typeof document !== "undefined" && document.activeElement === textarea;
+    const selectionStart = hasFocus
+      ? (textarea?.selectionStart ?? markdown.length)
+      : selectionRef.current.start;
+    const selectionEnd = hasFocus
+      ? (textarea?.selectionEnd ?? markdown.length)
+      : selectionRef.current.end;
     const before = markdown.slice(0, selectionStart);
     const after = markdown.slice(selectionEnd);
     const imageMarkdown = `![图片](${imageUrl})`;
@@ -169,6 +95,10 @@ export function EditorPanel({
 
     onMarkdownChange(nextMarkdown);
     setImageImportError("");
+    selectionRef.current = {
+      start: nextCursorPosition,
+      end: nextCursorPosition,
+    };
 
     window.requestAnimationFrame(() => {
       textarea?.focus();
@@ -250,6 +180,21 @@ export function EditorPanel({
     }
   }
 
+  function handleImageButtonClick(): void {
+    imageInputRef.current?.click();
+  }
+
+  async function handleImageInputChange(event: ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    await handleImportedSource(file);
+  }
+
   function handleDragEnter(event: DragEvent<HTMLTextAreaElement>): void {
     event.preventDefault();
     setIsDropTargetActive(true);
@@ -277,20 +222,23 @@ export function EditorPanel({
         <ThemeSelector value={selectedTheme} onChange={onThemeChange} />
 
         <div className="toolbar">
-          <button type="button" onClick={onLoadExample}>
-            加载示例
-          </button>
-          <button type="button" onClick={onClearMarkdown}>
-            清空重写
-          </button>
           <button
             type="button"
-            className={`toolbar-icon-button${copyState === "copied" ? " copied" : ""}${copyState === "failed" ? " failed" : ""}`}
-            aria-label={getCopyButtonLabel(copyState)}
-            title={getCopyButtonTitle(copyState)}
-            onClick={onCopyMarkdown}
-          >
-            <CopyActionIcon copyState={copyState} />
+            className="primary preview-export toolbar-new-note-button"
+            aria-label="新便签"
+            title="新便签"
+            onClick={onClearMarkdown}
+          />
+          <button
+            type="button"
+            className="primary preview-export toolbar-insert-image-button"
+            aria-label="插入图片"
+            title="插入图片"
+            onClick={handleImageButtonClick}
+            disabled={isImportingImage}
+          />
+          <button type="button" className="primary preview-export" onClick={onLoadExample}>
+            加载示例
           </button>
         </div>
       </div>
@@ -303,12 +251,25 @@ export function EditorPanel({
         {isDropTargetActive ? (
           <div className="markdown-drop-indicator">松手即可导入图片</div>
         ) : null}
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(event) => {
+            void handleImageInputChange(event);
+          }}
+        />
         <textarea
           id="markdown-editor"
           ref={textareaRef}
           className="markdown-editor"
           value={markdown}
           onChange={(event) => onMarkdownChange(event.target.value)}
+          onSelect={syncSelection}
+          onClick={syncSelection}
+          onKeyUp={syncSelection}
+          onFocus={syncSelection}
           onPaste={(event) => {
             void importFromClipboard(event);
           }}
