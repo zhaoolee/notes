@@ -821,6 +821,7 @@ body,
 
 .note-copy p {
   margin: 0;
+  white-space: pre-wrap;
 }
 
 .note-copy p + p {
