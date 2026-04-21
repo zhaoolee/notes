@@ -3,7 +3,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-REPO_ROOT="$(cd "$SKILL_DIR/../.." && pwd)"
 REMOTE_DEFAULT_ENDPOINT="https://notes.fangyuanxiaozhan.com/api/export"
 LOCAL_DEFAULT_BASE_URLS=(
   "http://127.0.0.1:18080"
@@ -111,9 +110,7 @@ resolve_default_endpoint() {
   echo "$REMOTE_DEFAULT_ENDPOINT"
 }
 
-for env_file in "$REPO_ROOT/.env" "$SKILL_DIR/.env"; do
-  load_env_file "$env_file" || true
-done
+load_env_file "$SKILL_DIR/.env" || true
 
 DEFAULT_ENDPOINT="$(resolve_default_endpoint)"
 ENDPOINT="$DEFAULT_ENDPOINT"
