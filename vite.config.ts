@@ -1,9 +1,29 @@
+import fs from "node:fs";
+import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   base: "./",
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: "serve-all-icons-png",
+      configureServer(server) {
+        server.middlewares.use("/all_icons.png", (_request, response, next) => {
+          const filePath = path.resolve(server.config.publicDir, "all_icons.png");
+
+          if (!fs.existsSync(filePath)) {
+            next();
+            return;
+          }
+
+          response.setHeader("Content-Type", "image/png");
+          fs.createReadStream(filePath).pipe(response);
+        });
+      },
+    },
+  ],
   server: {
     host: true,
     allowedHosts: true,

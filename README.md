@@ -1,6 +1,15 @@
 # 锤子便签Skill
 
-一个锤子便签风格的导出器，支持暖白纸感，深夜便签两个主题，用来分享与openclaw的对话记录。
+- 一个锤子便签风格的导出器，支持**暖白纸感**，**深夜便签**两个主题。
+- 可用来分享与openclaw的对话记录。
+- 纯web应用，无需安装任何App。
+- 支持PC端和手机版，打开即用。
+- 支持图片插入。
+- 支持直接导出便签为图片，或复制为markdown格式进行分享。
+- 自带浏览器持久化，关闭页面也不会丢失数据。
+- 开源免费，可私有化部署。
+- 工匠精神沁入AI，可以通过AI Skill直接调用工具，生成便签。
+- 可封装为单个 Docker 镜像，通过 GitHub Actions 自动构建并发布到 Docker Hub，开发者可直接 `docker pull` 后本地运行。
 
 ## 通过skill调用
 
@@ -40,8 +49,8 @@ docker compose -f docker-compose.dev.yml up --build
 
 访问地址：
 
-- 前端：`http://127.0.0.1:15173`
-- 后端导出 API：`http://127.0.0.1:3001/api/export`
+- 开发入口：`http://127.0.0.1:15173`
+- 导出 API：`http://127.0.0.1:15173/api/export`
 
 说明：
 
@@ -49,6 +58,7 @@ docker compose -f docker-compose.dev.yml up --build
 - 前端开启 Vite HMR，适合日常开发
 - 后端使用 `node --watch`，修改后会自动重启
 - 源码通过 volume 挂载到容器，不依赖宿主机 Node.js 环境
+- 开发环境只暴露一个端口 `15173`
 
 停止：
 
@@ -85,3 +95,98 @@ docker compose logs -f
 ```bash
 docker compose down
 ```
+
+## Docker Hub 单镜像分发
+
+这个项目已经支持打包为单个镜像，不依赖 `notes.fangyuanxiaozhan.com` 才能运行：
+
+- 镜像内同时包含前端静态资源和后端导出服务
+- 容器启动后直接访问 `http://127.0.0.1:18080`
+- 导出的图片默认落在挂载出来的 `storage/images`
+- 容器内部固定监听 `3001`，对外默认映射到 `18080`
+
+使用 `docker run` 启动：
+
+```bash
+mkdir -p ./storage/images
+
+docker run -d --rm \
+  --name notes \
+  -p 18080:3001 \
+  -v "$(pwd)/storage/images:/app/storage/images" \
+  zhaoolee/notes:latest
+```
+
+如果想使用 `dev` 尝鲜版：
+
+```bash
+docker run -d --rm \
+  --name notes \
+  -p 18080:3001 \
+  -v "$(pwd)/storage/images:/app/storage/images" \
+  zhaoolee/notes:dev
+```
+
+使用 `docker compose` 启动：
+
+```bash
+NOTES_EXPORTER_IMAGE=yourname/notes:latest \
+docker compose -f docker-compose.hub.yml up -d
+```
+
+如果想使用 `dev` 尝鲜版：
+
+```bash
+NOTES_EXPORTER_IMAGE=yourname/notes:dev \
+docker compose -f docker-compose.hub.yml up -d
+```
+
+如果还想覆盖端口：
+
+```bash
+NOTES_EXPORTER_IMAGE=yourname/notes:latest \
+NOTES_EXPORTER_PORT=18080 \
+docker compose -f docker-compose.hub.yml up -d
+```
+
+也可以写到仓库根目录 `.env`：
+
+```bash
+NOTES_EXPORTER_IMAGE=yourname/notes:latest
+NOTES_EXPORTER_PORT=18080
+```
+
+说明：
+
+- `latest` 适合稳定使用，`dev` 适合提前体验新改动
+- 若 `18080` 已被占用，可改成别的外部端口，例如 `-p 18081:3001` 或 `NOTES_EXPORTER_PORT=18081`
+- `storage/images` 建议挂载到宿主机，否则容器删除后上传图片会一起丢失
+
+## GitHub Actions 发布到 Docker Hub
+
+仓库已包含 [`.github/workflows/docker-publish.yml`](./.github/workflows/docker-publish.yml)。
+
+需要在 GitHub 仓库中配置：
+
+- `DOCKERHUB_USERNAME` secret
+- `DOCKERHUB_TOKEN` secret
+- 可选：`DOCKERHUB_REPOSITORY` repository variable，默认值为 `notes`
+
+触发方式：
+
+- push 到 `dev`，发布尝鲜镜像 `:dev`
+- push 到 `main`，发布稳定镜像 `:latest`
+- push `v*` 标签
+- 手动运行 `workflow_dispatch`
+
+发布后的默认镜像名为：
+
+```text
+DOCKERHUB_USERNAME/notes
+```
+
+## 去域名依赖说明
+
+- Web 应用本体可完全本地自托管，不依赖 `notes.fangyuanxiaozhan.com`
+- 现有 `notes-export-api` skill 脚本会优先探测本地生产入口 `18080`，再回退到线上演示地址
+- 如果你希望 skill 固定走自建服务，可在 `.env` 中设置 `NOTES_EXPORT_API_BASE_URL=http://127.0.0.1:18080`

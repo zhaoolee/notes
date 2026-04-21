@@ -38,3 +38,28 @@ export async function copyTextToClipboard(text: string): Promise<void> {
 
   fallbackCopyText(text);
 }
+
+function joinWithOrigin(origin: string, path: string): string {
+  return `${origin}${path}`;
+}
+
+function replaceMarkdownImageUrls(markdown: string, origin: string): string {
+  return markdown.replace(/(!\[[^\]]*]\()(["']?)(\/images\/[^)\s"']+)\2(\))/g, (_match, prefix, quote, path, suffix) =>
+    `${prefix}${quote}${joinWithOrigin(origin, path)}${quote}${suffix}`,
+  );
+}
+
+function replaceHtmlImageUrls(markdown: string, origin: string): string {
+  return markdown.replace(/(<img\b[^>]*\bsrc=)(["'])(\/images\/[^"']+)(\2)/gi, (_match, prefix, quote, path, suffix) =>
+    `${prefix}${quote}${joinWithOrigin(origin, path)}${suffix}`,
+  );
+}
+
+export function normalizeClipboardMarkdown(markdown: string): string {
+  if (typeof window === "undefined" || !window.location?.origin) {
+    return markdown;
+  }
+
+  const origin = window.location.origin;
+  return replaceHtmlImageUrls(replaceMarkdownImageUrls(markdown, origin), origin);
+}

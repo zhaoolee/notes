@@ -4,7 +4,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$SKILL_DIR/../.." && pwd)"
-DEFAULT_ENDPOINT="https://notes.fangyuanxiaozhan.com/api/export"
+REMOTE_DEFAULT_ENDPOINT="https://notes.fangyuanxiaozhan.com/api/export"
+LOCAL_DEFAULT_BASE_URLS=(
+  "http://127.0.0.1:18080"
+)
+DEFAULT_ENDPOINT="$REMOTE_DEFAULT_ENDPOINT"
 ENDPOINT="$DEFAULT_ENDPOINT"
 IMAGE_IMPORT_ENDPOINT=""
 MARKDOWN=""
@@ -88,10 +92,31 @@ load_endpoint_from_env() {
   fi
 }
 
+probe_endpoint() {
+  local base_url="$1"
+
+  curl -fsS --max-time 2 "${base_url%/}/api/health" >/dev/null 2>&1
+}
+
+resolve_default_endpoint() {
+  local base_url=""
+
+  for base_url in "${LOCAL_DEFAULT_BASE_URLS[@]}"; do
+    if probe_endpoint "$base_url"; then
+      echo "$(normalize_endpoint "$base_url")"
+      return
+    fi
+  done
+
+  echo "$REMOTE_DEFAULT_ENDPOINT"
+}
+
 for env_file in "$REPO_ROOT/.env" "$SKILL_DIR/.env"; do
   load_env_file "$env_file" || true
 done
 
+DEFAULT_ENDPOINT="$(resolve_default_endpoint)"
+ENDPOINT="$DEFAULT_ENDPOINT"
 load_endpoint_from_env
 
 usage() {
@@ -109,8 +134,8 @@ Options:
   --endpoint URL          Override API endpoint or base URL
 
 .env:
+  NOTES_EXPORT_API_BASE_URL=http://127.0.0.1:18080
   NOTES_EXPORT_API_BASE_URL=https://notes.fangyuanxiaozhan.com
-  NOTES_EXPORT_API_BASE_URL=http://127.0.0.1:15713
 EOF
 }
 

@@ -18,8 +18,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend.dev
-    ports:
-      - "3001:3001"
     environment:
       PORT: "3001"
       EXPORT_APP_URL: http://frontend:15173

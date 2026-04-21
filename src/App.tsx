@@ -9,10 +9,23 @@ import {
   SAMPLE_MARKDOWN_CONTENT,
   THEME_STORAGE_KEY,
 } from "./lib/app-state";
-import { copyTextToClipboard } from "./lib/clipboard";
+import { copyTextToClipboard, normalizeClipboardMarkdown } from "./lib/clipboard";
 import { exportMarkdownAsPng, getExportErrorMessage } from "./lib/export";
 import { splitSections } from "./lib/markdown";
 import { useAppStore } from "./store/useAppStore";
+import type { CopyState } from "./types/app";
+
+function getCopyButtonText(copyState: CopyState): string {
+  if (copyState === "copied") {
+    return "已复制文本";
+  }
+
+  if (copyState === "failed") {
+    return "复制失败";
+  }
+
+  return "复制文本";
+}
 
 export default function App() {
   const renderMode = getRenderMode();
@@ -84,7 +97,7 @@ export default function App() {
 
   async function handleCopyMarkdown() {
     try {
-      await copyTextToClipboard(markdown);
+      await copyTextToClipboard(normalizeClipboardMarkdown(markdown));
       setCopyState("copied");
     } catch (error) {
       console.error("Markdown copy failed", error);
@@ -111,8 +124,11 @@ export default function App() {
             </div>
 
             <div className="app-topbar-actions">
+              <button type="button" className="primary preview-export" onClick={handleCopyMarkdown}>
+                {getCopyButtonText(copyState)}
+              </button>
               <button type="button" className="primary preview-export" onClick={handleExport}>
-                {isExporting ? "导出中..." : "保存图片"}
+                {isExporting ? "导出中..." : "存图"}
               </button>
             </div>
           </div>
@@ -122,7 +138,6 @@ export default function App() {
           <EditorPanel
             markdown={markdown}
             selectedTheme={selectedTheme}
-            copyState={copyState}
             onThemeChange={setSelectedTheme}
             onLoadExample={() =>
               requestReplaceMarkdown(
@@ -138,7 +153,6 @@ export default function App() {
                 "这会清空当前草稿，建议确认后再继续。",
               )
             }
-            onCopyMarkdown={handleCopyMarkdown}
             onMarkdownChange={setMarkdown}
           />
 
