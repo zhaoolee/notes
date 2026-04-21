@@ -1,4 +1,4 @@
-import express, { type Request, type Response } from "express";
+import express, { type NextFunction, type Request, type Response } from "express";
 import fs from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -69,6 +69,15 @@ function getPublicBaseUrl(request: Request): string {
   const protocol = request.get("x-forwarded-proto") || request.protocol || "http";
   const host = request.get("x-forwarded-host") || request.get("host");
   return `${protocol}://${host}`;
+}
+
+function applyCorsHeaders(request: Request, response: Response): void {
+  response.setHeader("Access-Control-Allow-Origin", "*");
+  response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  response.setHeader(
+    "Access-Control-Allow-Headers",
+    request.get("access-control-request-headers") || "Content-Type, Authorization",
+  );
 }
 
 function normalizeRenderableImageUrls(
@@ -441,6 +450,17 @@ async function renderNotePng(markdown: string, renderUrl: string): Promise<Buffe
 }
 
 const app = express();
+
+app.use((request: Request, response: Response, next: NextFunction) => {
+  applyCorsHeaders(request, response);
+
+  if (request.method === "OPTIONS") {
+    response.sendStatus(204);
+    return;
+  }
+
+  next();
+});
 
 app.use(express.json({ limit: "10mb" }));
 app.use("/images", express.static(imagesDir, { fallthrough: false, immutable: true, maxAge: "1y" }));

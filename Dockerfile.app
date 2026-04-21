@@ -36,6 +36,7 @@ COPY --from=server-build /app/dist-server ./dist-server
 
 ENV NODE_ENV=production
 ENV PORT=3001
+ENV EXPORT_APP_URL=http://127.0.0.1:3001
 ENV IMAGE_STORAGE_DIR=/app/storage/images
 
 EXPOSE 3001
