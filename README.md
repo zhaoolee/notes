@@ -103,8 +103,31 @@ docker compose down
 - 镜像内同时包含前端静态资源和后端导出服务
 - 容器启动后直接访问 `http://127.0.0.1:18080`
 - 导出的图片默认落在挂载出来的 `storage/images`
+- 容器内部固定监听 `3001`，对外默认映射到 `18080`
 
-启动：
+使用 `docker run` 启动：
+
+```bash
+mkdir -p ./storage/images
+
+docker run -d --rm \
+  --name notes \
+  -p 18080:3001 \
+  -v "$(pwd)/storage/images:/app/storage/images" \
+  zhaoolee/notes:latest
+```
+
+如果想使用 `dev` 尝鲜版：
+
+```bash
+docker run -d --rm \
+  --name notes \
+  -p 18080:3001 \
+  -v "$(pwd)/storage/images:/app/storage/images" \
+  zhaoolee/notes:dev
+```
+
+使用 `docker compose` 启动：
 
 ```bash
 NOTES_EXPORTER_IMAGE=yourname/notes:latest \
@@ -132,6 +155,12 @@ docker compose -f docker-compose.hub.yml up -d
 NOTES_EXPORTER_IMAGE=yourname/notes:latest
 NOTES_EXPORTER_PORT=18080
 ```
+
+说明：
+
+- `latest` 适合稳定使用，`dev` 适合提前体验新改动
+- 若 `18080` 已被占用，可改成别的外部端口，例如 `-p 18081:3001` 或 `NOTES_EXPORTER_PORT=18081`
+- `storage/images` 建议挂载到宿主机，否则容器删除后上传图片会一起丢失
 
 ## GitHub Actions 发布到 Docker Hub
 
