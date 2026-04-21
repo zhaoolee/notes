@@ -3,6 +3,7 @@ name: Publish Docker Image
 on:
   push:
     branches:
+      - dev
       - main
     tags:
       - "v*"
@@ -37,7 +38,7 @@ jobs:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_REPOSITORY: ${{ vars.DOCKERHUB_REPOSITORY }}
           DOCKERHUB_REPOSITORY_SECRET: ${{ secrets.DOCKERHUB_REPOSITORY }}
-          DEFAULT_REPOSITORY: markdown-note-exporter
+          DEFAULT_REPOSITORY: notes
         run: |
           repo="${DOCKERHUB_REPOSITORY:-${DOCKERHUB_REPOSITORY_SECRET:-$DEFAULT_REPOSITORY}}"
           echo "name=${DOCKERHUB_USERNAME}/${repo}" >> "$GITHUB_OUTPUT"
@@ -48,10 +49,10 @@ jobs:
         with:
           images: ${{ steps.image.outputs.name }}
           tags: |
-            type=ref,event=branch
             type=ref,event=tag
-            type=sha
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=sha-
 
       - name: Build and push image
         uses: docker/build-push-action@v6

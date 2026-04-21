@@ -107,14 +107,21 @@ docker compose down
 启动：
 
 ```bash
-NOTES_EXPORTER_IMAGE=yourname/markdown-note-exporter:latest \
+NOTES_EXPORTER_IMAGE=yourname/notes:latest \
+docker compose -f docker-compose.hub.yml up -d
+```
+
+如果想使用 `dev` 尝鲜版：
+
+```bash
+NOTES_EXPORTER_IMAGE=yourname/notes:dev \
 docker compose -f docker-compose.hub.yml up -d
 ```
 
 如果还想覆盖端口：
 
 ```bash
-NOTES_EXPORTER_IMAGE=yourname/markdown-note-exporter:latest \
+NOTES_EXPORTER_IMAGE=yourname/notes:latest \
 NOTES_EXPORTER_PORT=18080 \
 docker compose -f docker-compose.hub.yml up -d
 ```
@@ -122,7 +129,7 @@ docker compose -f docker-compose.hub.yml up -d
 也可以写到仓库根目录 `.env`：
 
 ```bash
-NOTES_EXPORTER_IMAGE=yourname/markdown-note-exporter:latest
+NOTES_EXPORTER_IMAGE=yourname/notes:latest
 NOTES_EXPORTER_PORT=18080
 ```
 
@@ -134,22 +141,23 @@ NOTES_EXPORTER_PORT=18080
 
 - `DOCKERHUB_USERNAME` secret
 - `DOCKERHUB_TOKEN` secret
-- 可选：`DOCKERHUB_REPOSITORY` repository variable，默认值为 `markdown-note-exporter`
+- 可选：`DOCKERHUB_REPOSITORY` repository variable，默认值为 `notes`
 
 触发方式：
 
-- push 到 `main`
+- push 到 `dev`，发布尝鲜镜像 `:dev`
+- push 到 `main`，发布稳定镜像 `:latest`
 - push `v*` 标签
 - 手动运行 `workflow_dispatch`
 
 发布后的默认镜像名为：
 
 ```text
-DOCKERHUB_USERNAME/markdown-note-exporter
+DOCKERHUB_USERNAME/notes
 ```
 
 ## 去域名依赖说明
 
 - Web 应用本体可完全本地自托管，不依赖 `notes.fangyuanxiaozhan.com`
-- 现有 `notes-export-api` skill 脚本会优先探测本地单入口端口（生产 `18080`，开发 `15173`），再回退到线上演示地址
+- 现有 `notes-export-api` skill 脚本会优先探测本地生产入口 `18080`，再回退到线上演示地址
 - 如果你希望 skill 固定走自建服务，可在 `.env` 中设置 `NOTES_EXPORT_API_BASE_URL=http://127.0.0.1:18080`
