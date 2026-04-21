@@ -32,6 +32,12 @@ interface ImageSource {
   filename?: string | null;
 }
 
+interface StoredExport {
+  filename: string;
+  path: string;
+  url: string;
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
@@ -77,6 +83,10 @@ function applyCorsHeaders(request: Request, response: Response): void {
   response.setHeader(
     "Access-Control-Allow-Headers",
     request.get("access-control-request-headers") || "Content-Type, Authorization",
+  );
+  response.setHeader(
+    "Access-Control-Expose-Headers",
+    "Content-Disposition, X-Export-Path, X-Export-Url",
   );
 }
 
@@ -233,6 +243,27 @@ async function hasDistIndex(): Promise<boolean> {
 
 async function ensureImagesDir(): Promise<void> {
   await fs.mkdir(imagesDir, { recursive: true });
+}
+
+async function resolveAvailableExportFilename(filename: string): Promise<string> {
+  await ensureImagesDir();
+
+  const parsed = path.parse(filename);
+  let attempt = 0;
+
+  while (true) {
+    const candidate =
+      attempt === 0
+        ? filename
+        : `${parsed.name}-${attempt + 1}${parsed.ext}`;
+
+    try {
+      await fs.access(path.join(imagesDir, candidate));
+      attempt += 1;
+    } catch {
+      return candidate;
+    }
+  }
 }
 
 function resolveSourceUrl(input: unknown): string | null {
@@ -405,6 +436,25 @@ async function persistImage(
   };
 }
 
+async function persistExport(
+  request: Request,
+  filename: string,
+  pngBuffer: Buffer,
+): Promise<StoredExport> {
+  const storedFilename = await resolveAvailableExportFilename(filename);
+  const filePath = path.join(imagesDir, storedFilename);
+
+  await fs.writeFile(filePath, pngBuffer);
+
+  const publicPath = `/images/${storedFilename}`;
+
+  return {
+    filename: storedFilename,
+    path: publicPath,
+    url: `${getPublicBaseUrl(request)}${publicPath}`,
+  };
+}
+
 function runImageUpload(request: Request, response: Response): Promise<void> {
   return new Promise((resolve, reject) => {
     imageUpload.single("image")(request, response, (error) => {
@@ -480,12 +530,15 @@ app.post(
         request,
         renderUrl,
       );
-      const filename = resolveExportFilename(body.filename);
+      const requestedFilename = resolveExportFilename(body.filename);
 
       const pngBuffer = await renderNotePng(markdown, renderUrl);
+      const storedExport = await persistExport(request, requestedFilename, pngBuffer);
 
       response.setHeader("Content-Type", "image/png");
-      response.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+      response.setHeader("Content-Disposition", `inline; filename="${storedExport.filename}"`);
+      response.setHeader("X-Export-Path", storedExport.path);
+      response.setHeader("X-Export-Url", storedExport.url);
       response.send(pngBuffer);
     } catch (error) {
       const message =

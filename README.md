@@ -47,7 +47,7 @@ clawhub地址 https://clawhub.ai/zhaoolee/notes-export-api
 
 - 镜像内同时包含前端静态资源和后端导出服务
 - 容器启动后直接访问 `http://127.0.0.1:18080`
-- 导出的图片默认落在挂载出来的 `storage/images`
+- 导入图片和导出的便签 PNG 都会落在挂载出来的 `storage/images`
 - 容器内部固定监听 `3001`，对外默认映射到 `18080`
 
 使用 `docker run` 启动：
