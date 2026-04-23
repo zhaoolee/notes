@@ -40,6 +40,10 @@ export function isThemeId(value: string | null | undefined): value is ThemeId {
 }
 
 export function getInitialMarkdown(): string {
+  if (getRenderMode() === "playwright") {
+    return FALLBACK_CONTENT;
+  }
+
   const storedDraft = readStoredValue(DRAFT_STORAGE_KEY);
 
   if (storedDraft != null) {

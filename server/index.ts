@@ -477,7 +477,7 @@ async function renderNotePng(markdown: string, renderUrl: string): Promise<Buffe
 
   try {
     await page.goto(renderUrl, {
-      waitUntil: "networkidle",
+      waitUntil: "domcontentloaded",
     });
 
     const editor = page.locator("#markdown-editor");
