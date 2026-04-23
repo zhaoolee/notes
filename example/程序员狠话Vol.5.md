@@ -22,7 +22,7 @@ https://github.com/zhaoolee/notes
 > 话题：到 2027 年，美国新车将被强制配备联邦监控技术
 如果我在加州乡下家里喝了酒，深夜突然遇到山火需要逃命，我的车还会允许我开走吗？如果这辆车是政府免费送的，我也许会考虑接受这些条件；否则完全没兴趣。
 
-![dog](https://raw.githubusercontent.com/zhaoolee/notes/refs/heads/dev/README.assets/dog.jpeg)
+![dog](/example-assets/dog.jpeg)
 
 ## **0x02**
 > 话题：Han，一门用 Rust 编写的韩语编程语言
@@ -63,6 +63,5 @@ https://github.com/zhaoolee/notes
 ## **0x10**
 > 话题：如何在课堂中使用人工智能？
 如果学生必须戴这个，那老师也该戴，这样我们也能看看老师到底有多专注于教育。孩子就是孩子，让他们去玩，而不是像监控机器一样监控他们。如果连打哈欠和看手机都要被监控，那学生在学校里基本连犯困和无聊的权利都没有了。
-
 
 
