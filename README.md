@@ -55,7 +55,8 @@ clawhub地址 https://clawhub.ai/zhaoolee/notes-export-api
 ```bash
 mkdir -p ./storage/images
 
-docker run -d --rm \
+docker run -d \
+  --restart unless-stopped \
   --name notes \
   -p 18080:3001 \
   -v "$(pwd)/storage/images:/app/storage/images" \
@@ -63,5 +64,6 @@ docker run -d --rm \
 ```
 
 说明：
+- 使用 `--restart unless-stopped` 后，Docker/宿主机重启后容器会自动拉起；如果手动执行 `docker stop notes`，则不会被自动重启
 - 若 `18080` 已被占用，可改成别的外部端口，例如 `-p 18081:3001`
 - `storage/images` 建议挂载到宿主机，否则容器删除后上传图片会一起丢失
