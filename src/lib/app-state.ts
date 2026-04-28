@@ -4,6 +4,8 @@ import type { ThemeId, ThemeOption } from "../types/app";
 export const FALLBACK_CONTENT = "";
 export const DRAFT_STORAGE_KEY = "notes.markdownDraft";
 export const THEME_STORAGE_KEY = "notes.previewTheme";
+export const DEFAULT_FOOTER_BRAND = "由锤子便签发送";
+export const DEFAULT_FOOTER_VIA = "via Smartisan Notes";
 export const THEME_OPTIONS: ThemeOption[] = [
   {
     id: "default",
@@ -71,4 +73,12 @@ export function getInitialTheme(): ThemeId {
 
 export function getRenderMode(): string | null {
   return readSearchParam("renderMode");
+}
+
+export function getInitialFooterBrand(): string {
+  return readSearchParam("footerBrand") ?? DEFAULT_FOOTER_BRAND;
+}
+
+export function getInitialFooterVia(): string {
+  return readSearchParam("footerVia") ?? DEFAULT_FOOTER_VIA;
 }

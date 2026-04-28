@@ -972,6 +972,32 @@ body,
   white-space: nowrap;
 }
 
+.sheet-footer-editable,
+.sheet-footer-input {
+  appearance: none;
+  width: auto;
+  min-width: 0;
+  max-width: calc(150px * var(--note-scale));
+  margin: 0;
+  border: 0;
+  border-radius: calc(2px * var(--note-scale));
+  padding: 0;
+  background: transparent;
+  font-family: inherit;
+  line-height: 1;
+  letter-spacing: inherit;
+  text-align: left;
+}
+
+.sheet-footer-editable {
+  cursor: text;
+}
+
+.sheet-footer-input {
+  outline: 1px solid color-mix(in srgb, var(--footer-icon) 42%, transparent);
+  outline-offset: calc(1px * var(--note-scale));
+}
+
 .sheet-footer-brand {
   color: var(--footer-copy);
   font-size: calc(0.4rem * var(--note-scale));
@@ -984,6 +1010,10 @@ body,
   font-size: calc(0.24rem * var(--note-scale));
   font-weight: 400;
   transform: translateY(calc(-0.01rem * var(--note-scale)));
+}
+
+.sheet-footer-via.sheet-footer-input {
+  transform: none;
 }
 
 .sheet-footer-icon {

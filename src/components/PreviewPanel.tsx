@@ -1,10 +1,21 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import type { NoteSection } from "../types/app";
 import { MarkdownText } from "./MarkdownText";
 
 interface PreviewPanelProps {
   notes: NoteSection[];
   exportError: string;
+  footerBrand: string;
+  footerVia: string;
+  onFooterBrandChange: (footerBrand: string) => void;
+  onFooterViaChange: (footerVia: string) => void;
+}
+
+interface FooterTextEditorProps {
+  className: string;
+  value: string;
+  maxLength: number;
+  onChange: (value: string) => void;
 }
 
 const BASE_NOTE_WIDTH = 330;
@@ -12,7 +23,74 @@ const DESKTOP_NOTE_SCALE = 2;
 const MOBILE_NOTE_SCALE = 1.4;
 const MOBILE_BREAKPOINT = 640;
 
-export function PreviewPanel({ notes, exportError }: PreviewPanelProps) {
+function FooterTextEditor({ className, value, maxLength, onChange }: FooterTextEditorProps) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setDraft(value);
+    }
+  }, [isEditing, value]);
+
+  useEffect(() => {
+    if (isEditing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [isEditing]);
+
+  function commit(nextValue: string) {
+    onChange(nextValue);
+    setIsEditing(false);
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      commit(draft);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      setDraft(value);
+      setIsEditing(false);
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <input
+        ref={inputRef}
+        className={`${className} sheet-footer-input`}
+        value={draft}
+        maxLength={maxLength}
+        onBlur={() => commit(draft)}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={handleKeyDown}
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className={`${className} sheet-footer-editable`}
+      onClick={() => setIsEditing(true)}
+    >
+      {value}
+    </button>
+  );
+}
+
+export function PreviewPanel({
+  notes,
+  exportError,
+  footerBrand,
+  footerVia,
+  onFooterBrandChange,
+  onFooterViaChange,
+}: PreviewPanelProps) {
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [noteScale, setNoteScale] = useState(DESKTOP_NOTE_SCALE);
 
@@ -100,8 +178,18 @@ export function PreviewPanel({ notes, exportError }: PreviewPanelProps) {
               </svg>
             </span>
             <span className="sheet-footer-copy">
-              <span className="sheet-footer-brand">由锤子便签发送</span>
-              <span className="sheet-footer-via">via Smartisan Notes</span>
+              <FooterTextEditor
+                className="sheet-footer-brand"
+                value={footerBrand}
+                maxLength={80}
+                onChange={onFooterBrandChange}
+              />
+              <FooterTextEditor
+                className="sheet-footer-via"
+                value={footerVia}
+                maxLength={80}
+                onChange={onFooterViaChange}
+              />
             </span>
           </div>
         </div>

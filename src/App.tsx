@@ -1,10 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { EditorPanel } from "./components/EditorPanel";
 import { PreviewPanel } from "./components/PreviewPanel";
 import {
   DRAFT_STORAGE_KEY,
   FALLBACK_CONTENT,
+  getInitialFooterBrand,
+  getInitialFooterVia,
   getRenderMode,
   SAMPLE_MARKDOWN_CONTENT,
   THEME_STORAGE_KEY,
@@ -30,6 +32,8 @@ function getCopyButtonText(copyState: CopyState): string {
 export default function App() {
   const renderMode = getRenderMode();
   const isPlaywrightRender = renderMode === "playwright";
+  const [footerBrand, setFooterBrand] = useState(getInitialFooterBrand);
+  const [footerVia, setFooterVia] = useState(getInitialFooterVia);
   const markdown = useAppStore((state) => state.markdown);
   const selectedTheme = useAppStore((state) => state.selectedTheme);
   const isExporting = useAppStore((state) => state.isExporting);
@@ -86,7 +90,10 @@ export default function App() {
     try {
       setIsExporting(true);
       setExportError("");
-      await exportMarkdownAsPng(markdown, selectedTheme);
+      await exportMarkdownAsPng(markdown, selectedTheme, {
+        footerBrand,
+        footerVia,
+      });
     } catch (error) {
       console.error("PNG export failed", error);
       setExportError(getExportErrorMessage(error));
@@ -159,6 +166,10 @@ export default function App() {
           <PreviewPanel
             notes={notes}
             exportError={exportError}
+            footerBrand={footerBrand}
+            footerVia={footerVia}
+            onFooterBrandChange={setFooterBrand}
+            onFooterViaChange={setFooterVia}
           />
         </div>
       </div>

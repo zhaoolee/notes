@@ -1,8 +1,10 @@
 import express, { type NextFunction, type Request, type Response } from "express";
 import fs from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { once } from "node:events";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createDeflate, inflateSync } from "node:zlib";
 import multer, { MulterError } from "multer";
 import { chromium, type Browser, type Locator, type Page } from "playwright";
 
@@ -13,6 +15,8 @@ interface ExportRequestBody {
   markdownPath?: string;
   theme?: string;
   filename?: string;
+  footerBrand?: string;
+  footerVia?: string;
 }
 
 interface ImageImportRequestBody {
@@ -38,6 +42,11 @@ interface StoredExport {
   url: string;
 }
 
+interface FooterConfig {
+  brand?: string;
+  via?: string;
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
@@ -46,6 +55,12 @@ const imagesDir = process.env.IMAGE_STORAGE_DIR || path.join(rootDir, "storage",
 const port = Number(process.env.PORT || 3001);
 const supportedThemes = new Set<ThemeId>(["default", "smartisan-dark"]);
 const maxImageSizeBytes = 20 * 1024 * 1024;
+const exportDeviceScaleFactor = 3;
+const maxSafeScreenshotDimension = 30_000;
+const maxScreenshotChunkHeight = Math.min(
+  3_000,
+  Math.floor(maxSafeScreenshotDimension / exportDeviceScaleFactor),
+);
 const imageUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -55,20 +70,44 @@ const imageUpload = multer({
 
 let browserPromise: Promise<Browser> | undefined;
 
-function buildRenderUrl(baseUrl: string, theme: ThemeId): string {
+interface PngImage {
+  width: number;
+  height: number;
+  colorType: number;
+  channels: number;
+  data: Buffer;
+}
+
+interface PngMetadata {
+  width: number;
+  height: number;
+  colorType: number;
+  channels: number;
+}
+
+function buildRenderUrl(baseUrl: string, theme: ThemeId, footer?: FooterConfig): string {
   const url = new URL("/", baseUrl);
   url.searchParams.set("renderMode", "playwright");
   url.searchParams.set("theme", theme);
+
+  if (footer?.brand != null) {
+    url.searchParams.set("footerBrand", footer.brand);
+  }
+
+  if (footer?.via != null) {
+    url.searchParams.set("footerVia", footer.via);
+  }
+
   return url.toString();
 }
 
-function getRenderUrl(request: Request, theme: ThemeId): string {
+function getRenderUrl(request: Request, theme: ThemeId, footer?: FooterConfig): string {
   if (process.env.EXPORT_APP_URL) {
-    return buildRenderUrl(process.env.EXPORT_APP_URL, theme);
+    return buildRenderUrl(process.env.EXPORT_APP_URL, theme, footer);
   }
 
   const baseUrl = getPublicBaseUrl(request);
-  return buildRenderUrl(baseUrl, theme);
+  return buildRenderUrl(baseUrl, theme, footer);
 }
 
 function getPublicBaseUrl(request: Request): string {
@@ -156,6 +195,21 @@ function resolveTheme(body: ExportRequestBody): ThemeId {
   return "default";
 }
 
+function normalizeFooterText(input: unknown): string | undefined {
+  if (typeof input !== "string") {
+    return undefined;
+  }
+
+  return input.replace(/[\u0000-\u001F\u007F]/g, "").slice(0, 80);
+}
+
+function resolveFooterConfig(body: ExportRequestBody): FooterConfig {
+  return {
+    brand: normalizeFooterText(body.footerBrand),
+    via: normalizeFooterText(body.footerVia),
+  };
+}
+
 function padDatePart(value: number): string {
   return String(value).padStart(2, "0");
 }
@@ -230,6 +284,296 @@ async function waitForStableHeight(locator: Locator): Promise<void> {
     previousHeight = currentHeight;
     await locator.page().waitForTimeout(120);
   }
+}
+
+function getPngChannels(colorType: number): number {
+  switch (colorType) {
+    case 2:
+      return 3;
+    case 6:
+      return 4;
+    default:
+      throw new Error(`Unsupported PNG color type ${colorType}`);
+  }
+}
+
+const crc32Table = new Uint32Array(256);
+
+for (let index = 0; index < crc32Table.length; index += 1) {
+  let value = index;
+
+  for (let bit = 0; bit < 8; bit += 1) {
+    value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+  }
+
+  crc32Table[index] = value >>> 0;
+}
+
+function crc32(buffer: Buffer): number {
+  let crc = 0xffffffff;
+
+  for (const byte of buffer) {
+    crc = crc32Table[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function readPngMetadata(buffer: Buffer): PngMetadata {
+  const signature = buffer.subarray(0, 8);
+
+  if (!signature.equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    throw new Error("Invalid PNG signature");
+  }
+
+  let offset = 8;
+
+  while (offset < buffer.length) {
+    const length = buffer.readUInt32BE(offset);
+    const type = buffer.subarray(offset + 4, offset + 8).toString("ascii");
+    const data = buffer.subarray(offset + 8, offset + 8 + length);
+
+    if (type === "IHDR") {
+      const width = data.readUInt32BE(0);
+      const height = data.readUInt32BE(4);
+      const bitDepth = data[8];
+      const colorType = data[9];
+
+      if (bitDepth !== 8) {
+        throw new Error(`Unsupported PNG bit depth ${bitDepth}`);
+      }
+
+      return {
+        width,
+        height,
+        colorType,
+        channels: getPngChannels(colorType),
+      };
+    }
+
+    offset += 12 + length;
+  }
+
+  throw new Error("Missing PNG header");
+}
+
+function decodePng(buffer: Buffer): PngImage {
+  const metadata = readPngMetadata(buffer);
+  let offset = 8;
+  const idatChunks: Buffer[] = [];
+
+  while (offset < buffer.length) {
+    const length = buffer.readUInt32BE(offset);
+    const type = buffer.subarray(offset + 4, offset + 8).toString("ascii");
+    const data = buffer.subarray(offset + 8, offset + 8 + length);
+
+    if (type === "IDAT") {
+      idatChunks.push(data);
+    } else if (type === "IEND") {
+      break;
+    }
+
+    offset += 12 + length;
+  }
+
+  const rowLength = metadata.width * metadata.channels;
+  const raw = inflateSync(Buffer.concat(idatChunks));
+  const data = Buffer.alloc(rowLength * metadata.height);
+  let sourceOffset = 0;
+  let previousRow = Buffer.alloc(rowLength);
+
+  for (let y = 0; y < metadata.height; y += 1) {
+    const filter = raw[sourceOffset];
+    sourceOffset += 1;
+    const row = Buffer.from(raw.subarray(sourceOffset, sourceOffset + rowLength));
+    sourceOffset += rowLength;
+
+    for (let x = 0; x < rowLength; x += 1) {
+      const left = x >= metadata.channels ? row[x - metadata.channels] : 0;
+      const up = previousRow[x] || 0;
+      const upLeft = x >= metadata.channels ? previousRow[x - metadata.channels] || 0 : 0;
+
+      switch (filter) {
+        case 0:
+          break;
+        case 1:
+          row[x] = (row[x] + left) & 0xff;
+          break;
+        case 2:
+          row[x] = (row[x] + up) & 0xff;
+          break;
+        case 3:
+          row[x] = (row[x] + Math.floor((left + up) / 2)) & 0xff;
+          break;
+        case 4: {
+          const predictor = left + up - upLeft;
+          const leftDistance = Math.abs(predictor - left);
+          const upDistance = Math.abs(predictor - up);
+          const upLeftDistance = Math.abs(predictor - upLeft);
+          const paeth =
+            leftDistance <= upDistance && leftDistance <= upLeftDistance
+              ? left
+              : upDistance <= upLeftDistance
+                ? up
+                : upLeft;
+
+          row[x] = (row[x] + paeth) & 0xff;
+          break;
+        }
+        default:
+          throw new Error(`Unsupported PNG filter ${filter}`);
+      }
+    }
+
+    row.copy(data, y * rowLength);
+    previousRow = row;
+  }
+
+  return { ...metadata, data };
+}
+
+function createPngChunk(type: string, data: Buffer<ArrayBufferLike> = Buffer.alloc(0)): Buffer {
+  const typeBuffer = Buffer.from(type, "ascii");
+  const chunk = Buffer.alloc(12 + data.length);
+
+  chunk.writeUInt32BE(data.length, 0);
+  typeBuffer.copy(chunk, 4);
+  data.copy(chunk, 8);
+  chunk.writeUInt32BE(crc32(Buffer.concat([typeBuffer, data])), 8 + data.length);
+
+  return chunk;
+}
+
+async function deflatePngRows(chunks: Buffer[], metadata: PngMetadata): Promise<Buffer> {
+  const deflater = createDeflate();
+  const compressedChunks: Buffer[] = [];
+
+  deflater.on("data", (chunk: Buffer) => {
+    compressedChunks.push(chunk);
+  });
+
+  for (const chunk of chunks) {
+    const image = decodePng(chunk);
+    const rowLength = image.width * image.channels;
+
+    if (
+      image.width !== metadata.width ||
+      image.colorType !== metadata.colorType ||
+      image.channels !== metadata.channels
+    ) {
+      throw new Error("PNG chunks have incompatible dimensions");
+    }
+
+    for (let y = 0; y < image.height; y += 1) {
+      const row = Buffer.alloc(rowLength + 1);
+
+      row[0] = 0;
+      image.data.copy(row, 1, y * rowLength, (y + 1) * rowLength);
+
+      if (!deflater.write(row)) {
+        await once(deflater, "drain");
+      }
+    }
+  }
+
+  deflater.end();
+  await once(deflater, "end");
+
+  return Buffer.concat(compressedChunks);
+}
+
+async function stitchPngChunks(chunks: Buffer[]): Promise<Buffer> {
+  const metadata = chunks.map((chunk) => readPngMetadata(chunk));
+  const [firstMetadata] = metadata;
+
+  if (!firstMetadata) {
+    throw new Error("No PNG chunks to stitch");
+  }
+
+  const totalHeight = metadata.reduce((sum, image) => sum + image.height, 0);
+
+  for (const image of metadata) {
+    if (
+      image.width !== firstMetadata.width ||
+      image.colorType !== firstMetadata.colorType ||
+      image.channels !== firstMetadata.channels
+    ) {
+      throw new Error("PNG chunks have incompatible dimensions");
+    }
+  }
+
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(firstMetadata.width, 0);
+  header.writeUInt32BE(totalHeight, 4);
+  header[8] = 8;
+  header[9] = firstMetadata.colorType;
+  header[10] = 0;
+  header[11] = 0;
+  header[12] = 0;
+
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    createPngChunk("IHDR", header),
+    createPngChunk("IDAT", await deflatePngRows(chunks, firstMetadata)),
+    createPngChunk("IEND"),
+  ]);
+}
+
+async function screenshotNoteSheet(noteSheet: Locator): Promise<Buffer> {
+  const page = noteSheet.page();
+  const box = await noteSheet.boundingBox();
+
+  if (!box?.width || !box.height) {
+    throw new Error("Unable to measure note sheet for export");
+  }
+
+  if (
+    box.height * exportDeviceScaleFactor <= maxSafeScreenshotDimension &&
+    box.width * exportDeviceScaleFactor <= maxSafeScreenshotDimension
+  ) {
+    return await noteSheet.screenshot({
+      animations: "disabled",
+      scale: "device",
+      type: "png",
+    });
+  }
+
+  const chunks: Buffer[] = [];
+  const chunkHeight = Math.max(1, maxScreenshotChunkHeight - 1);
+  let currentOffset = 0;
+
+  while (currentOffset < box.height) {
+    const currentHeight = Math.min(chunkHeight, box.height - currentOffset);
+    await page.setViewportSize({
+      width: 1280,
+      height: Math.max(1, Math.ceil(currentHeight)),
+    });
+    await page.evaluate((scrollTop) => {
+      window.scrollTo(0, scrollTop);
+    }, box.y + currentOffset);
+    await page.waitForTimeout(80);
+
+    const scrollY = await page.evaluate(() => window.scrollY);
+    const clipY = box.y + currentOffset - scrollY;
+
+    chunks.push(
+      await page.screenshot({
+        animations: "disabled",
+        clip: {
+          x: box.x,
+          y: Math.max(0, clipY),
+          width: box.width,
+          height: currentHeight,
+        },
+        scale: "device",
+        type: "png",
+      }),
+    );
+
+    currentOffset += currentHeight;
+  }
+
+  return stitchPngChunks(chunks);
 }
 
 async function hasDistIndex(): Promise<boolean> {
@@ -471,7 +815,7 @@ function runImageUpload(request: Request, response: Response): Promise<void> {
 async function renderNotePng(markdown: string, renderUrl: string): Promise<Buffer> {
   const browser = await getBrowser();
   const page = await browser.newPage({
-    deviceScaleFactor: 3,
+    deviceScaleFactor: exportDeviceScaleFactor,
     viewport: { width: 1280, height: 960 },
   });
 
@@ -488,12 +832,7 @@ async function renderNotePng(markdown: string, renderUrl: string): Promise<Buffe
     const noteSheet = page.locator(".note-sheet");
     await noteSheet.waitFor();
     await waitForStableHeight(noteSheet);
-
-    return await noteSheet.screenshot({
-      animations: "disabled",
-      scale: "device",
-      type: "png",
-    });
+    return await screenshotNoteSheet(noteSheet);
   } finally {
     await page.close();
   }
@@ -524,7 +863,7 @@ app.post(
     try {
       const body = request.body || {};
       const theme = resolveTheme(body);
-      const renderUrl = getRenderUrl(request, theme);
+      const renderUrl = getRenderUrl(request, theme, resolveFooterConfig(body));
       const markdown = normalizeRenderableImageUrls(
         await resolveMarkdown(body),
         request,

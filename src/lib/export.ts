@@ -7,6 +7,11 @@ interface ExportErrorPayload {
   hint?: string;
 }
 
+interface ExportFooterOptions {
+  footerBrand: string;
+  footerVia: string;
+}
+
 function padDatePart(value: number): string {
   return String(value).padStart(2, "0");
 }
@@ -137,6 +142,7 @@ async function tryServerExport(
   markdown: string,
   filename: string,
   theme: ThemeId,
+  footer: ExportFooterOptions,
 ): Promise<Blob> {
   const maxAttempts = EXPORT_RETRY_LIMIT + 1;
 
@@ -154,6 +160,8 @@ async function tryServerExport(
         },
         body: JSON.stringify({
           filename,
+          footerBrand: footer.footerBrand,
+          footerVia: footer.footerVia,
           markdown,
           theme,
         }),
@@ -190,9 +198,10 @@ async function tryServerExport(
 export async function exportMarkdownAsPng(
   markdown: string,
   theme: ThemeId,
+  footer: ExportFooterOptions,
 ): Promise<void> {
   const filename = buildExportFilename();
-  const blob = await tryServerExport(markdown, filename, theme);
+  const blob = await tryServerExport(markdown, filename, theme, footer);
   await saveExport(blob, filename);
 }
 
