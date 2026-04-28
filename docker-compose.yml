@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+    restart: unless-stopped
     ports:
       - "18080:80"
     depends_on:
@@ -12,6 +13,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
+    restart: unless-stopped
     environment:
       IMAGE_STORAGE_DIR: /app/storage/images
     volumes:

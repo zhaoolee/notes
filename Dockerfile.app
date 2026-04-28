@@ -16,6 +16,11 @@ FROM mcr.microsoft.com/playwright:v1.58.2-noble AS server-build
 
 WORKDIR /app
 
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3-pip \
+  && python3 -m pip install --break-system-packages --no-cache-dir "fonttools[woff]" \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
@@ -27,6 +32,11 @@ RUN npm run build:server
 FROM mcr.microsoft.com/playwright:v1.58.2-noble
 
 WORKDIR /app
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3-pip \
+  && python3 -m pip install --break-system-packages --no-cache-dir "fonttools[woff]" \
+  && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev

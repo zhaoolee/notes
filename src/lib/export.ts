@@ -7,6 +7,13 @@ interface ExportErrorPayload {
   hint?: string;
 }
 
+interface ExportFooterOptions {
+  footerBrand: string;
+  footerVia: string;
+}
+
+const contentDispositionFilenamePattern = /filename\*?=(?:UTF-8''|")?([^";]+)/i;
+
 function padDatePart(value: number): string {
   return String(value).padStart(2, "0");
 }
@@ -31,14 +38,28 @@ function wait(ms: number): Promise<void> {
   });
 }
 
-async function saveExport(blob: Blob, filename: string): Promise<void> {
+function getFilenameFromContentDisposition(value: string | null, fallback: string): string {
+  if (!value) {
+    return fallback;
+  }
+
+  const match = contentDispositionFilenamePattern.exec(value);
+
+  if (!match) {
+    return fallback;
+  }
+
+  return decodeURIComponent(match[1].replace(/^"|"$/g, ""));
+}
+
+async function saveBlob(blob: Blob, filename: string): Promise<void> {
   const isCoarsePointer =
     typeof window !== "undefined" &&
     window.matchMedia?.("(pointer: coarse)").matches;
   const objectUrl = URL.createObjectURL(blob);
 
   try {
-    const file = new File([blob], filename, { type: "image/png" });
+    const file = new File([blob], filename, { type: blob.type || "application/octet-stream" });
 
     if (
       isCoarsePointer &&
@@ -137,6 +158,7 @@ async function tryServerExport(
   markdown: string,
   filename: string,
   theme: ThemeId,
+  footer: ExportFooterOptions,
 ): Promise<Blob> {
   const maxAttempts = EXPORT_RETRY_LIMIT + 1;
 
@@ -154,6 +176,8 @@ async function tryServerExport(
         },
         body: JSON.stringify({
           filename,
+          footerBrand: footer.footerBrand,
+          footerVia: footer.footerVia,
           markdown,
           theme,
         }),
@@ -190,10 +214,41 @@ async function tryServerExport(
 export async function exportMarkdownAsPng(
   markdown: string,
   theme: ThemeId,
+  footer: ExportFooterOptions,
 ): Promise<void> {
   const filename = buildExportFilename();
-  const blob = await tryServerExport(markdown, filename, theme);
-  await saveExport(blob, filename);
+  const blob = await tryServerExport(markdown, filename, theme, footer);
+  await saveBlob(blob, filename);
+}
+
+export async function exportMarkdownArchive(
+  markdown: string,
+  footer: ExportFooterOptions,
+): Promise<void> {
+  const response = await fetch("/api/archive", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      footerBrand: footer.footerBrand,
+      footerVia: footer.footerVia,
+      markdown,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new ExportError(await readExportErrorMessage(response), {
+      status: response.status,
+      retriable: false,
+    });
+  }
+
+  const filename = getFilenameFromContentDisposition(
+    response.headers.get("content-disposition"),
+    "notes-archive.zip",
+  );
+  await saveBlob(await response.blob(), filename);
 }
 
 export function getExportErrorMessage(error: unknown): string {
