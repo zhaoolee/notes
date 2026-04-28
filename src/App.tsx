@@ -12,7 +12,7 @@ import {
   THEME_STORAGE_KEY,
 } from "./lib/app-state";
 import { copyTextToClipboard, normalizeClipboardMarkdown } from "./lib/clipboard";
-import { exportMarkdownAsPng, getExportErrorMessage } from "./lib/export";
+import { exportMarkdownArchive, exportMarkdownAsPng, getExportErrorMessage } from "./lib/export";
 import { splitSections } from "./lib/markdown";
 import { useAppStore } from "./store/useAppStore";
 import type { CopyState } from "./types/app";
@@ -34,6 +34,7 @@ export default function App() {
   const isPlaywrightRender = renderMode === "playwright";
   const [footerBrand, setFooterBrand] = useState(getInitialFooterBrand);
   const [footerVia, setFooterVia] = useState(getInitialFooterVia);
+  const [isArchiving, setIsArchiving] = useState(false);
   const markdown = useAppStore((state) => state.markdown);
   const selectedTheme = useAppStore((state) => state.selectedTheme);
   const isExporting = useAppStore((state) => state.isExporting);
@@ -102,6 +103,26 @@ export default function App() {
     }
   }
 
+  async function handleArchiveDownload() {
+    if (isArchiving) {
+      return;
+    }
+
+    try {
+      setIsArchiving(true);
+      setExportError("");
+      await exportMarkdownArchive(markdown, {
+        footerBrand,
+        footerVia,
+      });
+    } catch (error) {
+      console.error("Archive download failed", error);
+      setExportError(getExportErrorMessage(error));
+    } finally {
+      setIsArchiving(false);
+    }
+  }
+
   async function handleCopyMarkdown() {
     try {
       await copyTextToClipboard(normalizeClipboardMarkdown(markdown));
@@ -131,6 +152,13 @@ export default function App() {
             </div>
 
             <div className="app-topbar-actions">
+              <button
+                type="button"
+                className="primary preview-export"
+                onClick={handleArchiveDownload}
+              >
+                {isArchiving ? "归档中..." : "下载归档"}
+              </button>
               <button type="button" className="primary preview-export" onClick={handleCopyMarkdown}>
                 {getCopyButtonText(copyState)}
               </button>

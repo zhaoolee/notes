@@ -1,10 +1,13 @@
 import express, { type NextFunction, type Request, type Response } from "express";
+import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { once } from "node:events";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createDeflate, inflateSync } from "node:zlib";
+import { promisify } from "node:util";
+import { createDeflate, deflateRawSync, inflateSync } from "node:zlib";
 import multer, { MulterError } from "multer";
 import { chromium, type Browser, type Locator, type Page } from "playwright";
 
@@ -21,6 +24,13 @@ interface ExportRequestBody {
 
 interface ImageImportRequestBody {
   sourceUrl?: string;
+}
+
+interface ArchiveRequestBody {
+  markdown?: string;
+  markdownPath?: string;
+  footerBrand?: string;
+  footerVia?: string;
 }
 
 interface StoredImage {
@@ -47,10 +57,28 @@ interface FooterConfig {
   via?: string;
 }
 
+interface ArchiveImage {
+  source: string;
+  filename: string;
+  buffer: Buffer;
+}
+
+interface ZipEntry {
+  path: string;
+  data: Buffer;
+}
+
+interface ArchiveFont {
+  sourceName: string;
+  outputName: string;
+  weight: number;
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
 const distDir = path.join(rootDir, "dist");
+const publicDir = path.join(rootDir, "public");
 const imagesDir = process.env.IMAGE_STORAGE_DIR || path.join(rootDir, "storage", "images");
 const port = Number(process.env.PORT || 3001);
 const supportedThemes = new Set<ThemeId>(["default", "smartisan-dark"]);
@@ -69,6 +97,24 @@ const imageUpload = multer({
 });
 
 let browserPromise: Promise<Browser> | undefined;
+const execFileAsync = promisify(execFile);
+const archiveFonts: ArchiveFont[] = [
+  {
+    sourceName: "OPPOSans-R.ttf",
+    outputName: "OPPOSans-R-subset.woff2",
+    weight: 400,
+  },
+  {
+    sourceName: "OPPOSans-M.ttf",
+    outputName: "OPPOSans-M-subset.woff2",
+    weight: 500,
+  },
+  {
+    sourceName: "OPPOSans-B.ttf",
+    outputName: "OPPOSans-B-subset.woff2",
+    weight: 700,
+  },
+];
 
 interface PngImage {
   width: number;
@@ -175,7 +221,7 @@ async function getBrowser(): Promise<Browser> {
   return browserPromise;
 }
 
-async function resolveMarkdown(body: ExportRequestBody): Promise<string> {
+async function resolveMarkdown(body: ExportRequestBody | ArchiveRequestBody): Promise<string> {
   if (typeof body.markdown === "string") {
     return body.markdown;
   }
@@ -250,6 +296,1025 @@ function resolveExportFilename(input: unknown): string {
   return /\.png$/i.test(trimmed) ? trimmed : `${trimmed}.png`;
 }
 
+function buildArchiveBasename(markdown: string): string {
+  const now = new Date();
+  const formatted = [
+    now.getFullYear(),
+    padDatePart(now.getMonth() + 1),
+    padDatePart(now.getDate()),
+    padDatePart(now.getHours()),
+    padDatePart(now.getMinutes()),
+    padDatePart(now.getSeconds()),
+  ].join("-");
+  const hash = createHash("sha256").update(markdown).digest("hex");
+
+  return `${formatted}-${hash}`;
+}
+
+function sanitizeArchiveFilename(value: string, fallback: string): string {
+  const parsed = path.parse(value.split(/[?#]/, 1)[0]);
+  const extension = parsed.ext.replace(/[^a-zA-Z0-9.]/g, "").slice(0, 12);
+  const name = parsed.name
+    .replace(/[^a-zA-Z0-9._-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 64);
+
+  return `${name || fallback}${extension}`;
+}
+
+function getDataUrlImage(source: string): ImageSource | null {
+  const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/s.exec(source);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    buffer: Buffer.from(match[2], "base64"),
+    mimeType: match[1],
+    filename: "embedded-image",
+  };
+}
+
+async function readRootRelativeArchiveImage(source: string): Promise<ImageSource | null> {
+  let pathname = "";
+
+  try {
+    pathname = decodeURIComponent(new URL(source, "http://archive.local").pathname);
+  } catch {
+    return null;
+  }
+
+  if (pathname.startsWith("/images/")) {
+    const filename = path.basename(pathname);
+    const filePath = path.join(imagesDir, filename);
+
+    return {
+      buffer: await fs.readFile(filePath),
+      filename,
+    };
+  }
+
+  const filePath = path.resolve(publicDir, `.${pathname}`);
+
+  if (!filePath.startsWith(`${publicDir}${path.sep}`)) {
+    return null;
+  }
+
+  return {
+    buffer: await fs.readFile(filePath),
+    filename: path.basename(pathname),
+  };
+}
+
+async function readRelativeArchiveImage(source: string): Promise<ImageSource | null> {
+  const [pathname] = source.split(/[?#]/, 1);
+  const filePath = path.resolve(rootDir, pathname);
+
+  if (!filePath.startsWith(`${rootDir}${path.sep}`)) {
+    return null;
+  }
+
+  return {
+    buffer: await fs.readFile(filePath),
+    filename: path.basename(pathname),
+  };
+}
+
+async function resolveArchiveImage(source: string): Promise<ImageSource | null> {
+  const dataImage = getDataUrlImage(source);
+
+  if (dataImage) {
+    return dataImage;
+  }
+
+  if (/^https?:\/\//i.test(source)) {
+    return downloadImageFromUrl(source);
+  }
+
+  if (source.startsWith("/")) {
+    return readRootRelativeArchiveImage(source);
+  }
+
+  return readRelativeArchiveImage(source);
+}
+
+function collectMarkdownImageSources(markdown: string): string[] {
+  const sources: string[] = [];
+  const markdownImagePattern = /!\[[^\]]*]\(\s*<?([^)\s>]+)>?(?:\s+["'][^)]*["'])?\s*\)/g;
+  const htmlImagePattern = /<img\b[^>]*\bsrc=(["'])(.*?)\1[^>]*>/gi;
+
+  for (const match of markdown.matchAll(markdownImagePattern)) {
+    sources.push(match[1]);
+  }
+
+  for (const match of markdown.matchAll(htmlImagePattern)) {
+    sources.push(match[2]);
+  }
+
+  return Array.from(new Set(sources));
+}
+
+function replaceAll(value: string, search: string, replacement: string): string {
+  return value.split(search).join(replacement);
+}
+
+function escapeHtmlText(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function buildArchiveFontFaceCss(fonts: ArchiveFont[]): string {
+  return fonts
+    .map(
+      (font) => `      @font-face {
+        font-family: "OPPOSansArchive";
+        src: url("./html.assets/fonts/${font.outputName}") format("woff2");
+        font-weight: ${font.weight};
+        font-style: normal;
+        font-display: swap;
+      }
+`,
+    )
+    .join("\n");
+}
+
+function buildArchiveIndexHtml(
+  markdown: string,
+  footer: FooterConfig,
+  fonts: ArchiveFont[],
+): string {
+  const embeddedMarkdown = JSON.stringify(markdown).replace(/</g, "\\u003c");
+  const footerBrand = footer.brand ?? "由锤子便签发送";
+  const footerVia = footer.via ?? "via Smartisan Notes";
+  const fontFaceCss = buildArchiveFontFaceCss(fonts);
+  const fontFamilyPrefix = fonts.length ? `"OPPOSansArchive", ` : "";
+
+  return `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>便签归档预览</title>
+    <style>
+${fontFaceCss}
+      :root {
+        --paper: #fefcf6;
+        --sheet-surface: #fefcf6;
+        --sheet-shadow: 0 24px 42px rgba(89, 65, 34, 0.12);
+        --note-frame: rgba(237, 233, 225, 0.92);
+        --note-heading: rgba(70, 53, 38, 0.96);
+        --note-copy: rgba(106, 86, 67, 0.92);
+        --note-link: #ac9070;
+        --note-code-bg: rgba(125, 78, 32, 0.08);
+        --note-pre-bg: rgba(243, 236, 225, 0.9);
+        --note-pre-text: rgba(97, 79, 61, 0.94);
+        --note-quote: #c0b5a7;
+        --note-quote-mark: #ded4c8;
+        --note-table-border: rgba(220, 209, 191, 0.88);
+        --note-table-head-bg: rgba(243, 236, 225, 0.65);
+        --note-hr: rgba(220, 209, 191, 0.8);
+        --footer-copy: #d7cec1;
+        --footer-via: #ded6cb;
+        --footer-icon: #d9d0c3;
+        --note-font: ${fontFamilyPrefix}"Noto Sans SC", "PingFang SC", "Hiragino Sans GB",
+          "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+        --note-scale: 2;
+        --note-sheet-width: calc(330px * var(--note-scale));
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        min-height: 100%;
+        margin: 0;
+      }
+
+      body {
+        padding: 36px 18px;
+        color: var(--note-copy);
+        font-family: var(--note-font);
+        background:
+          url("./html.assets/bg.jpg") left top / 420px auto repeat,
+          #efe6d6;
+        background-attachment: fixed;
+        text-rendering: optimizeLegibility;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      .preview-stage {
+        width: var(--note-sheet-width);
+        max-width: 100%;
+        margin: 0 auto;
+      }
+
+      .note-sheet {
+        position: relative;
+        align-self: flex-start;
+        width: var(--note-sheet-width);
+        max-width: 100%;
+        margin: 0;
+        padding:
+          calc(18px * var(--note-scale))
+          calc(18px * var(--note-scale))
+          calc(24px * var(--note-scale));
+        border-radius: 0;
+        border: 0;
+        background: var(--sheet-surface);
+        box-shadow: var(--sheet-shadow);
+        font-family: var(--note-font);
+        overflow: hidden;
+      }
+
+      .sheet-frame {
+        position: absolute;
+        pointer-events: none;
+        border: 1px solid var(--note-frame);
+      }
+
+      .sheet-frame-outer {
+        inset:
+          calc(14px * var(--note-scale))
+          calc(8px * var(--note-scale))
+          calc(54px * var(--note-scale));
+      }
+
+      .sheet-frame-inner {
+        inset:
+          calc(18px * var(--note-scale))
+          calc(12px * var(--note-scale))
+          calc(58px * var(--note-scale));
+      }
+
+      .sheet-corner {
+        position: absolute;
+        width: calc(3px * var(--note-scale));
+        height: calc(3px * var(--note-scale));
+        border: 1px solid var(--note-frame);
+        background: var(--paper);
+        pointer-events: none;
+      }
+
+      .sheet-corner-top-left {
+        left: calc(5px * var(--note-scale));
+        top: calc(13px * var(--note-scale));
+      }
+
+      .sheet-corner-top-right {
+        right: calc(5px * var(--note-scale));
+        top: calc(13px * var(--note-scale));
+      }
+
+      .sheet-corner-bottom-left {
+        left: calc(5px * var(--note-scale));
+        bottom: calc(53px * var(--note-scale));
+      }
+
+      .sheet-corner-bottom-right {
+        right: calc(5px * var(--note-scale));
+        bottom: calc(53px * var(--note-scale));
+      }
+
+      .sheet-inner {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        gap: calc(30px * var(--note-scale));
+        padding:
+          calc(16px * var(--note-scale))
+          calc(18px * var(--note-scale))
+          calc(14px * var(--note-scale));
+      }
+
+      .note-section {
+        min-height: auto;
+      }
+
+      .note-index {
+        margin-bottom: calc(9px * var(--note-scale));
+      }
+
+      .note-index p,
+      .note-index strong {
+        margin: 0;
+        font-size: calc(0.92rem * var(--note-scale));
+        font-weight: 700;
+        color: var(--note-heading);
+      }
+
+      .note-copy {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        color: var(--note-copy);
+        font-size: calc(0.89rem * var(--note-scale));
+        font-weight: 400;
+        line-height: 1.76;
+        letter-spacing: 0;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+
+      .note-copy p {
+        margin: 0;
+        white-space: pre-wrap;
+      }
+
+      .note-copy p + p {
+        margin-top: calc(8px * var(--note-scale));
+      }
+
+      .note-copy p img {
+        display: block;
+        width: auto;
+        max-width: 100%;
+        height: auto;
+        margin:
+          calc(12px * var(--note-scale))
+          auto
+          calc(2px * var(--note-scale));
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        background: color-mix(in srgb, var(--paper) 85%, transparent);
+        object-fit: contain;
+        image-rendering: auto;
+      }
+
+      .note-copy a {
+        color: var(--note-link);
+        text-decoration: none;
+      }
+
+      .note-copy code {
+        font-size: 0.9em;
+        font-weight: 400;
+        padding: 0.08em 0.32em;
+        border-radius: 0.3em;
+        background: var(--note-code-bg);
+      }
+
+      .note-copy pre {
+        margin: calc(10px * var(--note-scale)) 0 0;
+        padding: calc(9px * var(--note-scale)) calc(11px * var(--note-scale));
+        overflow: hidden;
+        border-radius: calc(10px * var(--note-scale));
+        background: var(--note-pre-bg);
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        color: var(--note-pre-text);
+        font-size: calc(0.72rem * var(--note-scale));
+        font-weight: 400;
+        line-height: 1.62;
+      }
+
+      .note-copy pre code {
+        display: block;
+        padding: 0;
+        border-radius: 0;
+        background: transparent;
+        white-space: inherit;
+        overflow-wrap: inherit;
+        word-break: inherit;
+      }
+
+      .note-copy blockquote {
+        position: relative;
+        margin: 0 0 calc(8px * var(--note-scale));
+        padding-left: calc(0.92rem * var(--note-scale));
+        color: var(--note-quote);
+        font-size: calc(0.88rem * var(--note-scale));
+        font-weight: 400;
+        line-height: 1.48;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+
+      .note-copy blockquote::before {
+        content: "“";
+        position: absolute;
+        left: calc(-0.04rem * var(--note-scale));
+        top: calc(0.1rem * var(--note-scale));
+        font-family: "Georgia", "Times New Roman", serif;
+        font-size: calc(1.42rem * var(--note-scale));
+        line-height: 0.82;
+        font-weight: 400;
+        color: var(--note-quote-mark);
+      }
+
+      .note-copy blockquote p {
+        margin: 0;
+      }
+
+      .note-copy ul,
+      .note-copy ol {
+        margin: calc(8px * var(--note-scale)) 0 0;
+        padding-left: 1.3em;
+      }
+
+      .note-copy li + li {
+        margin-top: 0.35em;
+      }
+
+      .note-copy table {
+        width: 100%;
+        margin: calc(8px * var(--note-scale)) 0 0;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: calc(0.74rem * var(--note-scale));
+        line-height: 1.52;
+      }
+
+      .note-copy th,
+      .note-copy td {
+        padding:
+          calc(0.35rem * var(--note-scale))
+          calc(0.45rem * var(--note-scale));
+        border: 1px solid var(--note-table-border);
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        vertical-align: top;
+      }
+
+      .note-copy th {
+        background: var(--note-table-head-bg);
+        font-weight: 700;
+      }
+
+      .note-copy hr {
+        margin: calc(12px * var(--note-scale)) 0;
+        border: 0;
+        border-top: 1px solid var(--note-hr);
+      }
+
+      .sheet-footer {
+        position: relative;
+        z-index: 1;
+        margin-top: calc(28px * var(--note-scale));
+        padding: 0 calc(20px * var(--note-scale)) calc(16px * var(--note-scale));
+        display: flex;
+        align-items: center;
+        gap: calc(4px * var(--note-scale));
+        font-size: calc(0.38rem * var(--note-scale));
+        line-height: 1;
+      }
+
+      .sheet-footer-copy {
+        display: inline-flex;
+        align-items: baseline;
+        gap: calc(4px * var(--note-scale));
+        min-width: 0;
+        white-space: nowrap;
+      }
+
+      .sheet-footer-brand {
+        color: var(--footer-copy);
+        font-size: calc(0.4rem * var(--note-scale));
+        font-weight: 500;
+        letter-spacing: 0.01em;
+      }
+
+      .sheet-footer-via {
+        color: var(--footer-via);
+        font-size: calc(0.24rem * var(--note-scale));
+        font-weight: 400;
+        transform: translateY(calc(-0.01rem * var(--note-scale)));
+      }
+
+      .sheet-footer-icon {
+        display: block;
+        width: calc(0.5rem * var(--note-scale));
+        height: calc(0.5rem * var(--note-scale));
+        flex: 0 0 auto;
+      }
+
+      .sheet-footer-icon svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+
+      .sheet-footer-icon circle {
+        fill: var(--footer-icon);
+      }
+
+      .sheet-footer-icon text {
+        fill: var(--paper);
+        font-family: "Georgia", "Times New Roman", serif;
+        font-size: 18px;
+        font-weight: 700;
+        text-anchor: middle;
+        dominant-baseline: middle;
+        dy: 0.04em;
+      }
+
+      strong {
+        color: inherit;
+      }
+
+      .status {
+        color: var(--note-copy);
+      }
+
+      @media (max-width: 720px) {
+        :root {
+          --note-scale: 1.85;
+        }
+
+        body {
+          padding: 24px 12px;
+        }
+      }
+
+      @media (max-width: 650px) {
+        :root {
+          --note-scale: 1.75;
+        }
+      }
+
+      @media (max-width: 600px) {
+        :root {
+          --note-scale: 1.6;
+        }
+      }
+
+      @media (max-width: 540px) {
+        :root {
+          --note-scale: 1.45;
+        }
+      }
+
+      @media (max-width: 490px) {
+        :root {
+          --note-scale: 1.28;
+        }
+
+        body {
+          padding: 18px 8px;
+        }
+      }
+
+      @media (max-width: 430px) {
+        :root {
+          --note-scale: 1.12;
+        }
+      }
+
+      @media (max-width: 380px) {
+        :root {
+          --note-scale: 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="preview-stage">
+      <article class="note-sheet">
+        <div class="sheet-frame sheet-frame-outer"></div>
+        <div class="sheet-frame sheet-frame-inner"></div>
+        <span class="sheet-corner sheet-corner-top-left"></span>
+        <span class="sheet-corner sheet-corner-top-right"></span>
+        <span class="sheet-corner sheet-corner-bottom-left"></span>
+        <span class="sheet-corner sheet-corner-bottom-right"></span>
+
+        <div id="content" class="sheet-inner">
+          <article class="note-section empty-state">
+            <div class="note-copy">
+              <p class="status">正在读取 INDEX.md...</p>
+            </div>
+          </article>
+        </div>
+
+        <footer class="sheet-footer">
+          <span class="sheet-footer-icon" aria-hidden="true">
+            <svg viewBox="0 0 32 32" role="img" focusable="false">
+              <circle cx="16" cy="16" r="16"></circle>
+              <text x="50%" y="50%">T</text>
+            </svg>
+          </span>
+          <span class="sheet-footer-copy">
+            <span class="sheet-footer-brand">${escapeHtmlText(footerBrand)}</span>
+            <span class="sheet-footer-via">${escapeHtmlText(footerVia)}</span>
+          </span>
+        </footer>
+      </article>
+    </main>
+    <script>
+      const content = document.getElementById("content");
+      const embeddedMarkdown = ${embeddedMarkdown};
+
+      function escapeHtml(value) {
+        return value
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      function renderInline(value) {
+        return escapeHtml(value)
+          .replace(new RegExp("!\\\\[([^\\\\]]*)\\\\]\\\\(([^)\\\\s]+)(?:\\\\s+[\\\"'][^)]+[\\\"'])?\\\\)", "g"), '<img src="$2" alt="$1" />')
+          .replace(new RegExp("\\\\[([^\\\\]]+)\\\\]\\\\(([^)\\\\s]+)\\\\)", "g"), '<a href="$2" target="_blank" rel="noopener">$1</a>')
+          .replace(new RegExp("\\\\*\\\\*([^*]+)\\\\*\\\\*", "g"), "<strong>$1</strong>")
+          .replace(new RegExp("\\\\x60([^\\\\x60]+)\\\\x60", "g"), "<code>$1</code>");
+      }
+
+      function normalizeSingleLineBlockquotes(markdown) {
+        const lines = markdown.replace(/\\r\\n/g, "\\n").split("\\n");
+        const normalized = [];
+
+        for (let index = 0; index < lines.length; index += 1) {
+          const line = lines[index];
+          const nextLine = lines[index + 1];
+
+          normalized.push(line);
+
+          if (!line.trimStart().startsWith(">")) {
+            continue;
+          }
+
+          if (nextLine == null || nextLine.trim() === "") {
+            continue;
+          }
+
+          if (nextLine.trimStart().startsWith(">")) {
+            continue;
+          }
+
+          normalized.push("");
+        }
+
+        return normalized.join("\\n");
+      }
+
+      function splitSections(markdown) {
+        const lines = markdown.replace(/\\r\\n/g, "\\n").split("\\n");
+        const sections = [];
+        let current = null;
+
+        for (const line of lines) {
+          if (/^##\\s+/.test(line)) {
+            if (current) {
+              sections.push(current);
+            }
+
+            current = {
+              heading: line.replace(/^##\\s+/, "").trim(),
+              lines: [],
+            };
+            continue;
+          }
+
+          if (!current) {
+            current = {
+              heading: "",
+              lines: [],
+            };
+          }
+
+          current.lines.push(line);
+        }
+
+        if (current) {
+          sections.push(current);
+        }
+
+        return sections
+          .map((section) => ({
+            heading: section.heading.trim(),
+            content: normalizeSingleLineBlockquotes(section.lines.join("\\n")).trim(),
+          }))
+          .filter((section) => section.heading || section.content);
+      }
+
+      function renderMarkdownBlocks(markdown) {
+        const lines = markdown.replace(/\\r\\n?/g, "\\n").split("\\n");
+        const html = [];
+        let paragraph = [];
+        let list = null;
+        let quote = [];
+        let code = [];
+        let inCode = false;
+
+        function flushParagraph() {
+          if (paragraph.length) {
+            html.push("<p>" + renderInline(paragraph.join("\\n")) + "</p>");
+            paragraph = [];
+          }
+        }
+
+        function flushList() {
+          if (list) {
+            html.push("<" + list.type + ">" + list.items.map((item) => "<li>" + renderInline(item) + "</li>").join("") + "</" + list.type + ">");
+            list = null;
+          }
+        }
+
+        function flushQuote() {
+          if (quote.length) {
+            html.push("<blockquote><p>" + renderInline(quote.join("\\n")) + "</p></blockquote>");
+            quote = [];
+          }
+        }
+
+        function flushCode() {
+          if (code.length) {
+            html.push("<pre><code>" + escapeHtml(code.join("\\n")) + "</code></pre>");
+            code = [];
+          }
+        }
+
+        for (const line of lines) {
+          if (/^\\x60\\x60\\x60/.test(line)) {
+            if (inCode) {
+              flushCode();
+              inCode = false;
+            } else {
+              flushParagraph();
+              flushList();
+              flushQuote();
+              inCode = true;
+            }
+            continue;
+          }
+
+          if (inCode) {
+            code.push(line);
+            continue;
+          }
+
+          const heading = /^(#{1,6})\\s+(.+)$/.exec(line);
+          const unordered = /^[-*+]\\s+(.+)$/.exec(line);
+          const ordered = /^\\d+[.)]\\s+(.+)$/.exec(line);
+          const blockquote = /^>\\s?(.+)$/.exec(line);
+
+          if (!line.trim()) {
+            flushParagraph();
+            flushList();
+            flushQuote();
+            continue;
+          }
+
+          if (heading) {
+            flushParagraph();
+            flushList();
+            flushQuote();
+            const level = heading[1].length;
+            html.push("<h" + level + ">" + renderInline(heading[2]) + "</h" + level + ">");
+            continue;
+          }
+
+          if (blockquote) {
+            flushParagraph();
+            flushList();
+            quote.push(blockquote[1]);
+            continue;
+          }
+
+          if (unordered || ordered) {
+            flushParagraph();
+            flushQuote();
+            const type = unordered ? "ul" : "ol";
+            const item = unordered ? unordered[1] : ordered[1];
+            if (!list || list.type !== type) {
+              flushList();
+              list = { type, items: [] };
+            }
+            list.items.push(item);
+            continue;
+          }
+
+          flushList();
+          flushQuote();
+          paragraph.push(line);
+        }
+
+        flushParagraph();
+        flushList();
+        flushQuote();
+        flushCode();
+        return html.join("\\n");
+      }
+
+      function renderSection(section) {
+        const heading = section.heading
+          ? '<header class="note-index"><p>' + renderInline(section.heading) + '</p></header>'
+          : "";
+        const content = section.content
+          ? renderMarkdownBlocks(section.content)
+          : "<p> </p>";
+
+        return '<article class="note-section">' + heading + '<div class="note-copy">' + content + '</div></article>';
+      }
+
+      function renderMarkdown(markdown) {
+        const sections = splitSections(markdown);
+
+        if (!sections.length) {
+          return '<article class="note-section empty-state"><div class="note-copy"><p>不要因为走得太远，</p><p>就忘了当初为什么出发。</p><p>Don\\'t forget why you started just because you\\'ve come so far.</p></div></article>';
+        }
+
+        return sections.map(renderSection).join("\\n");
+      }
+
+      content.innerHTML = renderMarkdown(embeddedMarkdown);
+
+      if (location.protocol !== "file:") {
+        fetch("./INDEX.md", { cache: "no-store" })
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error("INDEX.md " + response.status);
+            }
+            return response.text();
+          })
+          .then((markdown) => {
+            content.innerHTML = renderMarkdown(markdown);
+          })
+          .catch((error) => {
+            console.warn("Falling back to embedded archive markdown.", error);
+          });
+      }
+    </script>
+  </body>
+</html>
+`;
+}
+
+async function buildArchive(
+  markdown: string,
+  footer: FooterConfig = {},
+): Promise<{ filename: string; zipBuffer: Buffer }> {
+  const basename = buildArchiveBasename(markdown);
+  const folderName = basename;
+  const assetFolderName = "INDEX.assets";
+  const htmlAssetFolderName = "html.assets";
+  const images: ArchiveImage[] = [];
+  const replacements = new Map<string, string>();
+  const htmlAssetEntries: ZipEntry[] = [];
+  const fontAssets = await buildArchiveFontEntries(
+    folderName,
+    htmlAssetFolderName,
+    markdown,
+    footer,
+  );
+
+  try {
+    htmlAssetEntries.push({
+      path: `${folderName}/${htmlAssetFolderName}/bg.jpg`,
+      data: await fs.readFile(path.join(publicDir, "bg.jpg")),
+    });
+  } catch (error) {
+    console.warn("Archive HTML asset skipped", error);
+  }
+
+  for (const [index, source] of collectMarkdownImageSources(markdown).entries()) {
+    try {
+      const image = await resolveArchiveImage(source);
+
+      if (!image?.buffer.length) {
+        continue;
+      }
+
+      const extension = detectImageFormat(image.buffer, image.mimeType, image.filename);
+      const fallbackName = `image-${index + 1}`;
+      const baseFilename = sanitizeArchiveFilename(image.filename || source, fallbackName);
+      const filename = path.extname(baseFilename)
+        ? baseFilename
+        : `${baseFilename}.${extension || "bin"}`;
+      const uniqueFilename = getUniqueArchiveFilename(images, filename);
+
+      images.push({
+        source,
+        filename: uniqueFilename,
+        buffer: image.buffer,
+      });
+      replacements.set(source, `${assetFolderName}/${uniqueFilename}`);
+    } catch (error) {
+      console.warn(`Archive image skipped: ${source}`, error);
+    }
+  }
+
+  let archivedMarkdown = markdown;
+
+  for (const [source, replacement] of replacements) {
+    archivedMarkdown = replaceAll(archivedMarkdown, source, replacement);
+  }
+
+  const entries: ZipEntry[] = [
+    {
+      path: `${folderName}/index.html`,
+      data: Buffer.from(buildArchiveIndexHtml(archivedMarkdown, footer, fontAssets.fonts), "utf8"),
+    },
+    {
+      path: `${folderName}/INDEX.md`,
+      data: Buffer.from(archivedMarkdown, "utf8"),
+    },
+    ...htmlAssetEntries,
+    ...fontAssets.entries,
+    ...images.map((image) => ({
+      path: `${folderName}/${assetFolderName}/${image.filename}`,
+      data: image.buffer,
+    })),
+  ];
+
+  return {
+    filename: `${basename}.zip`,
+    zipBuffer: createZip(entries),
+  };
+}
+
+function getUniqueArchiveFilename(images: ArchiveImage[], filename: string): string {
+  const used = new Set(images.map((image) => image.filename));
+
+  if (!used.has(filename)) {
+    return filename;
+  }
+
+  const parsed = path.parse(filename);
+  let attempt = 2;
+
+  while (used.has(`${parsed.name}-${attempt}${parsed.ext}`)) {
+    attempt += 1;
+  }
+
+  return `${parsed.name}-${attempt}${parsed.ext}`;
+}
+
+function buildArchiveSubsetText(markdown: string, footer: FooterConfig): string {
+  return [
+    markdown,
+    footer.brand ?? "由锤子便签发送",
+    footer.via ?? "via Smartisan Notes",
+    "正在读取 INDEX.md 不要因为走得太远，就忘了当初为什么出发。Don't forget why you started just because you've come so far.",
+  ].join("\n");
+}
+
+async function buildArchiveFontEntries(
+  folderName: string,
+  htmlAssetFolderName: string,
+  markdown: string,
+  footer: FooterConfig,
+): Promise<{ entries: ZipEntry[]; fonts: ArchiveFont[] }> {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "notes-font-subset-"));
+  const textFilePath = path.join(tempDir, "subset-text.txt");
+  const entries: ZipEntry[] = [];
+  const fonts: ArchiveFont[] = [];
+
+  try {
+    await fs.writeFile(textFilePath, buildArchiveSubsetText(markdown, footer), "utf8");
+
+    for (const font of archiveFonts) {
+      const inputPath = path.join(rootDir, "src", "assets", "fonts", font.sourceName);
+      const outputPath = path.join(tempDir, font.outputName);
+
+      await execFileAsync("python3", [
+        "-m",
+        "fontTools.subset",
+        inputPath,
+        `--text-file=${textFilePath}`,
+        `--output-file=${outputPath}`,
+        "--flavor=woff2",
+        "--layout-features=*",
+        "--glyph-names",
+        "--symbol-cmap",
+        "--legacy-cmap",
+        "--notdef-glyph",
+        "--notdef-outline",
+        "--recommended-glyphs",
+      ]);
+
+      entries.push({
+        path: `${folderName}/${htmlAssetFolderName}/fonts/${font.outputName}`,
+        data: await fs.readFile(outputPath),
+      });
+      fonts.push(font);
+    }
+  } catch (error) {
+    console.warn("Archive font subsetting skipped", error);
+    return {
+      entries: [],
+      fonts: [],
+    };
+  } finally {
+    await fs.rm(tempDir, { force: true, recursive: true }).catch(() => undefined);
+  }
+
+  return { entries, fonts };
+}
+
 async function waitForAssets(page: Page): Promise<void> {
   await page.evaluate(async () => {
     await document.fonts.ready;
@@ -317,6 +1382,78 @@ function crc32(buffer: Buffer): number {
   }
 
   return (crc ^ 0xffffffff) >>> 0;
+}
+
+function getDosDateTime(date: Date): { date: number; time: number } {
+  const year = Math.max(date.getFullYear(), 1980);
+
+  return {
+    date: ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate(),
+    time: (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2),
+  };
+}
+
+function createZip(entries: ZipEntry[]): Buffer {
+  const now = getDosDateTime(new Date());
+  const localParts: Buffer[] = [];
+  const centralParts: Buffer[] = [];
+  let offset = 0;
+
+  for (const entry of entries) {
+    const name = Buffer.from(entry.path.replace(/\\/g, "/"), "utf8");
+    const compressed = deflateRawSync(entry.data);
+    const checksum = crc32(entry.data);
+    const localHeader = Buffer.alloc(30);
+
+    localHeader.writeUInt32LE(0x04034b50, 0);
+    localHeader.writeUInt16LE(20, 4);
+    localHeader.writeUInt16LE(0x0800, 6);
+    localHeader.writeUInt16LE(8, 8);
+    localHeader.writeUInt16LE(now.time, 10);
+    localHeader.writeUInt16LE(now.date, 12);
+    localHeader.writeUInt32LE(checksum, 14);
+    localHeader.writeUInt32LE(compressed.length, 18);
+    localHeader.writeUInt32LE(entry.data.length, 22);
+    localHeader.writeUInt16LE(name.length, 26);
+    localHeader.writeUInt16LE(0, 28);
+
+    localParts.push(localHeader, name, compressed);
+
+    const centralHeader = Buffer.alloc(46);
+    centralHeader.writeUInt32LE(0x02014b50, 0);
+    centralHeader.writeUInt16LE(20, 4);
+    centralHeader.writeUInt16LE(20, 6);
+    centralHeader.writeUInt16LE(0x0800, 8);
+    centralHeader.writeUInt16LE(8, 10);
+    centralHeader.writeUInt16LE(now.time, 12);
+    centralHeader.writeUInt16LE(now.date, 14);
+    centralHeader.writeUInt32LE(checksum, 16);
+    centralHeader.writeUInt32LE(compressed.length, 20);
+    centralHeader.writeUInt32LE(entry.data.length, 24);
+    centralHeader.writeUInt16LE(name.length, 28);
+    centralHeader.writeUInt16LE(0, 30);
+    centralHeader.writeUInt16LE(0, 32);
+    centralHeader.writeUInt16LE(0, 34);
+    centralHeader.writeUInt16LE(0, 36);
+    centralHeader.writeUInt32LE(0, 38);
+    centralHeader.writeUInt32LE(offset, 42);
+
+    centralParts.push(centralHeader, name);
+    offset += localHeader.length + name.length + compressed.length;
+  }
+
+  const centralDirectory = Buffer.concat(centralParts);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(0, 4);
+  end.writeUInt16LE(0, 6);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralDirectory.length, 12);
+  end.writeUInt32LE(offset, 16);
+  end.writeUInt16LE(0, 20);
+
+  return Buffer.concat([...localParts, centralDirectory, end]);
 }
 
 function readPngMetadata(buffer: Buffer): PngMetadata {
@@ -893,6 +2030,30 @@ app.post(
         hint: isBrowserInstallError
           ? "Run `npx playwright install chromium` on this machine."
           : undefined,
+      });
+    }
+  },
+);
+
+app.post(
+  "/api/archive",
+  async (
+    request: Request<Record<string, never>, unknown, ArchiveRequestBody>,
+    response: Response,
+  ) => {
+    try {
+      const body = request.body || {};
+      const markdown = await resolveMarkdown(body);
+      const archive = await buildArchive(markdown, resolveFooterConfig(body));
+
+      response.setHeader("Content-Type", "application/zip");
+      response.setHeader("Content-Disposition", `attachment; filename="${archive.filename}"`);
+      response.send(archive.zipBuffer);
+    } catch (error) {
+      console.error("Archive request failed:", error);
+
+      response.status(500).json({
+        error: error instanceof Error ? error.message : "Failed to create archive",
       });
     }
   },
