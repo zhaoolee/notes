@@ -10,6 +10,7 @@
 - 自带浏览器持久化，关闭页面也不会丢失数据。
 - 开源免费，可私有化部署。
 - 工匠精神沁入AI，可以通过AI Skill直接调用工具，生成便签。
+- 支持自定义底部标识（点击即可编辑）
 
 ## 通过skill调用
 
@@ -33,6 +34,14 @@ clawhub地址 https://clawhub.ai/zhaoolee/notes-export-api
 ![](./README.assets/28d864deb17cb0ec9d9a7740392ca8bed1e71d3dabee8cc7cbb821d17f74176c.png)
 
 ![](./README.assets/53da5ab92d9aaecb9d246124fd6db1592f528b3b5c1793b9c1bbdcec7beafddb.png)
+
+## 支持自定义底部品牌标识
+
+只要你喜欢，可以把底部的「锤子便签」改成「凿子便签」或「榔头便签」
+
+| 凿子便签 | 榔头便签 |
+| --- | --- |
+| ![](./README.assets/252bbc1aae48f7b29fb77efbcb31d596642a6e85b671967b1a4e8a4d20794cf1.png) | ![](./README.assets/17668abc4f5b993db188b6deacc22b737974378412511ed30d90ee91e567cda2.png) |
 
 ## Skill去域名依赖说明
 
