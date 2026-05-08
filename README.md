@@ -23,24 +23,13 @@ clawhub地址 https://clawhub.ai/zhaoolee/notes-export-api
 
 ![](./README.assets/3c37864955b98ac6036e757737a00e88c86c433316dbdd4260dd4dfeb8ec08e4.png)
 
-## 网页版
-
-地址：[https://notes.fangyuanxiaozhan.com](https://notes.fangyuanxiaozhan.com)
-
-![](./README.assets/d88b356e6901cd2412df55a0569ba29341f0ed6955ef1dbb7cd5040b2a61d813.png)
-
-![](./README.assets/b72b6a36d0c367f292807a59bdb41057e433efae404a83eb68e228ec63abebc5.png)
-
-![](./README.assets/28d864deb17cb0ec9d9a7740392ca8bed1e71d3dabee8cc7cbb821d17f74176c.png)
-
-![](./README.assets/53da5ab92d9aaecb9d246124fd6db1592f528b3b5c1793b9c1bbdcec7beafddb.png)
-
-## 支持自定义底部品牌标识
+## 支持自定义底部品牌标识(点击就能改)
 
 只要你喜欢，可以把底部的「锤子便签」改成「凿子便签」或「榔头便签」
 
 | 凿子便签 | 榔头便签 |
 | --- | --- |
+| ![](./README.assets/c5e025d66a5eba7b90de20699f731d6bec50a1f8b544ead80a0d06b1c74762d9.png) | ![](./README.assets/f55082151251b2c2e46ec1461af49e2e7959a5200a7e1b18ec53103fd32352a5.png) |
 | ![](./README.assets/252bbc1aae48f7b29fb77efbcb31d596642a6e85b671967b1a4e8a4d20794cf1.png) | ![](./README.assets/17668abc4f5b993db188b6deacc22b737974378412511ed30d90ee91e567cda2.png) |
 
 ## 支持下载文章，包含网页，markdown以及管理的图片资源
@@ -49,6 +38,24 @@ clawhub地址 https://clawhub.ai/zhaoolee/notes-export-api
 ![](./README.assets/0c60fb3e65140f312596ea29be241881ffa7a67d50bcda49783117a8487d5fad.png)
 
 ![](./README.assets/6cfa5f69414ba904b1211b9fa1147209967c6010a6a69b4c8567a7ba90fdbfff.gif)
+
+
+## 网页版
+
+地址：[https://notes.fangyuanxiaozhan.com](https://notes.fangyuanxiaozhan.com)
+
+| 暖白纸感 | 深夜便签 |
+| --- | --- |
+| ![](./README.assets/d88b356e6901cd2412df55a0569ba29341f0ed6955ef1dbb7cd5040b2a61d813.png) | ![](./README.assets/b72b6a36d0c367f292807a59bdb41057e433efae404a83eb68e228ec63abebc5.png) |
+| ![](./README.assets/28d864deb17cb0ec9d9a7740392ca8bed1e71d3dabee8cc7cbb821d17f74176c.png) | ![](./README.assets/53da5ab92d9aaecb9d246124fd6db1592f528b3b5c1793b9c1bbdcec7beafddb.png) |
+
+
+
+
+
+
+
+
 
 ## Skill去域名依赖说明
 
