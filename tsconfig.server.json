@@ -6,11 +6,18 @@
     "moduleResolution": "NodeNext",
     "types": ["node"],
     "strict": true,
+    "jsx": "react-jsx",
     "skipLibCheck": true,
     "noEmitOnError": true,
-    "rootDir": "server",
+    "rootDir": ".",
     "outDir": "dist-server",
     "verbatimModuleSyntax": true
   },
-  "include": ["server/**/*.ts"]
+  "include": [
+    "server/**/*.ts",
+    "src/components/MarkdownText.tsx",
+    "src/components/NoteSheet.tsx",
+    "src/lib/markdown.ts",
+    "src/types/app.ts"
+  ]
 }

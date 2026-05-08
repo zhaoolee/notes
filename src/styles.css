@@ -55,9 +55,9 @@
   --editor-rule-highlight: #e8e2d7;
   --editor-margin-band: #f5f0e4;
   --editor-margin-line: #e8e2d7;
-  --editor-line-height: 3.05rem;
+  --editor-line-height: 49px;
   --editor-font-size: 1.08rem;
-  --editor-rule-offset-y: 0.12rem;
+  --editor-rule-offset-y: 0px;
   --app-background:
     url("/bg.jpg") left top / 420px auto repeat;
   --preview-stage-bg:
@@ -660,7 +660,7 @@ body,
       var(--editor-margin-line) var(--editor-gutter-width),
       transparent var(--editor-gutter-width)
     ),
-    repeating-linear-gradient(
+    linear-gradient(
       to bottom,
       transparent 0,
       transparent calc(var(--editor-line-height) - 1px),
@@ -679,6 +679,11 @@ body,
   -webkit-text-size-adjust: none;
   text-size-adjust: none;
   background-attachment: local;
+  background-size:
+    auto,
+    100% var(--editor-line-height),
+    auto,
+    auto;
   background-position:
     0 0,
     0 var(--editor-rule-offset-y),
@@ -783,7 +788,7 @@ body,
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: calc(30px * var(--note-scale));
+  gap: 0;
   padding:
     calc(16px * var(--note-scale))
     calc(18px * var(--note-scale))
@@ -824,8 +829,55 @@ body,
   white-space: pre-wrap;
 }
 
+.note-copy h1,
+.note-copy h2,
+.note-copy h3,
+.note-copy h4,
+.note-copy h5,
+.note-copy h6 {
+  margin: 0;
+  color: var(--note-heading);
+  line-height: 1.28;
+}
+
+.note-copy h1 {
+  font-size: calc(1.28rem * var(--note-scale));
+}
+
+.note-copy h2 {
+  font-size: calc(0.92rem * var(--note-scale));
+}
+
+.note-copy .markdown-blank-line {
+  display: block;
+  height: 0.704em;
+  min-height: 0;
+  line-height: 0;
+  overflow: hidden;
+}
+
+.note-copy .markdown-blank-line + p,
+.note-copy .markdown-blank-line + pre,
+.note-copy .markdown-blank-line + blockquote,
+.note-copy .markdown-blank-line + ul,
+.note-copy .markdown-blank-line + ol,
+.note-copy .markdown-blank-line + table,
+.note-copy .markdown-blank-line + hr,
+.note-copy .markdown-blank-line + h1,
+.note-copy .markdown-blank-line + h2,
+.note-copy .markdown-blank-line + h3,
+.note-copy .markdown-blank-line + h4,
+.note-copy .markdown-blank-line + h5,
+.note-copy .markdown-blank-line + h6 {
+  margin-top: 0;
+}
+
 .note-copy p + p {
-  margin-top: calc(8px * var(--note-scale));
+  margin-top: 0;
+}
+
+.note-copy p + .markdown-blank-line {
+  margin-top: 0;
 }
 
 .note-copy p img {
@@ -854,7 +906,7 @@ body,
   font-size: 0.9em;
   font-weight: 400;
   padding: 0.08em 0.32em;
-  border-radius: 0.3em;
+  border-radius: 0;
   background: var(--note-code-bg);
 }
 
@@ -862,7 +914,7 @@ body,
   margin: calc(10px * var(--note-scale)) 0 0;
   padding: calc(9px * var(--note-scale)) calc(11px * var(--note-scale));
   overflow: hidden;
-  border-radius: calc(10px * var(--note-scale));
+  border-radius: 0;
   background: var(--note-pre-bg);
   white-space: pre-wrap;
   overflow-wrap: anywhere;

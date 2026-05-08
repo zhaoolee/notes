@@ -10,6 +10,10 @@ import { promisify } from "node:util";
 import { createDeflate, deflateRawSync, inflateSync } from "node:zlib";
 import multer, { MulterError } from "multer";
 import { chromium, type Browser, type Locator, type Page } from "playwright";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { NoteSheet } from "../src/components/NoteSheet.js";
+import { splitSections } from "../src/lib/markdown.js";
 
 type ThemeId = "default" | "smartisan-dark";
 
@@ -76,7 +80,10 @@ interface ArchiveFont {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const rootDir = path.resolve(__dirname, "..");
+const rootDir =
+  path.basename(__dirname) === "server" && path.basename(path.dirname(__dirname)) === "dist-server"
+    ? path.resolve(__dirname, "..", "..")
+    : path.resolve(__dirname, "..");
 const distDir = path.join(rootDir, "dist");
 const publicDir = path.join(rootDir, "public");
 const imagesDir = process.env.IMAGE_STORAGE_DIR || path.join(rootDir, "storage", "images");
@@ -420,15 +427,6 @@ function replaceAll(value: string, search: string, replacement: string): string 
   return value.split(search).join(replacement);
 }
 
-function escapeHtmlText(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
 function buildArchiveFontFaceCss(fonts: ArchiveFont[]): string {
   return fonts
     .map(
@@ -444,14 +442,25 @@ function buildArchiveFontFaceCss(fonts: ArchiveFont[]): string {
     .join("\n");
 }
 
+function renderArchiveNoteSheet(markdown: string, footer: FooterConfig): string {
+  const footerBrand = footer.brand ?? "由锤子便签发送";
+  const footerVia = footer.via ?? "via Smartisan Notes";
+
+  return renderToStaticMarkup(
+    createElement(NoteSheet, {
+      notes: splitSections(markdown),
+      footerBrand: createElement("span", { className: "sheet-footer-brand" }, footerBrand),
+      footerVia: createElement("span", { className: "sheet-footer-via" }, footerVia),
+    }),
+  );
+}
+
 function buildArchiveIndexHtml(
   markdown: string,
   footer: FooterConfig,
   fonts: ArchiveFont[],
 ): string {
-  const embeddedMarkdown = JSON.stringify(markdown).replace(/</g, "\\u003c");
-  const footerBrand = footer.brand ?? "由锤子便签发送";
-  const footerVia = footer.via ?? "via Smartisan Notes";
+  const noteSheetHtml = renderArchiveNoteSheet(markdown, footer);
   const fontFaceCss = buildArchiveFontFaceCss(fonts);
   const fontFamilyPrefix = fonts.length ? `"OPPOSansArchive", ` : "";
 
@@ -589,7 +598,7 @@ ${fontFaceCss}
         z-index: 1;
         display: flex;
         flex-direction: column;
-        gap: calc(30px * var(--note-scale));
+        gap: 0;
         padding:
           calc(16px * var(--note-scale))
           calc(18px * var(--note-scale))
@@ -630,8 +639,55 @@ ${fontFaceCss}
         white-space: pre-wrap;
       }
 
+      .note-copy h1,
+      .note-copy h2,
+      .note-copy h3,
+      .note-copy h4,
+      .note-copy h5,
+      .note-copy h6 {
+        margin: 0;
+        color: var(--note-heading);
+        line-height: 1.28;
+      }
+
+      .note-copy h1 {
+        font-size: calc(1.28rem * var(--note-scale));
+      }
+
+      .note-copy h2 {
+        font-size: calc(0.92rem * var(--note-scale));
+      }
+
+      .note-copy .markdown-blank-line {
+        display: block;
+        height: 0.704em;
+        min-height: 0;
+        line-height: 0;
+        overflow: hidden;
+      }
+
+      .note-copy .markdown-blank-line + p,
+      .note-copy .markdown-blank-line + pre,
+      .note-copy .markdown-blank-line + blockquote,
+      .note-copy .markdown-blank-line + ul,
+      .note-copy .markdown-blank-line + ol,
+      .note-copy .markdown-blank-line + table,
+      .note-copy .markdown-blank-line + hr,
+      .note-copy .markdown-blank-line + h1,
+      .note-copy .markdown-blank-line + h2,
+      .note-copy .markdown-blank-line + h3,
+      .note-copy .markdown-blank-line + h4,
+      .note-copy .markdown-blank-line + h5,
+      .note-copy .markdown-blank-line + h6 {
+        margin-top: 0;
+      }
+
       .note-copy p + p {
-        margin-top: calc(8px * var(--note-scale));
+        margin-top: 0;
+      }
+
+      .note-copy p + .markdown-blank-line {
+        margin-top: 0;
       }
 
       .note-copy p img {
@@ -660,7 +716,7 @@ ${fontFaceCss}
         font-size: 0.9em;
         font-weight: 400;
         padding: 0.08em 0.32em;
-        border-radius: 0.3em;
+        border-radius: 0;
         background: var(--note-code-bg);
       }
 
@@ -668,7 +724,7 @@ ${fontFaceCss}
         margin: calc(10px * var(--note-scale)) 0 0;
         padding: calc(9px * var(--note-scale)) calc(11px * var(--note-scale));
         overflow: hidden;
-        border-radius: calc(10px * var(--note-scale));
+        border-radius: 0;
         background: var(--note-pre-bg);
         white-space: pre-wrap;
         overflow-wrap: anywhere;
@@ -824,10 +880,6 @@ ${fontFaceCss}
         color: inherit;
       }
 
-      .status {
-        color: var(--note-copy);
-      }
-
       @media (max-width: 720px) {
         :root {
           --note-scale: 1.85;
@@ -880,274 +932,7 @@ ${fontFaceCss}
     </style>
   </head>
   <body>
-    <main class="preview-stage">
-      <article class="note-sheet">
-        <div class="sheet-frame sheet-frame-outer"></div>
-        <div class="sheet-frame sheet-frame-inner"></div>
-        <span class="sheet-corner sheet-corner-top-left"></span>
-        <span class="sheet-corner sheet-corner-top-right"></span>
-        <span class="sheet-corner sheet-corner-bottom-left"></span>
-        <span class="sheet-corner sheet-corner-bottom-right"></span>
-
-        <div id="content" class="sheet-inner">
-          <article class="note-section empty-state">
-            <div class="note-copy">
-              <p class="status">正在读取 INDEX.md...</p>
-            </div>
-          </article>
-        </div>
-
-        <footer class="sheet-footer">
-          <span class="sheet-footer-icon" aria-hidden="true">
-            <svg viewBox="0 0 32 32" role="img" focusable="false">
-              <circle cx="16" cy="16" r="16"></circle>
-              <text x="50%" y="50%">T</text>
-            </svg>
-          </span>
-          <span class="sheet-footer-copy">
-            <span class="sheet-footer-brand">${escapeHtmlText(footerBrand)}</span>
-            <span class="sheet-footer-via">${escapeHtmlText(footerVia)}</span>
-          </span>
-        </footer>
-      </article>
-    </main>
-    <script>
-      const content = document.getElementById("content");
-      const embeddedMarkdown = ${embeddedMarkdown};
-
-      function escapeHtml(value) {
-        return value
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;")
-          .replace(/'/g, "&#039;");
-      }
-
-      function renderInline(value) {
-        return escapeHtml(value)
-          .replace(new RegExp("!\\\\[([^\\\\]]*)\\\\]\\\\(([^)\\\\s]+)(?:\\\\s+[\\\"'][^)]+[\\\"'])?\\\\)", "g"), '<img src="$2" alt="$1" />')
-          .replace(new RegExp("\\\\[([^\\\\]]+)\\\\]\\\\(([^)\\\\s]+)\\\\)", "g"), '<a href="$2" target="_blank" rel="noopener">$1</a>')
-          .replace(new RegExp("\\\\*\\\\*([^*]+)\\\\*\\\\*", "g"), "<strong>$1</strong>")
-          .replace(new RegExp("\\\\x60([^\\\\x60]+)\\\\x60", "g"), "<code>$1</code>");
-      }
-
-      function normalizeSingleLineBlockquotes(markdown) {
-        const lines = markdown.replace(/\\r\\n/g, "\\n").split("\\n");
-        const normalized = [];
-
-        for (let index = 0; index < lines.length; index += 1) {
-          const line = lines[index];
-          const nextLine = lines[index + 1];
-
-          normalized.push(line);
-
-          if (!line.trimStart().startsWith(">")) {
-            continue;
-          }
-
-          if (nextLine == null || nextLine.trim() === "") {
-            continue;
-          }
-
-          if (nextLine.trimStart().startsWith(">")) {
-            continue;
-          }
-
-          normalized.push("");
-        }
-
-        return normalized.join("\\n");
-      }
-
-      function splitSections(markdown) {
-        const lines = markdown.replace(/\\r\\n/g, "\\n").split("\\n");
-        const sections = [];
-        let current = null;
-
-        for (const line of lines) {
-          if (/^##\\s+/.test(line)) {
-            if (current) {
-              sections.push(current);
-            }
-
-            current = {
-              heading: line.replace(/^##\\s+/, "").trim(),
-              lines: [],
-            };
-            continue;
-          }
-
-          if (!current) {
-            current = {
-              heading: "",
-              lines: [],
-            };
-          }
-
-          current.lines.push(line);
-        }
-
-        if (current) {
-          sections.push(current);
-        }
-
-        return sections
-          .map((section) => ({
-            heading: section.heading.trim(),
-            content: normalizeSingleLineBlockquotes(section.lines.join("\\n")).trim(),
-          }))
-          .filter((section) => section.heading || section.content);
-      }
-
-      function renderMarkdownBlocks(markdown) {
-        const lines = markdown.replace(/\\r\\n?/g, "\\n").split("\\n");
-        const html = [];
-        let paragraph = [];
-        let list = null;
-        let quote = [];
-        let code = [];
-        let inCode = false;
-
-        function flushParagraph() {
-          if (paragraph.length) {
-            html.push("<p>" + renderInline(paragraph.join("\\n")) + "</p>");
-            paragraph = [];
-          }
-        }
-
-        function flushList() {
-          if (list) {
-            html.push("<" + list.type + ">" + list.items.map((item) => "<li>" + renderInline(item) + "</li>").join("") + "</" + list.type + ">");
-            list = null;
-          }
-        }
-
-        function flushQuote() {
-          if (quote.length) {
-            html.push("<blockquote><p>" + renderInline(quote.join("\\n")) + "</p></blockquote>");
-            quote = [];
-          }
-        }
-
-        function flushCode() {
-          if (code.length) {
-            html.push("<pre><code>" + escapeHtml(code.join("\\n")) + "</code></pre>");
-            code = [];
-          }
-        }
-
-        for (const line of lines) {
-          if (/^\\x60\\x60\\x60/.test(line)) {
-            if (inCode) {
-              flushCode();
-              inCode = false;
-            } else {
-              flushParagraph();
-              flushList();
-              flushQuote();
-              inCode = true;
-            }
-            continue;
-          }
-
-          if (inCode) {
-            code.push(line);
-            continue;
-          }
-
-          const heading = /^(#{1,6})\\s+(.+)$/.exec(line);
-          const unordered = /^[-*+]\\s+(.+)$/.exec(line);
-          const ordered = /^\\d+[.)]\\s+(.+)$/.exec(line);
-          const blockquote = /^>\\s?(.+)$/.exec(line);
-
-          if (!line.trim()) {
-            flushParagraph();
-            flushList();
-            flushQuote();
-            continue;
-          }
-
-          if (heading) {
-            flushParagraph();
-            flushList();
-            flushQuote();
-            const level = heading[1].length;
-            html.push("<h" + level + ">" + renderInline(heading[2]) + "</h" + level + ">");
-            continue;
-          }
-
-          if (blockquote) {
-            flushParagraph();
-            flushList();
-            quote.push(blockquote[1]);
-            continue;
-          }
-
-          if (unordered || ordered) {
-            flushParagraph();
-            flushQuote();
-            const type = unordered ? "ul" : "ol";
-            const item = unordered ? unordered[1] : ordered[1];
-            if (!list || list.type !== type) {
-              flushList();
-              list = { type, items: [] };
-            }
-            list.items.push(item);
-            continue;
-          }
-
-          flushList();
-          flushQuote();
-          paragraph.push(line);
-        }
-
-        flushParagraph();
-        flushList();
-        flushQuote();
-        flushCode();
-        return html.join("\\n");
-      }
-
-      function renderSection(section) {
-        const heading = section.heading
-          ? '<header class="note-index"><p>' + renderInline(section.heading) + '</p></header>'
-          : "";
-        const content = section.content
-          ? renderMarkdownBlocks(section.content)
-          : "<p> </p>";
-
-        return '<article class="note-section">' + heading + '<div class="note-copy">' + content + '</div></article>';
-      }
-
-      function renderMarkdown(markdown) {
-        const sections = splitSections(markdown);
-
-        if (!sections.length) {
-          return '<article class="note-section empty-state"><div class="note-copy"><p>不要因为走得太远，</p><p>就忘了当初为什么出发。</p><p>Don\\'t forget why you started just because you\\'ve come so far.</p></div></article>';
-        }
-
-        return sections.map(renderSection).join("\\n");
-      }
-
-      content.innerHTML = renderMarkdown(embeddedMarkdown);
-
-      if (location.protocol !== "file:") {
-        fetch("./INDEX.md", { cache: "no-store" })
-          .then((response) => {
-            if (!response.ok) {
-              throw new Error("INDEX.md " + response.status);
-            }
-            return response.text();
-          })
-          .then((markdown) => {
-            content.innerHTML = renderMarkdown(markdown);
-          })
-          .catch((error) => {
-            console.warn("Falling back to embedded archive markdown.", error);
-          });
-      }
-    </script>
+    <main class="preview-stage">${noteSheetHtml}</main>
   </body>
 </html>
 `;
@@ -1258,7 +1043,7 @@ function buildArchiveSubsetText(markdown: string, footer: FooterConfig): string 
     markdown,
     footer.brand ?? "由锤子便签发送",
     footer.via ?? "via Smartisan Notes",
-    "正在读取 INDEX.md 不要因为走得太远，就忘了当初为什么出发。Don't forget why you started just because you've come so far.",
+    "不要因为走得太远，就忘了当初为什么出发。Don't forget why you started just because you've come so far.",
   ].join("\n");
 }
 

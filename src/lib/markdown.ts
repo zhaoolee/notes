@@ -1,36 +1,33 @@
-import type { NoteSection } from "../types/app";
+import type { NoteSection } from "../types/app.js";
 
 interface RawSection {
   heading: string;
   lines: string[];
 }
 
-function normalizeSingleLineBlockquotes(markdown: string): string {
-  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
-  const normalized: string[] = [];
+export const MARKDOWN_BLANK_LINE = "\u00A0";
 
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-    const nextLine = lines[index + 1];
+export function preserveMarkdownBlankLines(markdown: string): string {
+  const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
+  const preservedLines: string[] = [];
+  let inCodeFence = false;
 
-    normalized.push(line);
-
-    if (!line.trimStart().startsWith(">")) {
+  for (const line of lines) {
+    if (/^\s*(```|~~~)/.test(line)) {
+      inCodeFence = !inCodeFence;
+      preservedLines.push(line);
       continue;
     }
 
-    if (nextLine == null || nextLine.trim() === "") {
+    if (!inCodeFence && line.trim() === "") {
+      preservedLines.push("", MARKDOWN_BLANK_LINE, "");
       continue;
     }
 
-    if (nextLine.trimStart().startsWith(">")) {
-      continue;
-    }
-
-    normalized.push("");
+    preservedLines.push(line);
   }
 
-  return normalized.join("\n");
+  return preservedLines.join("\n");
 }
 
 export function splitSections(markdown: string): NoteSection[] {
@@ -68,7 +65,7 @@ export function splitSections(markdown: string): NoteSection[] {
   return sections
     .map((section) => ({
       heading: section.heading.trim(),
-      content: normalizeSingleLineBlockquotes(section.lines.join("\n")).trim(),
+      content: section.lines.join("\n"),
     }))
-    .filter((section) => section.heading || section.content);
+    .filter((section) => section.heading || section.content.trim());
 }

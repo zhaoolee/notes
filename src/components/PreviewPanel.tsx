@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import type { NoteSection } from "../types/app";
-import { MarkdownText } from "./MarkdownText";
+import { NoteSheet } from "./NoteSheet.js";
 
 interface PreviewPanelProps {
   notes: NoteSection[];
@@ -136,63 +136,25 @@ export function PreviewPanel({
       {exportError ? <p className="export-status">{exportError}</p> : null}
 
       <div className="preview-stage" ref={stageRef} style={previewStyle}>
-        <div className="note-sheet">
-          <div className="sheet-frame sheet-frame-outer" />
-          <div className="sheet-frame sheet-frame-inner" />
-          <span className="sheet-corner sheet-corner-top-left" />
-          <span className="sheet-corner sheet-corner-top-right" />
-          <span className="sheet-corner sheet-corner-bottom-left" />
-          <span className="sheet-corner sheet-corner-bottom-right" />
-
-          <div className="sheet-inner">
-            {notes.map((note, index) => (
-              <article className="note-section" key={`${note.heading}-${index}`}>
-                {note.heading ? (
-                  <header className="note-index">
-                    <MarkdownText>{note.heading}</MarkdownText>
-                  </header>
-                ) : null}
-
-                <div className="note-copy">
-                  <MarkdownText>{note.content || " "}</MarkdownText>
-                </div>
-              </article>
-            ))}
-
-            {!notes.length ? (
-              <article className="note-section empty-state">
-                <p>不要因为走得太远，</p>
-                <p>就忘了当初为什么出发。</p>
-                <p>Don't forget why you started just because you've come so far.</p>
-              </article>
-            ) : null}
-          </div>
-
-          <div className="sheet-footer">
-            <span className="sheet-footer-icon" aria-hidden="true">
-              <svg viewBox="0 0 32 32" role="img" focusable="false">
-                <circle cx="16" cy="16" r="16" />
-                <text x="50%" y="50%">
-                  T
-                </text>
-              </svg>
-            </span>
-            <span className="sheet-footer-copy">
-              <FooterTextEditor
-                className="sheet-footer-brand"
-                value={footerBrand}
-                maxLength={80}
-                onChange={onFooterBrandChange}
-              />
-              <FooterTextEditor
-                className="sheet-footer-via"
-                value={footerVia}
-                maxLength={80}
-                onChange={onFooterViaChange}
-              />
-            </span>
-          </div>
-        </div>
+        <NoteSheet
+          notes={notes}
+          footerBrand={
+            <FooterTextEditor
+              className="sheet-footer-brand"
+              value={footerBrand}
+              maxLength={80}
+              onChange={onFooterBrandChange}
+            />
+          }
+          footerVia={
+            <FooterTextEditor
+              className="sheet-footer-via"
+              value={footerVia}
+              maxLength={80}
+              onChange={onFooterViaChange}
+            />
+          }
+        />
       </div>
     </main>
   );
