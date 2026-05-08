@@ -43,6 +43,13 @@ clawhub地址 https://clawhub.ai/zhaoolee/notes-export-api
 | --- | --- |
 | ![](./README.assets/252bbc1aae48f7b29fb77efbcb31d596642a6e85b671967b1a4e8a4d20794cf1.png) | ![](./README.assets/17668abc4f5b993db188b6deacc22b737974378412511ed30d90ee91e567cda2.png) |
 
+## 支持下载文章，包含网页，markdown以及管理的图片资源
+
+
+![](./README.assets/0c60fb3e65140f312596ea29be241881ffa7a67d50bcda49783117a8487d5fad.png)
+
+![](./README.assets/6cfa5f69414ba904b1211b9fa1147209967c6010a6a69b4c8567a7ba90fdbfff.gif)
+
 ## Skill去域名依赖说明
 
 - Web 应用本体可完全本地自托管，不依赖 `notes.fangyuanxiaozhan.com`

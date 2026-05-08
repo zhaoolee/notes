@@ -26,6 +26,7 @@ RUN npm ci
 
 COPY tsconfig.server.json ./
 COPY server ./server
+COPY src ./src
 
 RUN npm run build:server
 
@@ -43,6 +44,7 @@ RUN npm ci --omit=dev
 
 COPY --from=frontend-build /app/dist ./dist
 COPY --from=server-build /app/dist-server ./dist-server
+COPY --from=server-build /app/src/assets/fonts ./src/assets/fonts
 
 ENV NODE_ENV=production
 ENV PORT=3001
@@ -51,4 +53,4 @@ ENV IMAGE_STORAGE_DIR=/app/storage/images
 
 EXPOSE 3001
 
-CMD ["node", "dist-server/index.js"]
+CMD ["node", "dist-server/server/index.js"]
