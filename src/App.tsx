@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "./components/ConfirmDialog";
-import { EditorPanel } from "./components/EditorPanel";
+import { EditorPanel, type EditorPanelHandle } from "./components/EditorPanel";
 import { PreviewPanel } from "./components/PreviewPanel";
+import { SettingsPanel } from "./components/SettingsPanel";
 import {
   DRAFT_STORAGE_KEY,
   FALLBACK_CONTENT,
@@ -35,6 +36,10 @@ export default function App() {
   const [footerBrand, setFooterBrand] = useState(getInitialFooterBrand);
   const [footerVia, setFooterVia] = useState(getInitialFooterVia);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [isImportingImage, setIsImportingImage] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const editorPanelRef = useRef<EditorPanelHandle | null>(null);
+  const settingsContainerRef = useRef<HTMLDivElement | null>(null);
   const markdown = useAppStore((state) => state.markdown);
   const selectedTheme = useAppStore((state) => state.selectedTheme);
   const isExporting = useAppStore((state) => state.isExporting);
@@ -82,6 +87,34 @@ export default function App() {
       window.clearTimeout(timeoutId);
     };
   }, [copyState, setCopyState]);
+
+  useEffect(() => {
+    if (!isSettingsOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+
+      if (target instanceof Node && !settingsContainerRef.current?.contains(target)) {
+        setIsSettingsOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsSettingsOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isSettingsOpen]);
 
   async function handleExport() {
     if (isExporting) {
@@ -133,6 +166,29 @@ export default function App() {
     }
   }
 
+  function handleClearMarkdown() {
+    setIsSettingsOpen(false);
+    requestReplaceMarkdown(
+      FALLBACK_CONTENT,
+      "清空重写？",
+      "这会清空当前草稿，建议确认后再继续。",
+    );
+  }
+
+  function handleLoadExample() {
+    setIsSettingsOpen(false);
+    requestReplaceMarkdown(
+      SAMPLE_MARKDOWN_CONTENT,
+      "加载示例？",
+      "这会覆盖你当前正在编辑的草稿内容。",
+    );
+  }
+
+  function handleInsertImage() {
+    setIsSettingsOpen(false);
+    editorPanelRef.current?.openImagePicker();
+  }
+
   return (
     <>
       <div
@@ -152,42 +208,51 @@ export default function App() {
             </div>
 
             <div className="app-topbar-actions">
-              <button
-                type="button"
-                className="primary preview-export"
-                onClick={handleArchiveDownload}
-              >
-                {isArchiving ? "归档中..." : "下载归档"}
-              </button>
-              <button type="button" className="primary preview-export" onClick={handleCopyMarkdown}>
-                {getCopyButtonText(copyState)}
-              </button>
               <button type="button" className="primary preview-export" onClick={handleExport}>
                 {isExporting ? "导出中..." : "存图"}
               </button>
+              <div className="app-settings" ref={settingsContainerRef}>
+                <button
+                  type="button"
+                  className="settings-trigger"
+                  aria-label={isSettingsOpen ? "关闭设置" : "打开设置"}
+                  aria-controls="app-settings-panel"
+                  aria-expanded={isSettingsOpen}
+                  title="设置"
+                  onClick={() => setIsSettingsOpen((isOpen) => !isOpen)}
+                >
+                  <span aria-hidden="true">⚙</span>
+                </button>
+
+                {isSettingsOpen ? (
+                  <SettingsPanel
+                    copyButtonText={getCopyButtonText(copyState)}
+                    isArchiving={isArchiving}
+                    isImportingImage={isImportingImage}
+                    selectedTheme={selectedTheme}
+                    onArchiveDownload={() => {
+                      void handleArchiveDownload();
+                    }}
+                    onClearMarkdown={handleClearMarkdown}
+                    onClose={() => setIsSettingsOpen(false)}
+                    onCopyMarkdown={() => {
+                      void handleCopyMarkdown();
+                    }}
+                    onInsertImage={handleInsertImage}
+                    onLoadExample={handleLoadExample}
+                    onThemeChange={setSelectedTheme}
+                  />
+                ) : null}
+              </div>
             </div>
           </div>
         </header>
 
         <div className="app-shell">
           <EditorPanel
+            ref={editorPanelRef}
             markdown={markdown}
-            selectedTheme={selectedTheme}
-            onThemeChange={setSelectedTheme}
-            onLoadExample={() =>
-              requestReplaceMarkdown(
-                SAMPLE_MARKDOWN_CONTENT,
-                "加载示例？",
-                "这会覆盖你当前正在编辑的草稿内容。",
-              )
-            }
-            onClearMarkdown={() =>
-              requestReplaceMarkdown(
-                FALLBACK_CONTENT,
-                "清空重写？",
-                "这会清空当前草稿，建议确认后再继续。",
-              )
-            }
+            onImageImportingChange={setIsImportingImage}
             onMarkdownChange={setMarkdown}
           />
 

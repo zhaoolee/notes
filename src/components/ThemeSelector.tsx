@@ -1,5 +1,5 @@
-import { THEME_OPTIONS } from "../lib/app-state";
-import type { ThemeId } from "../types/app";
+import { THEME_OPTIONS } from "../lib/themes.js";
+import type { ThemeId } from "../types/app.js";
 
 interface ThemeSelectorProps {
   value: ThemeId;

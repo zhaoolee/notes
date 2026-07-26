@@ -230,6 +230,8 @@ body,
 .note-sheet,
 .preview-stage,
 .confirm-dialog,
+.settings-panel,
+.settings-action,
 .theme-selector,
 .theme-selector-option {
   transition:
@@ -262,7 +264,177 @@ body,
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 8px;
+}
+
+.app-settings {
+  position: relative;
+}
+
+.settings-trigger {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 1px 0 rgba(35, 24, 17, 0.2);
+}
+
+.settings-trigger:hover,
+.settings-trigger[aria-expanded="true"] {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.settings-trigger span {
+  display: block;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 22px;
+  line-height: 1;
+  transition: transform 220ms ease;
+}
+
+.settings-trigger[aria-expanded="true"] span {
+  transform: rotate(30deg);
+}
+
+.settings-panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 12px);
+  right: 0;
+  width: min(360px, calc(100vw - 24px));
+  max-height: calc(100vh - 86px);
+  padding: 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--panel-border);
+  border-radius: 18px;
+  background: var(--dialog-bg);
+  color: var(--ink);
+  box-shadow: var(--dialog-shadow);
+  backdrop-filter: blur(24px);
+}
+
+.settings-panel::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: 12px;
+  width: 12px;
+  height: 12px;
+  border-top: 1px solid var(--panel-border);
+  border-left: 1px solid var(--panel-border);
+  background: var(--dialog-bg);
+  transform: rotate(45deg);
+}
+
+.settings-panel-header {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.settings-panel-eyebrow {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.settings-panel-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  line-height: 1.2;
+}
+
+.settings-close {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  padding: 0 0 2px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 10px;
+  background: var(--toolbar-surface);
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.settings-close:hover {
+  color: var(--ink);
+  border-color: var(--toolbar-hover-border);
+  box-shadow: var(--toolbar-hover-shadow);
+}
+
+.settings-section {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.settings-section h3 {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.settings-panel .theme-selector {
+  width: 100%;
+  min-width: 0;
+}
+
+.settings-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-action {
+  width: 100%;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 13px;
+  background: var(--toolbar-surface);
+  color: var(--ink);
+  text-align: left;
+}
+
+.settings-action:hover {
+  transform: translateY(-1px);
+  border-color: var(--toolbar-hover-border);
+  box-shadow: var(--toolbar-hover-shadow);
+}
+
+.settings-action-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.settings-action-description {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.45;
 }
 
 .app-brand {
@@ -1221,7 +1393,20 @@ body,
   }
 
   .preview-export {
-    padding: 0 16px;
+    padding: 0 14px;
+  }
+
+  .settings-panel {
+    position: fixed;
+    top: 70px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: calc(100vh - 82px);
+  }
+
+  .settings-panel::before {
+    display: none;
   }
 
   .app-shell {

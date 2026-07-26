@@ -1,15 +1,22 @@
-import { useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent } from "react";
+import {
+  forwardRef,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ClipboardEvent,
+  type DragEvent,
+} from "react";
 import { importImageFile, importImageUrl } from "../lib/images";
-import type { ThemeId } from "../types/app";
-import { ThemeSelector } from "./ThemeSelector";
 
 interface EditorPanelProps {
   markdown: string;
-  selectedTheme: ThemeId;
-  onThemeChange: (themeId: ThemeId) => void;
-  onLoadExample: () => void;
-  onClearMarkdown: () => void;
   onMarkdownChange: (markdown: string) => void;
+  onImageImportingChange: (isImporting: boolean) => void;
+}
+
+export interface EditorPanelHandle {
+  openImagePicker: () => void;
 }
 
 function isHttpUrl(value: string): boolean {
@@ -44,14 +51,14 @@ function extractImageFile(files: FileList | File[]): File | null {
   return null;
 }
 
-export function EditorPanel({
-  markdown,
-  selectedTheme,
-  onThemeChange,
-  onLoadExample,
-  onClearMarkdown,
-  onMarkdownChange,
-}: EditorPanelProps) {
+export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(function EditorPanel(
+  {
+    markdown,
+    onMarkdownChange,
+    onImageImportingChange,
+  },
+  ref,
+) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const selectionRef = useRef({
@@ -61,6 +68,16 @@ export function EditorPanel({
   const [isImportingImage, setIsImportingImage] = useState(false);
   const [imageImportError, setImageImportError] = useState("");
   const [isDropTargetActive, setIsDropTargetActive] = useState(false);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      openImagePicker: () => {
+        imageInputRef.current?.click();
+      },
+    }),
+    [],
+  );
 
   function syncSelection(): void {
     const textarea = textareaRef.current;
@@ -109,6 +126,7 @@ export function EditorPanel({
   async function handleImportedSource(source: File | string): Promise<void> {
     try {
       setIsImportingImage(true);
+      onImageImportingChange(true);
       setImageImportError("");
       const result =
         typeof source === "string"
@@ -122,6 +140,7 @@ export function EditorPanel({
       );
     } finally {
       setIsImportingImage(false);
+      onImageImportingChange(false);
     }
   }
 
@@ -180,10 +199,6 @@ export function EditorPanel({
     }
   }
 
-  function handleImageButtonClick(): void {
-    imageInputRef.current?.click();
-  }
-
   async function handleImageInputChange(event: ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -218,31 +233,6 @@ export function EditorPanel({
 
   return (
     <aside className="editor-panel">
-      <div className="panel-header">
-        <ThemeSelector value={selectedTheme} onChange={onThemeChange} />
-
-        <div className="toolbar">
-          <button
-            type="button"
-            className="primary preview-export toolbar-new-note-button"
-            aria-label="新便签"
-            title="新便签"
-            onClick={onClearMarkdown}
-          />
-          <button
-            type="button"
-            className="primary preview-export toolbar-insert-image-button"
-            aria-label="插入图片"
-            title="插入图片"
-            onClick={handleImageButtonClick}
-            disabled={isImportingImage}
-          />
-          <button type="button" className="primary preview-export" onClick={onLoadExample}>
-            加载示例
-          </button>
-        </div>
-      </div>
-
       {imageImportError ? <p className="image-import-status error">{imageImportError}</p> : null}
       {isImportingImage ? <p className="image-import-status">正在导入图片...</p> : null}
       <div
@@ -286,4 +276,4 @@ export function EditorPanel({
       </div>
     </aside>
   );
-}
+});

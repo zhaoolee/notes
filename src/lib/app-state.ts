@@ -1,24 +1,12 @@
 import sampleMarkdown from "../../example/程序员狠话Vol.5.md?raw";
-import type { ThemeId, ThemeOption } from "../types/app";
+import type { ThemeId } from "../types/app";
+import { DEFAULT_THEME_ID, isThemeId } from "./themes";
 
 export const FALLBACK_CONTENT = "";
 export const DRAFT_STORAGE_KEY = "notes.markdownDraft";
 export const THEME_STORAGE_KEY = "notes.previewTheme";
 export const DEFAULT_FOOTER_BRAND = "由锤子便签发送";
 export const DEFAULT_FOOTER_VIA = "via Smartisan Notes";
-export const THEME_OPTIONS: ThemeOption[] = [
-  {
-    id: "default",
-    label: "默认主题",
-    description: "暖白纸感",
-  },
-  {
-    id: "smartisan-dark",
-    label: "锤子暗黑",
-    description: "深夜便签",
-  },
-];
-export const DEFAULT_THEME_ID: ThemeId = THEME_OPTIONS[0].id;
 export const SAMPLE_MARKDOWN_CONTENT = sampleMarkdown || FALLBACK_CONTENT;
 
 function readStoredValue(key: string): string | null {
@@ -35,10 +23,6 @@ function readSearchParam(key: string): string | null {
   }
 
   return new URLSearchParams(window.location.search).get(key);
-}
-
-export function isThemeId(value: string | null | undefined): value is ThemeId {
-  return THEME_OPTIONS.some((option) => option.id === value);
 }
 
 export function getInitialMarkdown(): string {
