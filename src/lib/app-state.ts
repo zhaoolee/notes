@@ -1,13 +1,31 @@
 import sampleMarkdown from "../../example/程序员狠话Vol.5.md?raw";
-import type { ThemeId } from "../types/app";
+import {
+  createSmartisanWebTestWorkspace,
+  SMARTISAN_WEB_TEST_DATA_ID,
+  SMARTISAN_WEB_TEST_WORKSPACE_STORAGE_KEY,
+} from "../fixtures/smartisan-web-test-workspace.js";
+import type { NoteWorkspace, ThemeId } from "../types/app";
+import { createNoteDocument, parseNoteWorkspace } from "./notes";
+import { consumeTestDataResetFromCurrentUrl } from "./test-data-url";
 import { DEFAULT_THEME_ID, isThemeId } from "./themes";
 
 export const FALLBACK_CONTENT = "";
 export const DRAFT_STORAGE_KEY = "notes.markdownDraft";
+export const WORKSPACE_STORAGE_KEY = "notes.workspace.v1";
 export const THEME_STORAGE_KEY = "notes.previewTheme";
 export const DEFAULT_FOOTER_BRAND = "由锤子便签发送";
 export const DEFAULT_FOOTER_VIA = "via Smartisan Notes";
 export const SAMPLE_MARKDOWN_CONTENT = sampleMarkdown || FALLBACK_CONTENT;
+
+function isSmartisanWebTestDataMode(): boolean {
+  return readSearchParam("testData") === SMARTISAN_WEB_TEST_DATA_ID;
+}
+
+function getWorkspaceStorageKey(): string {
+  return isSmartisanWebTestDataMode()
+    ? SMARTISAN_WEB_TEST_WORKSPACE_STORAGE_KEY
+    : WORKSPACE_STORAGE_KEY;
+}
 
 function readStoredValue(key: string): string | null {
   if (typeof window === "undefined") {
@@ -25,18 +43,58 @@ function readSearchParam(key: string): string | null {
   return new URLSearchParams(window.location.search).get(key);
 }
 
-export function getInitialMarkdown(): string {
+export function getInitialNoteWorkspace(): NoteWorkspace {
   if (getRenderMode() === "playwright") {
-    return FALLBACK_CONTENT;
+    const note = createNoteDocument(FALLBACK_CONTENT);
+    return {
+      activeNoteId: note.id,
+      folders: [],
+      notes: [note],
+      version: 1,
+    };
+  }
+
+  const shouldResetTestData =
+    isSmartisanWebTestDataMode() && readSearchParam("resetTestData") === "1";
+
+  if (shouldResetTestData) {
+    consumeTestDataResetFromCurrentUrl();
+  }
+
+  const storedWorkspace = shouldResetTestData
+    ? null
+    : parseNoteWorkspace(readStoredValue(getWorkspaceStorageKey()));
+
+  if (storedWorkspace) {
+    return storedWorkspace;
+  }
+
+  if (isSmartisanWebTestDataMode()) {
+    return createSmartisanWebTestWorkspace();
   }
 
   const storedDraft = readStoredValue(DRAFT_STORAGE_KEY);
+  const note = createNoteDocument(storedDraft ?? SAMPLE_MARKDOWN_CONTENT);
 
-  if (storedDraft != null) {
-    return storedDraft;
+  return {
+    activeNoteId: note.id,
+    folders: [],
+    notes: [note],
+    version: 1,
+  };
+}
+
+export function persistNoteWorkspace(workspace: NoteWorkspace): void {
+  if (typeof window === "undefined" || getRenderMode() === "playwright") {
+    return;
   }
 
-  return SAMPLE_MARKDOWN_CONTENT;
+  window.localStorage.setItem(getWorkspaceStorageKey(), JSON.stringify(workspace));
+
+  const activeNote = workspace.notes.find((note) => note.id === workspace.activeNoteId);
+  if (activeNote && !isSmartisanWebTestDataMode()) {
+    window.localStorage.setItem(DRAFT_STORAGE_KEY, activeNote.markdown);
+  }
 }
 
 export function getInitialTheme(): ThemeId {

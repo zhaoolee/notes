@@ -21,14 +21,22 @@ export function NoteSheet({ notes, footerBrand, footerVia }: NoteSheetProps) {
       <div className="sheet-inner">
         {notes.map((note, index) => (
           <article className="note-section" key={`${note.heading}-${index}`}>
-            {note.heading ? (
+            {note.heading && note.headingAlignment !== "center" ? (
               <header className="note-index">
                 <MarkdownText>{note.heading}</MarkdownText>
               </header>
             ) : null}
 
             <div className="note-copy">
-              <MarkdownText>{note.content || " "}</MarkdownText>
+              {note.heading && note.headingAlignment === "center" ? (
+                <div className="note-centered-line">
+                  <MarkdownText>{note.heading}</MarkdownText>
+                </div>
+              ) : null}
+              <MarkdownText>
+                {note.content ||
+                  (note.headingAlignment === "center" ? "" : " ")}
+              </MarkdownText>
             </div>
           </article>
         ))}
@@ -44,12 +52,12 @@ export function NoteSheet({ notes, footerBrand, footerVia }: NoteSheetProps) {
 
       <div className="sheet-footer">
         <span className="sheet-footer-icon" aria-hidden="true">
-          <svg viewBox="0 0 32 32" role="img" focusable="false">
-            <circle cx="16" cy="16" r="16" />
-            <text x="50%" y="50%">
-              T
-            </text>
-          </svg>
+          <img
+            src="/smartisan/web/smartisan_hammer_footer.png"
+            alt=""
+            width="48"
+            height="48"
+          />
         </span>
         <span className="sheet-footer-copy">
           {footerBrand}

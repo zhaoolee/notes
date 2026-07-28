@@ -22,6 +22,12 @@ services:
       PORT: "3001"
       EXPORT_APP_URL: http://frontend:15173
       IMAGE_STORAGE_DIR: /app/storage/images
+      QINIU_ACCESS_KEY: ${QINIU_ACCESS_KEY:-}
+      QINIU_SECRET_KEY: ${QINIU_SECRET_KEY:-}
+      QINIU_BUCKET: ${QINIU_BUCKET:-}
+      QINIU_DOMAIN: ${QINIU_DOMAIN:-}
+      QINIU_PREFIX: ${QINIU_PREFIX:-}
+      QINIU_UPLOAD_URL: ${QINIU_UPLOAD_URL:-}
     volumes:
       - .:/app
       - backend_node_modules:/app/node_modules

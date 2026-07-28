@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout android:orientation="horizontal" android:id="@id/title_bar" android:layout_width="fill_parent" android:layout_height="wrap_content"
+  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
+    <RelativeLayout android:id="@id/settings_button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginLeft="6.0dip" android:layout_alignParentLeft="true">
+        <com.smartisanos.notes.widget.NotesButton android:id="@id/ic_settings" android:layout_alignParentLeft="true" android:contentDescription="@string/setting_back_title_txt" app:src="@drawable/btn_settings" style="@style/TitleBarButton" />
+        <View android:id="@id/ic_red_dot" android:background="@drawable/ic_red_dot" android:visibility="gone" android:layout_width="24.0dip" android:layout_height="24.0dip" android:layout_marginTop="7.0dip" android:layout_alignEnd="@id/ic_settings" />
+    </RelativeLayout>
+    <com.smartisanos.notes.widget.NotesButton android:id="@id/back_button" android:layout_marginLeft="6.0dip" android:layout_alignParentLeft="true" app:src="@drawable/btn_back" style="@style/TitleBarButton" />
+    <com.smartisanos.notes.widget.NotesButton android:id="@id/undo_button" android:layout_marginLeft="8.0dip" android:layout_toRightOf="@id/back_button" app:src="@drawable/edit_undo" style="@style/TitleBarButton" />
+    <com.smartisanos.notes.widget.NotesButton android:id="@id/redo_button" android:layout_marginLeft="8.0dip" android:layout_toRightOf="@id/undo_button" app:src="@drawable/edit_redo" style="@style/TitleBarButton" />
+    <TextView android:id="@id/app_title" android:paddingLeft="@dimen/app_title_padding" android:paddingRight="@dimen/title_bar_app_name_margin_right" android:maxWidth="@dimen/folder_name_max_width_list" android:text="@string/app_name" android:includeFontPadding="false" android:drawableRight="@drawable/folder_title_arrow_selector" android:drawablePadding="2.0dip" style="@style/TitleBarTitle" />
+    <com.smartisanos.notes.widget.NotesButton android:id="@id/new_note_button" android:contentDescription="@string/blind_add_note_text" android:layout_alignParentEnd="true" app:src="@drawable/btn_create" style="@style/TitleBarButton" />
+    <com.smartisanos.notes.widget.NotesButton android:id="@id/note_list_sort" android:layout_marginRight="8.0dip" android:layout_toStartOf="@id/new_note_button" app:src="@drawable/btn_sort_down" style="@style/TitleBarButton" />
+    <FrameLayout android:id="@id/rag_button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginRight="8.0dip" android:layout_toStartOf="@id/new_note_button">
+        <com.smartisanos.notes.widget.NotesButton app:src="@drawable/ai_rag_icon" style="@style/TitleBarButton" />
+        <View android:layout_gravity="end" android:id="@id/ic_rag_red_dot" android:background="@drawable/ic_red_dot" android:visibility="gone" android:layout_width="24.0dip" android:layout_height="24.0dip" android:layout_marginTop="3.0dip" android:layout_marginRight="1.0dip" />
+    </FrameLayout>
+    <com.smartisanos.notes.widget.NotesButton android:id="@id/clear_folder_button" android:visibility="gone" android:layout_marginRight="8.0dip" android:layout_alignParentRight="true" android:layout_toStartOf="@id/new_note_button" app:src="@drawable/btn_delete_notes" style="@style/TitleBarButton" />
+    <FrameLayout android:id="@id/right_button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_alignParentRight="true">
+        <com.smartisanos.notes.widget.NotesButton android:id="@id/restore_note_button" android:visibility="gone" android:contentDescription="@string/blind_restore_text" app:src="@drawable/btn_restore" style="@style/TitleBarButton" />
+        <com.smartisanos.notes.widget.NotesButton android:id="@id/edit_done_button" android:visibility="gone" android:contentDescription="@string/blind_finish_text" app:src="@drawable/btn_save_notes" style="@style/TitleBarButton" />
+        <com.smartisanos.notes.widget.NotesButton android:id="@id/share_button" android:contentDescription="@string/blind_send_text" app:src="@drawable/btn_share_notes" style="@style/TitleBarButton" />
+    </FrameLayout>
+    <ImageView android:id="@id/text_boom_button" android:background="@drawable/btn_back_wide" android:visibility="gone" android:layout_width="wrap_content" android:layout_marginRight="8.0dip" android:minWidth="48.0dip" android:layout_toLeftOf="@id/right_button" android:contentDescription="@string/blind_big_boom" app:src="@drawable/title_bar_button_boom" style="@style/TitleBarButton" />
+    <FrameLayout android:id="@id/middle_button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginRight="2.0dip" android:layout_toLeftOf="@id/text_boom_button">
+        <com.smartisanos.notes.widget.NotesButton android:id="@id/delete_complete_button" android:visibility="gone" android:contentDescription="@string/blind_delete_complete" app:src="@drawable/btn_delete_notes" style="@style/TitleBarButton" />
+        <com.smartisanos.notes.widget.NotesButton android:id="@id/delete_note_button" android:visibility="gone" android:contentDescription="@string/blind_delete_text" app:src="@drawable/btn_delete_notes" style="@style/TitleBarButton" />
+        <com.smartisanos.notes.widget.NotesButton android:id="@id/insert_image_button" android:visibility="gone" android:contentDescription="@string/blind_insert_image_text" app:src="@drawable/btn_pic" style="@style/TitleBarButton" />
+    </FrameLayout>
+    <com.smartisanos.notes.widget.NotesButton android:id="@id/delete_anim_button" android:visibility="gone" android:layout_width="46.659973dip" android:layout_marginRight="2.6599731dip" android:layout_toLeftOf="@id/text_boom_button" android:contentDescription="@string/blind_delete_text" app:srcWidth="46.659973dip" style="@style/TitleBarButton" />
+    <com.smartisanos.notes.widget.NotesButton android:id="@id/ai_button" android:visibility="gone" android:layout_marginRight="8.0dip" android:layout_toLeftOf="@id/middle_button" android:contentDescription="@string/blind_insert_image_text" app:src="@drawable/btn_ai" style="@style/TitleBarButton" />
+</RelativeLayout>

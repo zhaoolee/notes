@@ -10,14 +10,64 @@ export interface ThemeOption {
 
 export interface NoteSection {
   heading: string;
+  headingAlignment?: "start" | "center";
   content: string;
 }
 
-export interface PendingAction {
-  nextMarkdown: string;
-  title: string;
-  description: string;
+export interface NoteDocument {
+  id: string;
+  markdown: string;
+  createdAt: number;
+  updatedAt: number;
+  normalOrder: number;
+  pinnedAt: number | null;
+  folderId: string | null;
+  isStarred: boolean;
+  deletedAt: number | null;
 }
+
+export interface NoteFolder {
+  id: string;
+  name: string;
+  createdAt: number;
+}
+
+export interface NoteWorkspace {
+  activeNoteId: string;
+  folders: NoteFolder[];
+  notes: NoteDocument[];
+  version: 1;
+}
+
+export type SystemNoteCategoryId = "all" | "starred" | "trash";
+export type NoteCategoryId = SystemNoteCategoryId | `folder:${string}`;
+
+interface PendingActionBase {
+  confirmLabel: string;
+  description: string;
+  title: string;
+}
+
+export interface ReplaceMarkdownAction extends PendingActionBase {
+  kind: "replace-markdown";
+  nextMarkdown: string;
+  noteId: string;
+}
+
+export interface DeleteNoteAction extends PendingActionBase {
+  kind: "delete-note";
+  noteId: string;
+}
+
+export interface PermanentlyDeleteNoteAction extends PendingActionBase {
+  kind: "permanently-delete-note";
+  noteId: string;
+}
+
+export type PendingAction =
+  | ReplaceMarkdownAction
+  | DeleteNoteAction
+  | PermanentlyDeleteNoteAction;
 
 export interface ImageImportResult {
   hash: string;

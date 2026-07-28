@@ -13,7 +13,15 @@ import { chromium, type Browser, type Locator, type Page } from "playwright";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NoteSheet } from "../src/components/NoteSheet.js";
+import { WechatArticle } from "../src/components/WechatArticle.js";
 import { splitSections } from "../src/lib/markdown.js";
+import {
+  isQiniuUrl,
+  loadQiniuConfig,
+  QiniuConfigurationError,
+  QiniuUploadError,
+  uploadImageBufferToQiniu,
+} from "./qiniu.js";
 
 type ThemeId = "default" | "smartisan-dark";
 
@@ -35,6 +43,11 @@ interface ArchiveRequestBody {
   markdownPath?: string;
   footerBrand?: string;
   footerVia?: string;
+}
+
+interface WechatRequestBody {
+  markdown?: string;
+  markdownPath?: string;
 }
 
 interface StoredImage {
@@ -105,6 +118,8 @@ const imageUpload = multer({
 
 let browserPromise: Promise<Browser> | undefined;
 const execFileAsync = promisify(execFile);
+const defaultWechatFooterHammerUrl =
+  "https://notes.fangyuanxiaozhan.com/images/d5a157fccd36ca63fc5fb53afd0223d45448263fd349a9e2f17d54fb94fe3e4d.png";
 const archiveFonts: ArchiveFont[] = [
   {
     sourceName: "OPPOSans-R.ttf",
@@ -225,7 +240,27 @@ async function getBrowser(): Promise<Browser> {
     browserPromise = chromium.launch({ headless: true });
   }
 
-  return browserPromise;
+  const currentBrowserPromise = browserPromise;
+
+  try {
+    const browser = await currentBrowserPromise;
+
+    if (!browser.isConnected()) {
+      if (browserPromise === currentBrowserPromise) {
+        browserPromise = undefined;
+      }
+
+      return getBrowser();
+    }
+
+    return browser;
+  } catch (error) {
+    if (browserPromise === currentBrowserPromise) {
+      browserPromise = undefined;
+    }
+
+    throw error;
+  }
 }
 
 async function resolveMarkdown(body: ExportRequestBody | ArchiveRequestBody): Promise<string> {
@@ -477,6 +512,9 @@ ${fontFaceCss}
         --sheet-surface: #fefcf6;
         --sheet-shadow: 0 24px 42px rgba(89, 65, 34, 0.12);
         --note-frame: rgba(237, 233, 225, 0.92);
+        --note-image-frame: #ebe8e3;
+        --note-image-mat: #ffffff;
+        --note-image-shadow: rgba(88, 70, 52, 0.07);
         --note-heading: rgba(70, 53, 38, 0.96);
         --note-copy: rgba(106, 86, 67, 0.92);
         --note-link: #ac9070;
@@ -690,8 +728,9 @@ ${fontFaceCss}
         margin-top: 0;
       }
 
-      .note-copy p img {
+      .note-copy img.note-image-frame {
         display: block;
+        box-sizing: border-box;
         width: auto;
         max-width: 100%;
         height: auto;
@@ -699,10 +738,13 @@ ${fontFaceCss}
           calc(12px * var(--note-scale))
           auto
           calc(2px * var(--note-scale));
-        border: 0;
+        padding: calc(3px * var(--note-scale));
+        border: 1px solid var(--note-image-frame);
         border-radius: 0;
-        box-shadow: none;
-        background: color-mix(in srgb, var(--paper) 85%, transparent);
+        box-shadow:
+          0 calc(1px * var(--note-scale)) calc(3px * var(--note-scale))
+          var(--note-image-shadow);
+        background: var(--note-image-mat);
         object-fit: contain;
         image-rendering: auto;
       }
@@ -1760,6 +1802,101 @@ async function renderNotePng(markdown: string, renderUrl: string): Promise<Buffe
   }
 }
 
+async function prepareWechatArticle(markdown: string): Promise<{
+  html: string;
+  markdown: string;
+  imageCount: number;
+  uploadedImageCount: number;
+  reusedImageCount: number;
+}> {
+  const imageSources = collectMarkdownImageSources(markdown);
+  let uploadedImageCount = 0;
+  let reusedImageCount = 0;
+  let wechatMarkdown = markdown;
+
+  if (imageSources.length > 0) {
+    const qiniuConfig = await loadQiniuConfig(rootDir);
+    const replacements = new Map<string, string>();
+    const uploadedByContentHash = new Map<
+      string,
+      Awaited<ReturnType<typeof uploadImageBufferToQiniu>>
+    >();
+
+    for (const source of imageSources) {
+      if (isQiniuUrl(source, qiniuConfig)) {
+        reusedImageCount += 1;
+        continue;
+      }
+
+      const image = await resolveArchiveImage(source);
+
+      if (!image?.buffer.length) {
+        throw new Error(`无法读取公众号图片：${source}`);
+      }
+
+      const extension = detectImageFormat(
+        image.buffer,
+        image.mimeType,
+        image.filename || source,
+      );
+
+      if (!extension) {
+        throw new Error(`公众号暂不支持该图片格式：${source}`);
+      }
+
+      const contentHash = createHash("sha256").update(image.buffer).digest("hex");
+      const cachedUpload = uploadedByContentHash.get(contentHash);
+      const uploaded =
+        cachedUpload ||
+        (await uploadImageBufferToQiniu(
+          image.buffer,
+          extension,
+          qiniuConfig,
+        ));
+      replacements.set(source, uploaded.url);
+
+      if (cachedUpload) {
+        reusedImageCount += 1;
+      } else if (uploaded.uploaded) {
+        uploadedImageCount += 1;
+      } else {
+        reusedImageCount += 1;
+      }
+
+      if (!cachedUpload) {
+        uploadedByContentHash.set(contentHash, uploaded);
+      }
+    }
+
+    for (const [source, replacement] of Array.from(replacements).sort(
+      ([left], [right]) => right.length - left.length,
+    )) {
+      wechatMarkdown = replaceAll(wechatMarkdown, source, replacement);
+    }
+  }
+
+  const footerHammerUrl =
+    process.env.WECHAT_FOOTER_HAMMER_URL?.trim() ||
+    defaultWechatFooterHammerUrl;
+  const html = renderToStaticMarkup(
+    createElement(WechatArticle, {
+      markdown: wechatMarkdown,
+      footerHammerUrl,
+    }),
+  ).replace(
+    /<link\b[^>]*\brel="preload"[^>]*\bas="image"[^>]*\/?>/gi,
+    "",
+  );
+
+  return {
+    html,
+    markdown: wechatMarkdown,
+    imageCount: imageSources.length,
+    uploadedImageCount,
+    reusedImageCount,
+  };
+}
+
 const app = express();
 
 app.use((request: Request, response: Response, next: NextFunction) => {
@@ -1839,6 +1976,39 @@ app.post(
 
       response.status(500).json({
         error: error instanceof Error ? error.message : "Failed to create archive",
+      });
+    }
+  },
+);
+
+app.post(
+  "/api/wechat",
+  async (
+    request: Request<Record<string, never>, unknown, WechatRequestBody>,
+    response: Response,
+  ) => {
+    try {
+      const markdown = await resolveMarkdown(request.body || {});
+      response.json(await prepareWechatArticle(markdown));
+    } catch (error) {
+      console.error("Wechat copy preparation failed:", error);
+
+      const status =
+        error instanceof QiniuConfigurationError
+          ? 503
+          : error instanceof QiniuUploadError
+            ? 502
+            : 500;
+
+      response.status(status).json({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to prepare WeChat article",
+        hint:
+          error instanceof QiniuConfigurationError
+            ? "本地可通过 QINIU_CONFIG_PATH 复用现有 qiniu.json；生产环境请使用环境变量或只读挂载配置。"
+            : undefined,
       });
     }
   },

@@ -16,5 +16,11 @@ services:
     restart: unless-stopped
     environment:
       IMAGE_STORAGE_DIR: /app/storage/images
+      QINIU_ACCESS_KEY: ${QINIU_ACCESS_KEY:-}
+      QINIU_SECRET_KEY: ${QINIU_SECRET_KEY:-}
+      QINIU_BUCKET: ${QINIU_BUCKET:-}
+      QINIU_DOMAIN: ${QINIU_DOMAIN:-}
+      QINIU_PREFIX: ${QINIU_PREFIX:-}
+      QINIU_UPLOAD_URL: ${QINIU_UPLOAD_URL:-}
     volumes:
       - ./storage/images:/app/storage/images

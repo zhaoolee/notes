@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout android:orientation="vertical" android:id="@id/mainRootLayout" android:background="@drawable/note_background" android:fitsSystemWindows="true" android:layout_width="fill_parent" android:layout_height="fill_parent"
+  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
+    <FrameLayout android:id="@id/fragment_container" android:layout_width="fill_parent" android:layout_height="fill_parent" android:layout_alignParentTop="true" android:layout_alignParentStart="true">
+        <ImageView android:id="@id/search_mold_anim_bg" android:background="@drawable/action_bar_default" android:layout_width="fill_parent" android:layout_height="wrap_content" />
+    </FrameLayout>
+    <com.smartisanos.notes.widget.SmartisanosNotesTitleBar android:orientation="horizontal" android:id="@id/note_title_bar" android:layout_width="fill_parent" android:layout_height="wrap_content" android:layout_alignParentTop="true" />
+    <RelativeLayout android:id="@id/ai_title_bar" android:background="#fffbf7ed" android:visibility="gone" android:layout_width="fill_parent" android:layout_height="48.0dip" android:layout_alignParentTop="true">
+        <ImageView android:id="@id/close_button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginLeft="@dimen/dp_12" android:src="@drawable/ai_close_icon" android:layout_centerVertical="true" />
+        <TextView android:textSize="@dimen/commonres_font_18sp" android:textStyle="bold" android:textColor="@color/commonres_color_6F4E2D" android:id="@id/title_name" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_centerInParent="true" />
+        <ImageView android:layout_width="fill_parent" android:layout_height="1.0dip" android:src="@color/commonres_color_D9D9D9" android:layout_alignParentBottom="true" />
+    </RelativeLayout>
+    <include android:id="@id/network_error_layout" android:visibility="gone" android:layout_width="fill_parent" android:layout_height="fill_parent" android:layout_marginTop="@dimen/dp_48" layout="@layout/network_error" />
+</RelativeLayout>

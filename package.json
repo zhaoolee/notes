@@ -6,7 +6,8 @@
   "scripts": {
     "backend": "tsx server/index.ts",
     "backend:watch": "tsx watch server/index.ts",
-    "dev": "vite",
+    "dev": "node scripts/dev.mjs",
+    "dev:frontend": "vite --host 127.0.0.1 --port 15173",
     "dev:docker": "vite --host 0.0.0.0 --port 15173",
     "build": "npm run typecheck && npm run build:server && vite build",
     "build:static": "npm run typecheck:app && vite build",
@@ -22,6 +23,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "express": "^5.2.1",
     "multer": "^2.1.1",
     "playwright": "^1.58.2",

@@ -7,10 +7,15 @@
 ```bash
 npm ci
 npm run dev
+npm run dev:frontend
 npm run backend:watch
 npm run typecheck
 npm run build
 ```
+
+`npm run dev` 会同时启动 Vite（`127.0.0.1:15173`）与 Express
+导出服务（`127.0.0.1:3001`）。只有在需要分别调试时，才单独运行
+`npm run dev:frontend` 或 `npm run backend:watch`。
 
 ## Feedback 测试
 
@@ -46,6 +51,39 @@ docker compose down
 ```bash
 curl -fsS http://127.0.0.1:18080/api/health
 ```
+
+## 微信公众号富文本与七牛图床
+
+本机仓库与 `/Users/zhaoolee/github/upload-local-image-to-qiniu` 相邻时，
+`npm run dev` 会自动加载仓库根目录的 `.env`；复制 `.env.example` 后填入
+真实配置即可。若 `.env` 没有提供七牛变量，服务仍会读取相邻项目的
+`qiniu.json`。也可以显式指定配置：
+
+```bash
+QINIU_CONFIG_PATH=/absolute/path/to/qiniu.json npm run dev
+```
+
+Docker 和生产环境使用以下变量，不要将真实密钥写入仓库：
+
+```bash
+export QINIU_ACCESS_KEY=...
+export QINIU_SECRET_KEY=...
+export QINIU_BUCKET=...
+export QINIU_DOMAIN=https://cdn.example.com
+export QINIU_PREFIX=notes
+docker compose up --build -d
+```
+
+开发环境可以直接检查富文本生成接口：
+
+```bash
+curl -fsS http://127.0.0.1:3001/api/wechat \
+  -H 'Content-Type: application/json' \
+  --data '{"markdown":"[公众号标题]\n\n正文包含 **粗体**。"}'
+```
+
+接口返回 `html`、替换图片后的 `markdown`、图片总数和上传/复用计数。真实使用
+时从桌面分享预览或手机分享面板点击“复制到公众号”，再粘贴进公众号编辑器。
 
 ## 便签导出 Skill
 

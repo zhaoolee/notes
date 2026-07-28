@@ -1,6 +1,10 @@
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { MARKDOWN_BLANK_LINE, preserveMarkdownBlankLines } from "../lib/markdown.js";
+import {
+  detachUnindentedImagesFromLists,
+  MARKDOWN_BLANK_LINE,
+  preserveMarkdownBlankLines,
+} from "../lib/markdown.js";
 
 interface MarkdownTextProps {
   children: string;
@@ -27,6 +31,8 @@ const markdownComponents: Components = {
   ),
   img: ({ src, alt }) => (
     <img
+      className="note-image-frame"
+      data-smartisan-image-frame="android"
       src={src}
       alt={alt ?? ""}
       loading="eager"
@@ -139,7 +145,7 @@ export function MarkdownText({ children }: MarkdownTextProps) {
       remarkPlugins={[remarkGfm, remarkManualLineParagraphs]}
       components={markdownComponents}
     >
-      {preserveMarkdownBlankLines(children)}
+      {detachUnindentedImagesFromLists(preserveMarkdownBlankLines(children))}
     </ReactMarkdown>
   );
 }

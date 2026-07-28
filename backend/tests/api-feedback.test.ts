@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -13,6 +14,14 @@ interface ImportedImage {
   extension: string;
   path: string;
   url: string;
+}
+
+interface WechatPreparation {
+  html: string;
+  markdown: string;
+  imageCount: number;
+  uploadedImageCount: number;
+  reusedImageCount: number;
 }
 
 async function getUnusedPort(): Promise<number> {
@@ -78,6 +87,28 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
   const port = await getUnusedPort();
   const storageDir = await mkdtemp(path.join(tmpdir(), "notes-feedback-images-"));
   const baseUrl = `http://127.0.0.1:${port}`;
+  let qiniuUploadCount = 0;
+  const qiniuUploadBodies: string[] = [];
+  const qiniuUploadServer = createHttpServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk) => {
+      chunks.push(Buffer.from(chunk));
+    });
+    request.on("end", () => {
+      qiniuUploadCount += 1;
+      qiniuUploadBodies.push(Buffer.concat(chunks).toString("latin1"));
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end('{"hash":"feedback","key":"feedback.png"}');
+    });
+  });
+  qiniuUploadServer.listen(0, "127.0.0.1");
+  await once(qiniuUploadServer, "listening");
+  const qiniuUploadAddress = qiniuUploadServer.address();
+
+  if (!qiniuUploadAddress || typeof qiniuUploadAddress === "string") {
+    throw new Error("无法分配七牛 mock 上传端口");
+  }
+
   const child = spawn(
     process.execPath,
     ["--import", "tsx", "server/index.ts"],
@@ -88,6 +119,12 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
         EXPORT_APP_URL: baseUrl,
         IMAGE_STORAGE_DIR: storageDir,
         PORT: String(port),
+        QINIU_ACCESS_KEY: "feedback-access-key",
+        QINIU_SECRET_KEY: "feedback-secret-key",
+        QINIU_BUCKET: "feedback-bucket",
+        QINIU_DOMAIN: "https://cdn.example.test",
+        QINIU_PREFIX: "wechat-test",
+        QINIU_UPLOAD_URL: `http://127.0.0.1:${qiniuUploadAddress.port}`,
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -104,6 +141,8 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
 
   context.after(async () => {
     await stopChild(child);
+    qiniuUploadServer.close();
+    await once(qiniuUploadServer, "close");
     await rm(storageDir, { force: true, recursive: true });
   });
 
@@ -139,6 +178,181 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     const imageResponse = await fetch(`${baseUrl}${imported.path}`);
     assert.equal(imageResponse.status, 200);
     assert.deepEqual(Buffer.from(await imageResponse.arrayBuffer()), png);
+
+    const wechatResponse = await fetch(`${baseUrl}/api/wechat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        markdown: [
+          "[公众号测试]",
+          "",
+          "这是 **加粗正文**。",
+          "",
+          "9. **鼓励**vibe coding",
+          `![像素图](${baseUrl}${imported.path})`,
+          "10. 图片后的编号仍可见",
+          "",
+          "相同内容的第二个地址：",
+          `![相同内容的第二个地址](${baseUrl}${imported.path}?duplicate=1)`,
+        ].join("\n"),
+      }),
+    });
+    assert.equal(wechatResponse.status, 200);
+
+    const wechat = (await wechatResponse.json()) as WechatPreparation;
+    const qiniuImageUrl =
+      `https://cdn.example.test/wechat-test/${imported.hash}.png`;
+    const footerHammerUrl =
+      "https://notes.fangyuanxiaozhan.com/images/d5a157fccd36ca63fc5fb53afd0223d45448263fd349a9e2f17d54fb94fe3e4d.png";
+
+    assert.equal(wechat.imageCount, 2);
+    assert.equal(wechat.uploadedImageCount, 1);
+    assert.equal(wechat.reusedImageCount, 1);
+    assert.equal(qiniuUploadCount, 1);
+    assert.equal(
+      (
+        wechat.markdown.match(
+          new RegExp(qiniuImageUrl.replace(/\./g, "\\."), "g"),
+        ) ?? []
+      ).length,
+      2,
+    );
+    assert.equal(qiniuUploadBodies.length, 1);
+    assert.match(
+      qiniuUploadBodies[0],
+      new RegExp(`wechat-test/${imported.hash}\\.png`),
+    );
+    assert.match(
+      qiniuUploadBodies[0],
+      new RegExp(`filename="${imported.hash}\\.png"`),
+    );
+    assert.match(wechat.html, /data-tool="锤子便签Skill"/);
+    assert.match(wechat.html, /data-smartisan-theme="warm-paper"/);
+    assert.match(wechat.html, /data-smartisan-paper="true"/);
+    assert.match(
+      wechat.html,
+      /data-smartisan-paper="true" style="[^"]*padding-bottom:12%[^"]*border:0[^"]*background-color:#fefcf6/,
+    );
+    assert.match(
+      wechat.html,
+      /background-color:rgba\(239,230,216,0\.95\)/,
+    );
+    assert.equal(
+      (wechat.html.match(/data-smartisan-corner=/g) ?? []).length,
+      4,
+    );
+    assert.match(wechat.html, /<table data-smartisan-frame="outer"/);
+    assert.match(
+      wechat.html,
+      /<table data-smartisan-frame="outer"[^>]*style="[^"]*border:0/,
+    );
+    assert.match(
+      wechat.html,
+      /<col width="6" style="width:6px"\/><col\/><col width="6"/,
+    );
+    assert.doesNotMatch(
+      wechat.html,
+      /data-smartisan-corner="[^"]+"[^>]*(?:rowSpan|colSpan)=/,
+    );
+    assert.equal(
+      (
+        wechat.html.match(
+          /border-bottom:1px solid rgba\(237,233,225,0\.92\)/g,
+        ) ?? []
+      ).length,
+      1,
+    );
+    assert.equal(
+      (
+        wechat.html.match(
+          /border-left:1px solid rgba\(237,233,225,0\.92\)/g,
+        ) ?? []
+      ).length,
+      1,
+    );
+    assert.equal(
+      (
+        wechat.html.match(
+          /border-right:1px solid rgba\(237,233,225,0\.92\)/g,
+        ) ?? []
+      ).length,
+      1,
+    );
+    assert.equal(
+      (
+        wechat.html.match(
+          /border-top:1px solid rgba\(237,233,225,0\.92\)/g,
+        ) ?? []
+      ).length,
+      1,
+    );
+    assert.match(
+      wechat.html,
+      /<td style="padding:3px;border:0"><section data-smartisan-frame="inner"/,
+    );
+    assert.doesNotMatch(
+      wechat.html,
+      /data-smartisan-corner="[^"]+"[^>]*position:absolute/,
+    );
+    assert.doesNotMatch(wechat.html, /<header[^>]*text-align:center/);
+    assert.match(
+      wechat.html,
+      /<p style="[^"]*font-size:15px[^"]*font-weight:400[^"]*line-height:1\.68[^"]*text-align:center[^"]*">公众号测试<\/p>/,
+    );
+    assert.match(wechat.html, /<strong[^>]*>加粗正文<\/strong>/);
+    assert.match(
+      wechat.html,
+      /<strong[^>]*>鼓励\u2060<\/strong>vibe coding/,
+    );
+    assert.doesNotMatch(
+      wechat.html,
+      /<\/strong>[\u00a0\u2060]vibe coding/,
+    );
+    assert.match(wechat.html, /<ol start="9"/);
+    assert.match(wechat.html, /<ol start="10"/);
+    assert.match(wechat.html, /图片后的编号仍可见<\/li>/);
+    assert.match(wechat.html, /data-smartisan-image="true"/);
+    assert.match(wechat.html, /data-smartisan-image-frame="android"/);
+    assert.match(wechat.html, /padding:4px/);
+    assert.match(wechat.html, /border:1px solid #ebe8e3/);
+    assert.match(wechat.html, /background-color:#ffffff/);
+    assert.match(
+      wechat.html,
+      /box-shadow:0 1px 4px rgba\(88,70,52,0\.07\)/,
+    );
+    assert.match(wechat.html, /<img[^>]*width="100%"/);
+    assert.match(wechat.html, /width:100% !important/);
+    assert.match(wechat.html, /max-width:100% !important/);
+    assert.doesNotMatch(
+      wechat.html,
+      /<li\b[^>]*>(?:(?!<\/li>)[\s\S])*data-smartisan-image="true"/,
+    );
+    assert.match(
+      wechat.html,
+      /<\/ol>\s*<p style="[^"]*"><span data-smartisan-image="true"[^>]*margin:14px auto/,
+    );
+    assert.doesNotMatch(wechat.html, /<li style="[^"]*overflow:hidden/);
+    assert.match(wechat.html, new RegExp(qiniuImageUrl.replace(/\./g, "\\.")));
+    assert.match(wechat.html, /由锤子便签发送/);
+    assert.match(
+      wechat.html,
+      /<section data-smartisan-footer="true" style="[^"]*margin:11px 18px 0[^"]*font-size:0[^"]*line-height:16px/,
+    );
+    assert.doesNotMatch(wechat.html, /<footer(?:\s|>)/);
+    assert.doesNotMatch(wechat.html, /<table data-smartisan-footer="true"/);
+    assert.match(wechat.html, /data-smartisan-hammer="true"/);
+    assert.match(
+      wechat.html,
+      new RegExp(footerHammerUrl.replace(/\./g, "\\.")),
+    );
+    assert.match(
+      wechat.html,
+      /data-smartisan-hammer="true"[^>]*border-radius:50%;background-color:transparent;object-fit:contain/,
+    );
+    assert.doesNotMatch(wechat.html, /src="data:/);
+    assert.doesNotMatch(wechat.html, /<link\b[^>]*rel="preload"/);
   } catch (error) {
     throw new Error(
       [

@@ -1,71 +1,60 @@
+import { useState } from "react";
+import { THEME_OPTIONS } from "../lib/themes.js";
 import type { ThemeId } from "../types/app.js";
-import { ThemeSelector } from "./ThemeSelector.js";
 
 interface SettingsPanelProps {
-  copyButtonText: string;
-  isArchiving: boolean;
-  isImportingImage: boolean;
   selectedTheme: ThemeId;
-  onArchiveDownload: () => void;
-  onClearMarkdown: () => void;
   onClose: () => void;
-  onCopyMarkdown: () => void;
-  onInsertImage: () => void;
-  onLoadExample: () => void;
   onThemeChange: (themeId: ThemeId) => void;
 }
 
-interface SettingsActionProps {
-  description: string;
-  disabled?: boolean;
-  label: string;
-  onClick: () => void;
-}
+type SettingsPage = "root" | "background";
 
-function SettingsAction({
-  description,
-  disabled = false,
-  label,
-  onClick,
-}: SettingsActionProps) {
-  return (
-    <button
-      type="button"
-      className="settings-action"
-      disabled={disabled}
-      onClick={onClick}
-    >
-      <span className="settings-action-label">{label}</span>
-      <span className="settings-action-description">{description}</span>
-    </button>
-  );
+function getThemeName(themeId: ThemeId): string {
+  return THEME_OPTIONS.find((option) => option.id === themeId)?.description ?? "暖白纸感";
 }
 
 export function SettingsPanel({
-  copyButtonText,
-  isArchiving,
-  isImportingImage,
   selectedTheme,
-  onArchiveDownload,
-  onClearMarkdown,
   onClose,
-  onCopyMarkdown,
-  onInsertImage,
-  onLoadExample,
   onThemeChange,
 }: SettingsPanelProps) {
+  const [page, setPage] = useState<SettingsPage>("root");
+  const isRootPage = page === "root";
+
+  function handleBack() {
+    if (isRootPage) {
+      onClose();
+      return;
+    }
+
+    setPage("root");
+  }
+
+  function handleThemeChange(themeId: ThemeId) {
+    onThemeChange(themeId);
+    setPage("root");
+  }
+
   return (
     <div
       id="app-settings-panel"
       className="settings-panel"
       role="dialog"
+      aria-modal="true"
       aria-labelledby="app-settings-title"
+      data-settings-page={page}
     >
-      <div className="settings-panel-header">
-        <div>
-          <p className="settings-panel-eyebrow">Preferences</p>
-          <h2 id="app-settings-title">设置</h2>
-        </div>
+      <header className="settings-panel-header">
+        <button
+          type="button"
+          className="settings-back"
+          aria-label={isRootPage ? "关闭设置" : "返回设置"}
+          onClick={handleBack}
+        >
+          <span aria-hidden="true" />
+        </button>
+        <h2 id="app-settings-title">{isRootPage ? "设置" : "背景颜色"}</h2>
         <button
           type="button"
           className="settings-close"
@@ -74,51 +63,56 @@ export function SettingsPanel({
         >
           ×
         </button>
+      </header>
+
+      <div className="settings-content">
+        {isRootPage ? (
+          <section className="settings-card" aria-label="便签偏好">
+            <button
+              type="button"
+              className="settings-row"
+              aria-label={`背景颜色，当前为${getThemeName(selectedTheme)}`}
+              onClick={() => setPage("background")}
+            >
+              <span className="settings-row-label">背景颜色</span>
+              <span className="settings-row-value">
+                {getThemeName(selectedTheme)}
+                <span className="settings-row-chevron" aria-hidden="true">
+                  ›
+                </span>
+              </span>
+            </button>
+          </section>
+        ) : (
+          <section className="settings-card settings-theme-list" aria-label="选择背景颜色">
+            {THEME_OPTIONS.map((option) => {
+              const isActive = option.id === selectedTheme;
+
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={`settings-theme-row${isActive ? " active" : ""}`}
+                  aria-pressed={isActive}
+                  onClick={() => handleThemeChange(option.id)}
+                >
+                  <span
+                    className={`settings-theme-swatch settings-theme-swatch-${option.id}`}
+                    aria-hidden="true"
+                  />
+                  <span className="settings-theme-copy">
+                    <strong>{option.description}</strong>
+                    <span>{option.label}</span>
+                  </span>
+                  <span className="settings-theme-check" aria-hidden="true">
+                    {isActive ? "✓" : ""}
+                  </span>
+                </button>
+              );
+            })}
+          </section>
+        )}
       </div>
-
-      <section className="settings-section" aria-labelledby="settings-theme-title">
-        <h3 id="settings-theme-title">便签主题</h3>
-        <ThemeSelector value={selectedTheme} onChange={onThemeChange} />
-      </section>
-
-      <section className="settings-section" aria-labelledby="settings-content-title">
-        <h3 id="settings-content-title">内容</h3>
-        <div className="settings-actions">
-          <SettingsAction
-            label="新建空白便签"
-            description="清空当前草稿并重新开始"
-            onClick={onClearMarkdown}
-          />
-          <SettingsAction
-            label={isImportingImage ? "正在导入图片..." : "插入图片"}
-            description="从本地选择图片并插入光标位置"
-            disabled={isImportingImage}
-            onClick={onInsertImage}
-          />
-          <SettingsAction
-            label="加载示例"
-            description="使用内置 Markdown 示例覆盖草稿"
-            onClick={onLoadExample}
-          />
-        </div>
-      </section>
-
-      <section className="settings-section" aria-labelledby="settings-share-title">
-        <h3 id="settings-share-title">分享与归档</h3>
-        <div className="settings-actions">
-          <SettingsAction
-            label={isArchiving ? "归档中..." : "下载归档"}
-            description="下载 Markdown、HTML、图片和字体"
-            disabled={isArchiving}
-            onClick={onArchiveDownload}
-          />
-          <SettingsAction
-            label={copyButtonText}
-            description="复制当前 Markdown 源文本"
-            onClick={onCopyMarkdown}
-          />
-        </div>
-      </section>
     </div>
   );
 }

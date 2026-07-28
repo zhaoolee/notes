@@ -31,7 +31,7 @@ export function ConfirmDialog({
             取消
           </button>
           <button type="button" className="primary" onClick={onConfirm}>
-            确认覆盖
+            {pendingAction.confirmLabel}
           </button>
         </div>
       </div>
