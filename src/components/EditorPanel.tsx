@@ -1,4 +1,6 @@
 import {
+  useCallback,
+  useEffect,
   forwardRef,
   useImperativeHandle,
   useRef,
@@ -61,6 +63,10 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
 ) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const caretMirrorTextRef = useRef<HTMLSpanElement | null>(null);
+  const caretMirrorAnchorRef = useRef<HTMLSpanElement | null>(null);
+  const customCaretRef = useRef<HTMLSpanElement | null>(null);
+  const caretSyncFrameRef = useRef<number | null>(null);
   const selectionRef = useRef({
     start: markdown.length,
     end: markdown.length,
@@ -79,6 +85,81 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     [],
   );
 
+  const hideCustomCaret = useCallback((): void => {
+    customCaretRef.current?.classList.remove("is-visible");
+  }, []);
+
+  const updateCustomCaret = useCallback((): void => {
+    caretSyncFrameRef.current = null;
+
+    const textarea = textareaRef.current;
+    const mirrorText = caretMirrorTextRef.current;
+    const mirrorAnchor = caretMirrorAnchorRef.current;
+    const customCaret = customCaretRef.current;
+
+    if (
+      !textarea ||
+      !mirrorText ||
+      !mirrorAnchor ||
+      !customCaret ||
+      !window.matchMedia("(max-width: 640px)").matches ||
+      document.activeElement !== textarea ||
+      textarea.selectionStart !== textarea.selectionEnd
+    ) {
+      hideCustomCaret();
+      return;
+    }
+
+    mirrorText.textContent = textarea.value.slice(0, textarea.selectionStart);
+    customCaret.classList.add("is-visible");
+
+    const textareaStyle = window.getComputedStyle(textarea);
+    const caretStyle = window.getComputedStyle(customCaret);
+    const lineHeight = Number.parseFloat(textareaStyle.lineHeight) || 42;
+    const caretHeight = Number.parseFloat(caretStyle.height) || 22;
+    const left = mirrorAnchor.offsetLeft - textarea.scrollLeft;
+    const top =
+      mirrorAnchor.offsetTop -
+      textarea.scrollTop +
+      Math.max(0, (lineHeight - caretHeight) / 2);
+
+    if (
+      left < 0 ||
+      left > textarea.clientWidth ||
+      top + caretHeight < 0 ||
+      top > textarea.clientHeight
+    ) {
+      hideCustomCaret();
+      return;
+    }
+
+    customCaret.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+  }, [hideCustomCaret]);
+
+  const scheduleCustomCaretSync = useCallback((): void => {
+    if (caretSyncFrameRef.current !== null) {
+      window.cancelAnimationFrame(caretSyncFrameRef.current);
+    }
+
+    caretSyncFrameRef.current = window.requestAnimationFrame(updateCustomCaret);
+  }, [updateCustomCaret]);
+
+  useEffect(() => {
+    scheduleCustomCaretSync();
+  }, [markdown, scheduleCustomCaretSync]);
+
+  useEffect(() => {
+    window.addEventListener("resize", scheduleCustomCaretSync);
+
+    return () => {
+      window.removeEventListener("resize", scheduleCustomCaretSync);
+
+      if (caretSyncFrameRef.current !== null) {
+        window.cancelAnimationFrame(caretSyncFrameRef.current);
+      }
+    };
+  }, [scheduleCustomCaretSync]);
+
   function syncSelection(): void {
     const textarea = textareaRef.current;
 
@@ -90,6 +171,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
       start: textarea.selectionStart ?? markdown.length,
       end: textarea.selectionEnd ?? markdown.length,
     };
+    scheduleCustomCaretSync();
   }
 
   function insertImageMarkdown(imageUrl: string): void {
@@ -255,11 +337,17 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
           ref={textareaRef}
           className="markdown-editor"
           value={markdown}
-          onChange={(event) => onMarkdownChange(event.target.value)}
+          onChange={(event) => {
+            onMarkdownChange(event.target.value);
+            scheduleCustomCaretSync();
+          }}
           onSelect={syncSelection}
           onClick={syncSelection}
           onKeyUp={syncSelection}
           onFocus={syncSelection}
+          onBlur={hideCustomCaret}
+          onScroll={scheduleCustomCaretSync}
+          onCompositionUpdate={scheduleCustomCaretSync}
           onPaste={(event) => {
             void importFromClipboard(event);
           }}
@@ -272,6 +360,15 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
             void importFromDrop(event);
           }}
           spellCheck={false}
+        />
+        <div className="markdown-editor-caret-mirror" aria-hidden="true">
+          <span ref={caretMirrorTextRef} />
+          <span ref={caretMirrorAnchorRef}>{"\u200b"}</span>
+        </div>
+        <span
+          ref={customCaretRef}
+          className="markdown-editor-caret"
+          aria-hidden="true"
         />
       </div>
     </aside>

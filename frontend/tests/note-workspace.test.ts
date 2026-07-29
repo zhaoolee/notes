@@ -373,6 +373,7 @@ test("便签侧栏保持锤子网页版的紧凑视觉参数", () => {
 
 test("移动端采用便签列表、编辑和预览三态工作区", () => {
   const appSource = readFileSync("src/App.tsx", "utf8");
+  const editorSource = readFileSync("src/components/EditorPanel.tsx", "utf8");
   const styles = readFileSync("src/styles.css", "utf8");
 
   assert.match(appSource, /type MobileWorkspaceView = "notes" \| "editor" \| "preview";/);
@@ -408,6 +409,14 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   assert.match(
     styles,
     /\.mobile-workspace-tabs\s*\{[^}]*height:\s*50px;/s,
+  );
+  assert.match(
+    editorSource,
+    /className="markdown-editor-caret-mirror"[\s\S]*className="markdown-editor-caret"/,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 640px\)[\s\S]*\.markdown-editor\s*\{[^}]*caret-color:\s*transparent;[^}]*\}[\s\S]*\.markdown-editor-caret\s*\{[^}]*width:\s*2px;[^}]*height:\s*22px;[^}]*background:\s*var\(--accent\);/s,
   );
   assert.match(
     styles,
@@ -786,13 +795,38 @@ test("移动端保留安卓版纸片、固定装订夹与木纹资源", () => {
 test("移动端拖拽只移动便签本体且图钉保留安全间距", () => {
   const sidebarSource = readFileSync("src/components/NoteSidebar.tsx", "utf8");
   const styles = readFileSync("src/styles.css", "utf8");
+  const indexSource = readFileSync("index.html", "utf8");
 
   assert.match(sidebarSource, /const \[isDragging, setIsDragging\] = useState\(false\);/);
+  assert.match(sidebarSource, /const MOBILE_NOTE_DRAG_DELAY_MS = 220;/);
+  assert.match(sidebarSource, /const MOBILE_NOTE_DRAG_TOLERANCE_PX = 12;/);
   assert.match(
     sidebarSource,
-    /onDragStart=\{\(\) => \{[^}]*setOpenSwipeNoteId\(null\);[^}]*setIsDragging\(true\);/s,
+    /const isSortable = !pinned && !isDragDisabled && !isTrashView;/,
   );
-  assert.match(sidebarSource, /onDragCancel=\{\(\) => setIsDragging\(false\)\}/);
+  assert.match(
+    sidebarSource,
+    /function suppressMobileDragPreview[\s\S]*event\.preventDefault\(\);[\s\S]*window\.getSelection\(\)\?\.removeAllRanges\(\);/,
+  );
+  assert.match(sidebarSource, /onContextMenu=\{suppressMobileDragPreview\}/);
+  assert.match(
+    sidebarSource,
+    /const restrictNoteDragToVerticalAxis:[\s\S]*x:\s*0,/,
+  );
+  assert.match(sidebarSource, /<DragOverlay[\s\S]*dropAnimation=\{null\}/);
+  assert.match(
+    sidebarSource,
+    /gesture\.axis === "horizontal"[\s\S]*setPointerCapture\(event\.pointerId\)/,
+  );
+  assert.match(indexSource, /viewport-fit=cover/);
+  assert.match(
+    sidebarSource,
+    /onDragStart=\{\(\{ active \}\) => \{[^}]*setOpenSwipeNoteId\(null\);[^}]*setActiveDragNoteId\(String\(active\.id\)\);[^}]*setIsDragging\(true\);/s,
+  );
+  assert.match(
+    sidebarSource,
+    /onDragCancel=\{\(\) => \{[^}]*setActiveDragNoteId\(null\);[^}]*setIsDragging\(false\);/s,
+  );
   assert.match(
     sidebarSource,
     /className="note-list-clip-rail"[\s\S]*filteredNotes\.map\(\(note\) => \([\s\S]*className="note-list-clip"/s,
@@ -804,6 +838,22 @@ test("移动端拖拽只移动便签本体且图钉保留安全间距", () => {
   assert.match(
     styles,
     /\.note-list\.is-dragging \.note-list-clip-rail\s*\{[^}]*transform:\s*translateX\(-19px\);/s,
+  );
+  assert.match(
+    styles,
+    /\.note-list-drag-overlay \.note-list-card\s*\{[^}]*transform:\s*none;[^}]*drop-shadow/s,
+  );
+  assert.match(
+    styles,
+    /\.note-list-item\.is-dragging:not\(\.note-list-drag-overlay\) \.note-list-card\s*\{[^}]*opacity:\s*0;/s,
+  );
+  assert.match(
+    styles,
+    /\.note-list-item\.is-sortable,[\s\S]*\.note-list-item\.is-sortable \*\s*\{[^}]*-webkit-touch-callout:\s*none;[^}]*-webkit-user-select:\s*none;[^}]*user-select:\s*none;/s,
+  );
+  assert.match(
+    styles,
+    /--mobile-safe-area-top:\s*env\(safe-area-inset-top,\s*0px\);[\s\S]*\.app-shell\s*\{[^}]*flex:\s*1;[^}]*height:\s*auto;[^}]*max-height:\s*none;/s,
   );
   assert.match(
     styles,

@@ -2233,6 +2233,7 @@ body,
   padding: 0 30px 100px 50px;
   background: #fbf7ed url("/smartisan/web/grid_6e4a41eefc.png") repeat;
   color: #635852;
+  caret-color: var(--accent);
   line-height: var(--editor-line-height);
   -webkit-text-size-adjust: none;
   text-size-adjust: none;
@@ -2247,6 +2248,11 @@ body,
 
 .markdown-editor:focus {
   box-shadow: none;
+}
+
+.markdown-editor-caret-mirror,
+.markdown-editor-caret {
+  display: none;
 }
 
 .preview-stage {
@@ -2838,6 +2844,10 @@ body,
 @media (max-width: 640px) {
   :root {
     --topbar-height: 48px;
+    --mobile-safe-area-top: env(safe-area-inset-top, 0px);
+    --mobile-safe-area-right: env(safe-area-inset-right, 0px);
+    --mobile-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --mobile-safe-area-left: env(safe-area-inset-left, 0px);
     --editor-line-height: 42px;
     --editor-font-size: 16px;
     --editor-rule-offset-y: 0px;
@@ -2867,22 +2877,32 @@ body,
   }
 
   .app-layout {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
     height: 100dvh;
-    min-height: 100dvh;
+    padding-right: var(--mobile-safe-area-right);
+    padding-bottom: var(--mobile-safe-area-bottom);
+    padding-left: var(--mobile-safe-area-left);
     overflow: hidden;
+    background-color: #f1dab6;
+    background-image: url("/smartisan/mobile/note_background.png");
+    background-repeat: repeat;
+    background-size: 160px 273px;
   }
 
   .app-topbar {
     position: relative;
-    flex: 0 0 var(--topbar-height);
+    flex: 0 0 calc(var(--topbar-height) + var(--mobile-safe-area-top));
     z-index: 20;
+    padding-top: var(--mobile-safe-area-top);
   }
 
   .app-layout[data-theme="default"] .app-topbar {
     background-color: #776153;
     background-image: url("/smartisan/mobile/action_bar_default.png");
     background-repeat: no-repeat;
-    background-position: center top;
+    background-position: center bottom;
     background-size: 100% 48px;
   }
 
@@ -3266,9 +3286,9 @@ body,
     position: fixed;
     z-index: 60;
     top: auto;
-    right: 8px;
+    right: max(8px, var(--mobile-safe-area-right));
     bottom: max(8px, env(safe-area-inset-bottom));
-    left: 8px;
+    left: max(8px, var(--mobile-safe-area-left));
     width: auto;
     max-height: calc(100dvh - 70px);
     padding: 16px;
@@ -3305,8 +3325,10 @@ body,
 
   .app-shell {
     position: relative;
-    height: calc(100dvh - var(--topbar-height));
-    max-height: calc(100dvh - var(--topbar-height));
+    flex: 1;
+    height: auto;
+    max-height: none;
+    min-height: 0;
     display: block;
     gap: 0;
     padding: 0;
@@ -3576,6 +3598,25 @@ body,
     transition: none;
   }
 
+  .note-list-item.is-dragging:not(.note-list-drag-overlay) .note-list-card {
+    opacity: 0;
+  }
+
+  .note-list-item.is-dragging:not(.note-list-drag-overlay) .note-list-swipe-delete {
+    opacity: 0;
+  }
+
+  .note-list-drag-overlay {
+    width: 100%;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .note-list-drag-overlay .note-list-card {
+    transform: none;
+    filter: drop-shadow(0 5px 7px rgba(75, 55, 38, 0.28));
+  }
+
   .note-list-item.active .note-list-card {
     background: var(--note-list-active);
     box-shadow: none;
@@ -3674,6 +3715,20 @@ body,
     min-height: 75.3333px;
     padding: 5px 85px 0 52px;
     touch-action: pan-y;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .note-list-item.is-sortable,
+  .note-list-item.is-sortable * {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .note-list-item.is-sortable img {
+    -webkit-user-drag: none;
   }
 
   .note-list-select:hover {
@@ -3938,7 +3993,45 @@ body,
     resize: none;
     padding: 0 18px 18px 39px;
     color: #5c3c2ad1;
+    caret-color: transparent;
     font-weight: 400;
+  }
+
+  .markdown-editor-caret-mirror {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    min-height: 100%;
+    padding: 0 18px 18px 39px;
+    overflow: hidden;
+    color: transparent;
+    font-family: var(--ui-font);
+    font-size: var(--editor-font-size);
+    font-weight: 400;
+    line-height: var(--editor-line-height);
+    overflow-wrap: break-word;
+    pointer-events: none;
+    visibility: hidden;
+    white-space: pre-wrap;
+  }
+
+  .markdown-editor-caret {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    width: 2px;
+    height: 22px;
+    border-radius: 1px;
+    background: var(--accent);
+    pointer-events: none;
+    transform: translate3d(-9999px, -9999px, 0);
+  }
+
+  .markdown-editor-caret.is-visible {
+    display: block;
+    animation: mobile-editor-caret-blink 1s steps(1, end) infinite;
   }
 
   .mobile-back-icon,
@@ -4007,6 +4100,22 @@ body,
 
   .theme-selector-options {
     grid-template-columns: 1fr;
+  }
+}
+
+@keyframes mobile-editor-caret-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+
+  50%,
+  95% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
   }
 }
 

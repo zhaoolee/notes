@@ -1,12 +1,14 @@
 import {
   closestCenter,
   DndContext,
+  DragOverlay,
   KeyboardSensor,
   MouseSensor,
   TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type Modifier,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -60,6 +62,14 @@ interface NoteSidebarProps {
   onToggleDesktopCategory: () => void;
 }
 
+const MOBILE_NOTE_DRAG_DELAY_MS = 220;
+const MOBILE_NOTE_DRAG_TOLERANCE_PX = 12;
+
+const restrictNoteDragToVerticalAxis: Modifier = ({ transform }) => ({
+  ...transform,
+  x: 0,
+});
+
 function formatUpdatedAt(timestamp: number): string {
   const date = new Date(timestamp);
   const today = new Date();
@@ -77,6 +87,41 @@ function formatUpdatedAt(timestamp: number): string {
 
 function hasMarkdownImage(markdown: string): boolean {
   return /!\[[^\]]*\]\([^)]+\)|<img\b/i.test(markdown);
+}
+
+function NoteDragOverlay({ note }: { note: NoteDocument }) {
+  const includesImage = hasMarkdownImage(note.markdown);
+
+  return (
+    <div
+      className={`note-list-item note-list-drag-overlay is-dragging${
+        includesImage ? " has-image" : ""
+      }`}
+      aria-hidden="true"
+    >
+      <div className="note-list-card">
+        <div className="note-list-select">
+          <span className="note-list-meta">
+            <span>{formatUpdatedAt(note.updatedAt)}</span>
+          </span>
+          <strong>{getNoteListTitle(note.markdown)}</strong>
+        </div>
+        <span className="note-list-pin">
+          <img
+            src="/smartisan/mobile/icon_top_normal.png"
+            alt=""
+            draggable={false}
+          />
+        </span>
+        <span
+          className={`note-list-star${note.isStarred ? " is-starred" : ""}`}
+        />
+        {includesImage ? (
+          <span className="note-list-image-indicator" />
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 interface SortableNoteListItemProps {
@@ -119,6 +164,7 @@ function SortableNoteListItem({
   onToggleStarred,
 }: SortableNoteListItemProps) {
   const pinned = isNotePinned(note);
+  const isSortable = !pinned && !isDragDisabled && !isTrashView;
   const includesImage = hasMarkdownImage(note.markdown);
   const isActive = note.id === activeNoteId;
   const [swipeOffset, setSwipeOffset] = useState(
@@ -138,7 +184,7 @@ function SortableNoteListItem({
     transition,
   } = useSortable({
     id: note.id,
-    disabled: pinned || isDragDisabled || isTrashView,
+    disabled: !isSortable,
   });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -160,6 +206,16 @@ function SortableNoteListItem({
 
     updateSwipeOffset(isSwipeOpen ? MOBILE_NOTE_SWIPE_OPEN_OFFSET : 0);
   }, [isSwipeOpen]);
+
+  useEffect(() => {
+    if (!isDragging) {
+      return;
+    }
+
+    swipeGestureRef.current = null;
+    setIsSwipeTracking(false);
+    updateSwipeOffset(0);
+  }, [isDragging]);
 
   function canStartSwipe(event: ReactPointerEvent<HTMLDivElement>): boolean {
     return (
@@ -186,7 +242,6 @@ function SortableNoteListItem({
       startX: event.clientX,
       startY: event.clientY,
     };
-    event.currentTarget.setPointerCapture(event.pointerId);
   }
 
   function handleSwipePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
@@ -203,6 +258,9 @@ function SortableNoteListItem({
       gesture.axis = getMobileNoteSwipeAxis(deltaX, deltaY);
 
       if (gesture.axis === "horizontal") {
+        if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }
         setIsSwipeTracking(true);
       }
     }
@@ -261,6 +319,21 @@ function SortableNoteListItem({
     onSelectNote(note.id);
   }
 
+  function suppressMobileDragPreview(
+    event: ReactMouseEvent<HTMLDivElement>,
+  ) {
+    if (
+      !isSortable ||
+      typeof window === "undefined" ||
+      !window.matchMedia("(max-width: 640px)").matches
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    window.getSelection()?.removeAllRanges();
+  }
+
   return (
     <div
       ref={setNodeRef}
@@ -268,7 +341,7 @@ function SortableNoteListItem({
       data-note-id={note.id}
       className={`note-list-item${isActive ? " active" : ""}${
         includesImage ? " has-image" : ""
-      }${pinned ? " is-pinned" : " is-sortable"}${
+      }${pinned ? " is-pinned" : isSortable ? " is-sortable" : " is-drag-disabled"}${
         isDragging ? " is-dragging" : ""
       }${isSwipeOpen ? " is-swipe-open" : ""}${
         isSwipeTracking ? " is-swipe-tracking" : ""
@@ -291,6 +364,7 @@ function SortableNoteListItem({
       <div
         className="note-list-card"
         style={swipeStyle}
+        onContextMenu={suppressMobileDragPreview}
         onPointerCancel={settleSwipe}
         onPointerDown={handleSwipePointerDown}
         onPointerMove={handleSwipePointerMove}
@@ -403,6 +477,7 @@ export function NoteSidebar({
   onToggleDesktopCategory,
 }: NoteSidebarProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const [activeDragNoteId, setActiveDragNoteId] = useState<string | null>(null);
   const [openSwipeNoteId, setOpenSwipeNoteId] = useState<string | null>(null);
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -412,8 +487,8 @@ export function NoteSidebar({
     }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 500,
-        tolerance: 8,
+        delay: MOBILE_NOTE_DRAG_DELAY_MS,
+        tolerance: MOBILE_NOTE_DRAG_TOLERANCE_PX,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -442,6 +517,9 @@ export function NoteSidebar({
     [filteredNotes, isTrashView],
   );
   const isSearchActive = Boolean(searchQuery.trim());
+  const activeDragNote = activeDragNoteId
+    ? filteredNotes.find((note) => note.id === activeDragNoteId) ?? null
+    : null;
 
   useEffect(() => {
     if (
@@ -455,6 +533,7 @@ export function NoteSidebar({
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     setIsDragging(false);
+    setActiveDragNoteId(null);
 
     if (!over || active.id === over.id || isSearchActive || isTrashView) {
       return;
@@ -511,11 +590,17 @@ export function NoteSidebar({
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
-        onDragStart={() => {
+        modifiers={[restrictNoteDragToVerticalAxis]}
+        onDragStart={({ active }) => {
+          window.getSelection()?.removeAllRanges();
           setOpenSwipeNoteId(null);
+          setActiveDragNoteId(String(active.id));
           setIsDragging(true);
         }}
-        onDragCancel={() => setIsDragging(false)}
+        onDragCancel={() => {
+          setActiveDragNoteId(null);
+          setIsDragging(false);
+        }}
         onDragEnd={handleDragEnd}
       >
         <div
@@ -594,6 +679,14 @@ export function NoteSidebar({
             </div>
           )}
         </div>
+        <DragOverlay
+          adjustScale={false}
+          dropAnimation={null}
+          modifiers={[restrictNoteDragToVerticalAxis]}
+          zIndex={100}
+        >
+          {activeDragNote ? <NoteDragOverlay note={activeDragNote} /> : null}
+        </DragOverlay>
       </DndContext>
 
       <div className="note-sidebar-bottom-menu">
