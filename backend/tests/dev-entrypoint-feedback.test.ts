@@ -44,3 +44,12 @@ test("生产反向代理保留外层 HTTPS 协议", async () => {
     /proxy_set_header X-Forwarded-Proto \$scheme;/,
   );
 });
+
+test("生产后端镜像包含归档 HTML 背景资源", async () => {
+  const backendDockerfile = await readFile("Dockerfile.backend", "utf8");
+
+  assert.match(
+    backendDockerfile,
+    /COPY public\/bg\.jpg \.\/public\/bg\.jpg/,
+  );
+});

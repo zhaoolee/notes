@@ -30,6 +30,7 @@ RUN npm ci --omit=dev
 
 COPY --from=build /app/dist-server ./dist-server
 COPY --from=build /app/src/assets/fonts ./src/assets/fonts
+COPY public/bg.jpg ./public/bg.jpg
 
 ENV NODE_ENV=production
 ENV PORT=3001
