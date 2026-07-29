@@ -53,3 +53,12 @@ test("生产后端镜像包含归档 HTML 背景资源", async () => {
     /COPY public\/bg\.jpg \.\/public\/bg\.jpg/,
   );
 });
+
+test("生产站点通过 HTTPS 路径代理七牛图片", async () => {
+  const nginxConfig = await readFile("docker/nginx/default.conf", "utf8");
+
+  assert.match(
+    nginxConfig,
+    /location \/qiniu\/ \{[^}]*proxy_pass http:\/\/tmp-blog\.fangyuanxiaozhan\.com\/;[^}]*proxy_set_header Host tmp-blog\.fangyuanxiaozhan\.com;/,
+  );
+});
