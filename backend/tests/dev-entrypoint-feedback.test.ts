@@ -25,3 +25,22 @@ test("本地开发入口同时启动前端和导出后端", async () => {
   assert.match(environmentExample, /^QINIU_ACCESS_KEY=$/m);
   assert.match(environmentExample, /^QINIU_SECRET_KEY=$/m);
 });
+
+test("生产反向代理保留外层 HTTPS 协议", async () => {
+  const nginxConfig = await readFile("docker/nginx/default.conf", "utf8");
+
+  assert.match(
+    nginxConfig,
+    /map \$http_x_forwarded_proto \$notes_forwarded_proto \{[^}]*default \$scheme;[^}]*https https;[^}]*\}/,
+  );
+  assert.equal(
+    nginxConfig.match(
+      /proxy_set_header X-Forwarded-Proto \$notes_forwarded_proto;/g,
+    )?.length,
+    2,
+  );
+  assert.doesNotMatch(
+    nginxConfig,
+    /proxy_set_header X-Forwarded-Proto \$scheme;/,
+  );
+});
