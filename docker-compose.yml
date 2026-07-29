@@ -16,11 +16,17 @@ services:
     restart: unless-stopped
     environment:
       IMAGE_STORAGE_DIR: /app/storage/images
+      DATA_STORAGE_DIR: /app/storage/data
       QINIU_ACCESS_KEY: ${QINIU_ACCESS_KEY:-}
       QINIU_SECRET_KEY: ${QINIU_SECRET_KEY:-}
       QINIU_BUCKET: ${QINIU_BUCKET:-}
       QINIU_DOMAIN: ${QINIU_DOMAIN:-}
       QINIU_PREFIX: ${QINIU_PREFIX:-}
       QINIU_UPLOAD_URL: ${QINIU_UPLOAD_URL:-}
+      SUPERADMIN: ${SUPERADMIN:-}
+      SUPERADMINPASSWORD: ${SUPERADMINPASSWORD:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      ANONYMOUS_DAILY_UPLOAD_LIMIT: ${ANONYMOUS_DAILY_UPLOAD_LIMIT:-500}
     volumes:
       - ./storage/images:/app/storage/images
+      - ./storage/data:/app/storage/data

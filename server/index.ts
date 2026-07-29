@@ -22,6 +22,27 @@ import {
   QiniuUploadError,
   uploadImageBufferToQiniu,
 } from "./qiniu.js";
+import {
+  AccountNotFoundError,
+  AnonymousQuotaExceededError,
+  createExpiredSessionCookie,
+  createSessionCookie,
+  createSessionToken,
+  DuplicateUsernameError,
+  getShanghaiDateKey,
+  InvalidCurrentPasswordError,
+  InvalidNewPasswordError,
+  InvalidUsernameError,
+  normalizeUsername,
+  NotesDataStore,
+  readSessionToken,
+  safeStringEqual,
+  verifySessionToken,
+  type AnonymousQuotaStatus,
+  type AuthRole,
+  type AuthSession,
+  type AuthUser,
+} from "./auth.js";
 
 type ThemeId = "default" | "smartisan-dark";
 
@@ -48,6 +69,25 @@ interface ArchiveRequestBody {
 interface WechatRequestBody {
   markdown?: string;
   markdownPath?: string;
+}
+
+interface LoginRequestBody {
+  password?: string;
+  remember?: boolean;
+  username?: string;
+}
+
+interface CreateUserRequestBody {
+  username?: string;
+}
+
+interface ChangePasswordRequestBody {
+  currentPassword?: string;
+  newPassword?: string;
+}
+
+interface WorkspaceRequestBody {
+  workspace?: unknown;
 }
 
 interface StoredImage {
@@ -100,7 +140,14 @@ const rootDir =
 const distDir = path.join(rootDir, "dist");
 const publicDir = path.join(rootDir, "public");
 const imagesDir = process.env.IMAGE_STORAGE_DIR || path.join(rootDir, "storage", "images");
+const dataDirectory =
+  process.env.DATA_STORAGE_DIR || path.join(rootDir, "storage", "data");
 const port = Number(process.env.PORT || 3001);
+const anonymousDailyUploadLimit = Math.max(
+  1,
+  Number.parseInt(process.env.ANONYMOUS_DAILY_UPLOAD_LIMIT || "500", 10) ||
+    500,
+);
 const supportedThemes = new Set<ThemeId>(["default", "smartisan-dark"]);
 const maxImageSizeBytes = 20 * 1024 * 1024;
 const exportDeviceScaleFactor = 3;
@@ -117,6 +164,7 @@ const imageUpload = multer({
 });
 
 let browserPromise: Promise<Browser> | undefined;
+const notesDataStore = new NotesDataStore(dataDirectory);
 const execFileAsync = promisify(execFile);
 const defaultWechatFooterHammerUrl =
   "https://notes.fangyuanxiaozhan.com/images/d5a157fccd36ca63fc5fb53afd0223d45448263fd349a9e2f17d54fb94fe3e4d.png";
@@ -186,7 +234,7 @@ function getPublicBaseUrl(request: Request): string {
 
 function applyCorsHeaders(request: Request, response: Response): void {
   response.setHeader("Access-Control-Allow-Origin", "*");
-  response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  response.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,OPTIONS");
   response.setHeader(
     "Access-Control-Allow-Headers",
     request.get("access-control-request-headers") || "Content-Type, Authorization",
@@ -195,6 +243,137 @@ function applyCorsHeaders(request: Request, response: Response): void {
     "Access-Control-Expose-Headers",
     "Content-Disposition, X-Export-Path, X-Export-Url",
   );
+}
+
+function isSecureRequest(request: Request): boolean {
+  return (
+    request.secure ||
+    request.get("x-forwarded-proto")?.split(",")[0]?.trim() === "https"
+  );
+}
+
+function setAuthenticatedSession(
+  request: Request,
+  response: Response,
+  user: AuthUser,
+  remember: boolean,
+  passwordVersion?: number,
+): void {
+  response.setHeader(
+    "Set-Cookie",
+    createSessionCookie(createSessionToken(user, remember, Date.now(), passwordVersion), {
+      remember,
+      secure: isSecureRequest(request),
+    }),
+  );
+}
+
+function clearAuthenticatedSession(
+  request: Request,
+  response: Response,
+): void {
+  response.setHeader(
+    "Set-Cookie",
+    createExpiredSessionCookie(isSecureRequest(request)),
+  );
+}
+
+function getSuperAdminCredentials(): {
+  password: string;
+  username: string;
+} | null {
+  const username = process.env.SUPERADMIN?.trim();
+  const password = process.env.SUPERADMINPASSWORD?.trim();
+
+  return username && password ? { password, username } : null;
+}
+
+async function getAuthenticatedUser(
+  request: Request,
+): Promise<AuthSession | null> {
+  const session = verifySessionToken(readSessionToken(request.get("cookie")));
+
+  if (!session) {
+    return null;
+  }
+
+  if (session.role === "superadmin") {
+    const credentials = getSuperAdminCredentials();
+
+    return credentials &&
+      session.id === "superadmin" &&
+      safeStringEqual(
+        normalizeUsername(session.username),
+        normalizeUsername(credentials.username),
+      )
+      ? session
+      : null;
+  }
+
+  const account = await notesDataStore.getUserById(session.id);
+
+  return account &&
+    account.passwordVersion === (session.passwordVersion ?? 1) &&
+    safeStringEqual(
+      normalizeUsername(account.username),
+      normalizeUsername(session.username),
+    )
+    ? session
+    : null;
+}
+
+async function requireAuthenticatedUser(
+  request: Request,
+  response: Response,
+  role: AuthRole,
+): Promise<AuthSession | null> {
+  const user = await getAuthenticatedUser(request);
+
+  if (!user) {
+    response.status(401).json({
+      error: role === "superadmin" ? "请先登录管理员后台。" : "请先登录账号。",
+    });
+    return null;
+  }
+
+  if (user.role !== role) {
+    response.status(403).json({
+      error:
+        role === "superadmin"
+          ? "当前账号没有管理员权限。"
+          : "管理员账号不用于普通便签云同步。",
+    });
+    return null;
+  }
+
+  return user;
+}
+
+function getPublicAuthUser(user: AuthUser): AuthUser {
+  return {
+    id: user.id,
+    role: user.role,
+    username: user.username,
+  };
+}
+
+function resolveLoginCredentials(body: LoginRequestBody | undefined): {
+  password: string;
+  remember: boolean;
+  username: string;
+} | null {
+  const username = body?.username?.trim();
+  const password = body?.password;
+
+  if (!username || !password) {
+    return null;
+  }
+
+  return {
+    password,
+    remember: body?.remember === true,
+    username,
+  };
 }
 
 function normalizeRenderableImageUrls(
@@ -1802,7 +1981,13 @@ async function renderNotePng(markdown: string, renderUrl: string): Promise<Buffe
   }
 }
 
-async function prepareWechatArticle(markdown: string): Promise<{
+async function prepareWechatArticle(
+  markdown: string,
+  options: {
+    temporaryUploads: boolean;
+  },
+): Promise<{
+  anonymousQuota: AnonymousQuotaStatus | null;
   html: string;
   markdown: string;
   imageCount: number;
@@ -1813,13 +1998,18 @@ async function prepareWechatArticle(markdown: string): Promise<{
   let uploadedImageCount = 0;
   let reusedImageCount = 0;
   let wechatMarkdown = markdown;
+  let anonymousQuota: AnonymousQuotaStatus | null = null;
 
   if (imageSources.length > 0) {
     const qiniuConfig = await loadQiniuConfig(rootDir);
     const replacements = new Map<string, string>();
-    const uploadedByContentHash = new Map<
+    const imagesByContentHash = new Map<
       string,
-      Awaited<ReturnType<typeof uploadImageBufferToQiniu>>
+      {
+        buffer: Buffer;
+        extension: string;
+        sources: string[];
+      }
     >();
 
     for (const source of imageSources) {
@@ -1845,27 +2035,60 @@ async function prepareWechatArticle(markdown: string): Promise<{
       }
 
       const contentHash = createHash("sha256").update(image.buffer).digest("hex");
-      const cachedUpload = uploadedByContentHash.get(contentHash);
-      const uploaded =
-        cachedUpload ||
-        (await uploadImageBufferToQiniu(
-          image.buffer,
-          extension,
-          qiniuConfig,
-        ));
-      replacements.set(source, uploaded.url);
+      const existingImage = imagesByContentHash.get(contentHash);
 
-      if (cachedUpload) {
-        reusedImageCount += 1;
-      } else if (uploaded.uploaded) {
+      if (existingImage) {
+        existingImage.sources.push(source);
+      } else {
+        imagesByContentHash.set(contentHash, {
+          buffer: image.buffer,
+          extension,
+          sources: [source],
+        });
+      }
+    }
+
+    const uniqueImages = Array.from(imagesByContentHash.values());
+    const anonymousDateKey = getShanghaiDateKey();
+    const temporaryPrefix = [
+      qiniuConfig.prefix,
+      "temporary",
+      anonymousDateKey,
+    ]
+      .filter(Boolean)
+      .join("/");
+
+    if (options.temporaryUploads && uniqueImages.length > 0) {
+      anonymousQuota = await notesDataStore.reserveAnonymousUploads(
+        uniqueImages.length,
+        anonymousDailyUploadLimit,
+      );
+    }
+
+    for (const image of uniqueImages) {
+      const uploaded = await uploadImageBufferToQiniu(
+        image.buffer,
+        image.extension,
+        qiniuConfig,
+        options.temporaryUploads
+          ? {
+              deleteAfterDays: 1,
+              prefix: temporaryPrefix,
+            }
+          : undefined,
+      );
+
+      for (const source of image.sources) {
+        replacements.set(source, uploaded.url);
+      }
+
+      if (uploaded.uploaded) {
         uploadedImageCount += 1;
       } else {
         reusedImageCount += 1;
       }
 
-      if (!cachedUpload) {
-        uploadedByContentHash.set(contentHash, uploaded);
-      }
+      reusedImageCount += Math.max(0, image.sources.length - 1);
     }
 
     for (const [source, replacement] of Array.from(replacements).sort(
@@ -1889,6 +2112,7 @@ async function prepareWechatArticle(markdown: string): Promise<{
   );
 
   return {
+    anonymousQuota,
     html,
     markdown: wechatMarkdown,
     imageCount: imageSources.length,
@@ -1898,6 +2122,7 @@ async function prepareWechatArticle(markdown: string): Promise<{
 }
 
 const app = express();
+app.set("trust proxy", 1);
 
 app.use((request: Request, response: Response, next: NextFunction) => {
   applyCorsHeaders(request, response);
@@ -1912,6 +2137,276 @@ app.use((request: Request, response: Response, next: NextFunction) => {
 
 app.use(express.json({ limit: "10mb" }));
 app.use("/images", express.static(imagesDir, { fallthrough: false, immutable: true, maxAge: "1y" }));
+
+app.get("/api/auth/session", async (request: Request, response: Response) => {
+  const user = await getAuthenticatedUser(request);
+  response.json({ user: user ? getPublicAuthUser(user) : null });
+});
+
+app.post(
+  "/api/auth/login",
+  async (
+    request: Request<Record<string, never>, unknown, LoginRequestBody>,
+    response: Response,
+  ) => {
+    const credentials = resolveLoginCredentials(request.body);
+
+    if (!credentials) {
+      response.status(400).json({ error: "请输入用户名或邮箱及密码。" });
+      return;
+    }
+
+    const account = await notesDataStore.authenticateUser(
+      credentials.username,
+      credentials.password,
+    );
+
+    if (!account) {
+      response.status(401).json({ error: "用户名、邮箱或密码错误。" });
+      return;
+    }
+
+    const user: AuthUser = {
+      id: account.id,
+      role: "user",
+      username: account.username,
+    };
+    setAuthenticatedSession(
+      request,
+      response,
+      user,
+      credentials.remember,
+      account.passwordVersion,
+    );
+    response.json({ user });
+  },
+);
+
+app.post(
+  "/api/auth/password",
+  async (
+    request: Request<Record<string, never>, unknown, ChangePasswordRequestBody>,
+    response: Response,
+  ) => {
+    const session = await requireAuthenticatedUser(request, response, "user");
+
+    if (!session) {
+      return;
+    }
+
+    const currentPassword = request.body?.currentPassword;
+    const newPassword = request.body?.newPassword;
+
+    if (
+      typeof currentPassword !== "string" ||
+      !currentPassword ||
+      typeof newPassword !== "string"
+    ) {
+      response.status(400).json({ error: "请输入当前密码和新密码。" });
+      return;
+    }
+
+    try {
+      const passwordVersion = await notesDataStore.changePassword(
+        session.id,
+        currentPassword,
+        newPassword,
+      );
+      const user = getPublicAuthUser(session);
+      setAuthenticatedSession(
+        request,
+        response,
+        user,
+        session.remember,
+        passwordVersion,
+      );
+      response.json({ ok: true });
+    } catch (error) {
+      const status =
+        error instanceof InvalidCurrentPasswordError ||
+        error instanceof InvalidNewPasswordError
+          ? 400
+          : error instanceof AccountNotFoundError
+            ? 404
+            : 500;
+      response.status(status).json({
+        error: error instanceof Error ? error.message : "修改密码失败。",
+      });
+    }
+  },
+);
+
+app.post(
+  "/api/superadmin/login",
+  (
+    request: Request<Record<string, never>, unknown, LoginRequestBody>,
+    response: Response,
+  ) => {
+    const configured = getSuperAdminCredentials();
+
+    if (!configured) {
+      response.status(503).json({
+        error:
+          "管理员账号尚未配置，请在服务端设置 SUPERADMIN 和 SUPERADMINPASSWORD。",
+      });
+      return;
+    }
+
+    const credentials = resolveLoginCredentials(request.body);
+    const authenticated =
+      credentials &&
+      safeStringEqual(
+        normalizeUsername(credentials.username),
+        normalizeUsername(configured.username),
+      ) &&
+      safeStringEqual(credentials.password, configured.password);
+
+    if (!authenticated) {
+      response.status(credentials ? 401 : 400).json({
+        error: credentials ? "管理员用户名或密码错误。" : "请输入用户名和密码。",
+      });
+      return;
+    }
+
+    const user: AuthUser = {
+      id: "superadmin",
+      role: "superadmin",
+      username: configured.username,
+    };
+    setAuthenticatedSession(
+      request,
+      response,
+      user,
+      credentials.remember,
+    );
+    response.json({ user });
+  },
+);
+
+app.post("/api/auth/logout", (request: Request, response: Response) => {
+  clearAuthenticatedSession(request, response);
+  response.json({ ok: true });
+});
+
+app.get(
+  "/api/superadmin/users",
+  async (request: Request, response: Response) => {
+    if (!(await requireAuthenticatedUser(request, response, "superadmin"))) {
+      return;
+    }
+
+    response.json({ users: await notesDataStore.listUsers() });
+  },
+);
+
+app.post(
+  "/api/superadmin/users",
+  async (
+    request: Request<Record<string, never>, unknown, CreateUserRequestBody>,
+    response: Response,
+  ) => {
+    if (!(await requireAuthenticatedUser(request, response, "superadmin"))) {
+      return;
+    }
+
+    const username = request.body?.username;
+
+    if (typeof username !== "string") {
+      response.status(400).json({ error: "请输入普通用户名或邮箱。" });
+      return;
+    }
+
+    const configured = getSuperAdminCredentials();
+
+    if (
+      configured &&
+      normalizeUsername(username) === normalizeUsername(configured.username)
+    ) {
+      response.status(409).json({ error: "普通账号不能与管理员账号相同。" });
+      return;
+    }
+
+    try {
+      response.status(201).json({
+        user: await notesDataStore.createUser(username),
+      });
+    } catch (error) {
+      const status =
+        error instanceof DuplicateUsernameError
+          ? 409
+          : error instanceof InvalidUsernameError
+            ? 400
+            : 500;
+      response.status(status).json({
+        error: error instanceof Error ? error.message : "创建用户失败。",
+      });
+    }
+  },
+);
+
+app.post(
+  "/api/superadmin/users/:userId/reset-password",
+  async (
+    request: Request<{ userId: string }>,
+    response: Response,
+  ) => {
+    if (!(await requireAuthenticatedUser(request, response, "superadmin"))) {
+      return;
+    }
+
+    try {
+      response.json({
+        user: await notesDataStore.resetUserPassword(request.params.userId),
+      });
+    } catch (error) {
+      response
+        .status(error instanceof AccountNotFoundError ? 404 : 500)
+        .json({
+          error: error instanceof Error ? error.message : "重置密码失败。",
+        });
+    }
+  },
+);
+
+app.get("/api/workspace", async (request: Request, response: Response) => {
+  const user = await requireAuthenticatedUser(request, response, "user");
+
+  if (!user) {
+    return;
+  }
+
+  const stored = await notesDataStore.getWorkspace(user.id);
+  response.json(
+    stored ?? {
+      updatedAt: null,
+      workspace: null,
+    },
+  );
+});
+
+app.put(
+  "/api/workspace",
+  async (
+    request: Request<Record<string, never>, unknown, WorkspaceRequestBody>,
+    response: Response,
+  ) => {
+    const user = await requireAuthenticatedUser(request, response, "user");
+
+    if (!user) {
+      return;
+    }
+
+    try {
+      response.json(
+        await notesDataStore.saveWorkspace(user.id, request.body?.workspace),
+      );
+    } catch (error) {
+      response.status(400).json({
+        error: error instanceof Error ? error.message : "云端工作区保存失败。",
+      });
+    }
+  },
+);
 
 app.post(
   "/api/export",
@@ -1989,12 +2484,19 @@ app.post(
   ) => {
     try {
       const markdown = await resolveMarkdown(request.body || {});
-      response.json(await prepareWechatArticle(markdown));
+      const authenticatedUser = await getAuthenticatedUser(request);
+      response.json(
+        await prepareWechatArticle(markdown, {
+          temporaryUploads: !authenticatedUser,
+        }),
+      );
     } catch (error) {
       console.error("Wechat copy preparation failed:", error);
 
       const status =
-        error instanceof QiniuConfigurationError
+        error instanceof AnonymousQuotaExceededError
+          ? 429
+          : error instanceof QiniuConfigurationError
           ? 503
           : error instanceof QiniuUploadError
             ? 502
@@ -2006,7 +2508,9 @@ app.post(
             ? error.message
             : "Failed to prepare WeChat article",
         hint:
-          error instanceof QiniuConfigurationError
+          error instanceof AnonymousQuotaExceededError
+            ? `今日额度已使用 ${error.quota.used}/${error.quota.limit} 张，下一次重置时间：${error.quota.resetsAt}`
+            : error instanceof QiniuConfigurationError
             ? "本地可通过 QINIU_CONFIG_PATH 复用现有 qiniu.json；生产环境请使用环境变量或只读挂载配置。"
             : undefined,
       });

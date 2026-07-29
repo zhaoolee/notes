@@ -12,6 +12,8 @@
 - `btn_save_notes.png`
 - `btn_settings.png`
 - `btn_share_notes.png`
+- `btn_slide_delete_normal.png`
+- `btn_slide_delete_pressed.png`
 - `icon_top_checked.png`
 - `icon_top_normal.png`
 - `list_item_image_icon.png`
@@ -37,3 +39,7 @@ Android 9-patch 的边框标记不能直接交给浏览器渲染，因此列表�
 详情页按原版的编辑态 / 查看态切换使用 `btn_pic.png`、`btn_save_notes.png`、
 `btn_delete_notes.png` 和 `btn_share_notes.png`，四张图片保持原始 `36 × 36dp`
 按钮画布。
+
+列表横滑操作使用 `btn_slide_delete_normal.png` 和
+`btn_slide_delete_pressed.png`。两张图片来自 APK 的 `drawable-xxhdpi`，
+按 3 倍密度还原为 `73.6667 × 35.6667px`，保留左侧撕边和白色垃圾桶图标。

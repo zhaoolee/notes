@@ -3,8 +3,14 @@ import { THEME_OPTIONS } from "../lib/themes.js";
 import type { ThemeId } from "../types/app.js";
 
 interface SettingsPanelProps {
+  authUsername?: string | null;
+  canChangePassword?: boolean;
+  cloudStatusLabel?: string;
   selectedTheme: ThemeId;
+  onChangePassword?: () => void;
   onClose: () => void;
+  onLogin?: () => void;
+  onLogout?: () => void;
   onThemeChange: (themeId: ThemeId) => void;
 }
 
@@ -15,8 +21,14 @@ function getThemeName(themeId: ThemeId): string {
 }
 
 export function SettingsPanel({
+  authUsername = null,
+  canChangePassword = false,
+  cloudStatusLabel = "数据仅保存在当前浏览器",
   selectedTheme,
+  onChangePassword,
   onClose,
+  onLogin,
+  onLogout,
   onThemeChange,
 }: SettingsPanelProps) {
   const [page, setPage] = useState<SettingsPage>("root");
@@ -67,22 +79,84 @@ export function SettingsPanel({
 
       <div className="settings-content">
         {isRootPage ? (
-          <section className="settings-card" aria-label="便签偏好">
-            <button
-              type="button"
-              className="settings-row"
-              aria-label={`背景颜色，当前为${getThemeName(selectedTheme)}`}
-              onClick={() => setPage("background")}
+          <>
+            <section
+              className="settings-card settings-account-card"
+              aria-label="账号与同步"
             >
-              <span className="settings-row-label">背景颜色</span>
-              <span className="settings-row-value">
-                {getThemeName(selectedTheme)}
-                <span className="settings-row-chevron" aria-hidden="true">
-                  ›
+              {authUsername ? (
+                <>
+                  <div className="settings-row settings-account-summary">
+                    <span className="settings-row-label">
+                      {authUsername}
+                      <small>{cloudStatusLabel}</small>
+                    </span>
+                    <span className="settings-row-value">已登录</span>
+                  </div>
+                  {canChangePassword ? (
+                    <button
+                      type="button"
+                      className="settings-row"
+                      onClick={onChangePassword}
+                    >
+                      <span className="settings-row-label">修改密码</span>
+                      <span className="settings-row-value">
+                        <span className="settings-row-chevron" aria-hidden="true">
+                          ›
+                        </span>
+                      </span>
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="settings-row settings-logout-row"
+                    onClick={onLogout}
+                  >
+                    <span className="settings-row-label">退出登录</span>
+                    <span className="settings-row-value">
+                      <span className="settings-row-chevron" aria-hidden="true">
+                        ›
+                      </span>
+                    </span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="settings-row"
+                  onClick={onLogin}
+                >
+                  <span className="settings-row-label">
+                    登录账号
+                    <small>{cloudStatusLabel}</small>
+                  </span>
+                  <span className="settings-row-value">
+                    登录
+                    <span className="settings-row-chevron" aria-hidden="true">
+                      ›
+                    </span>
+                  </span>
+                </button>
+              )}
+            </section>
+
+            <section className="settings-card" aria-label="便签偏好">
+              <button
+                type="button"
+                className="settings-row"
+                aria-label={`背景颜色，当前为${getThemeName(selectedTheme)}`}
+                onClick={() => setPage("background")}
+              >
+                <span className="settings-row-label">背景颜色</span>
+                <span className="settings-row-value">
+                  {getThemeName(selectedTheme)}
+                  <span className="settings-row-chevron" aria-hidden="true">
+                    ›
+                  </span>
                 </span>
-              </span>
-            </button>
-          </section>
+              </button>
+            </section>
+          </>
         ) : (
           <section className="settings-card settings-theme-list" aria-label="选择背景颜色">
             {THEME_OPTIONS.map((option) => {

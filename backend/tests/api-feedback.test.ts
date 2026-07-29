@@ -17,11 +17,24 @@ interface ImportedImage {
 }
 
 interface WechatPreparation {
+  anonymousQuota: {
+    dateKey: string;
+    limit: number;
+    remaining: number;
+    resetsAt: string;
+    used: number;
+  } | null;
   html: string;
   markdown: string;
   imageCount: number;
   uploadedImageCount: number;
   reusedImageCount: number;
+}
+
+function getShanghaiDateKey(now = new Date()): string {
+  return new Date(now.getTime() + 8 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
 }
 
 async function getUnusedPort(): Promise<number> {
@@ -86,6 +99,7 @@ async function stopChild(child: ChildProcess): Promise<void> {
 test("Express 提供健康检查和内容寻址图片存储", async (context) => {
   const port = await getUnusedPort();
   const storageDir = await mkdtemp(path.join(tmpdir(), "notes-feedback-images-"));
+  const dataDir = await mkdtemp(path.join(tmpdir(), "notes-feedback-data-"));
   const baseUrl = `http://127.0.0.1:${port}`;
   let qiniuUploadCount = 0;
   const qiniuUploadBodies: string[] = [];
@@ -117,6 +131,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
       env: {
         ...process.env,
         EXPORT_APP_URL: baseUrl,
+        DATA_STORAGE_DIR: dataDir,
         IMAGE_STORAGE_DIR: storageDir,
         PORT: String(port),
         QINIU_ACCESS_KEY: "feedback-access-key",
@@ -125,6 +140,9 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
         QINIU_DOMAIN: "https://cdn.example.test",
         QINIU_PREFIX: "wechat-test",
         QINIU_UPLOAD_URL: `http://127.0.0.1:${qiniuUploadAddress.port}`,
+        SESSION_SECRET: "wechat-feedback-session-secret",
+        SUPERADMIN: "wechat-feedback-admin",
+        SUPERADMINPASSWORD: "wechat-feedback-password",
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -144,6 +162,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     qiniuUploadServer.close();
     await once(qiniuUploadServer, "close");
     await rm(storageDir, { force: true, recursive: true });
+    await rm(dataDir, { force: true, recursive: true });
   });
 
   try {
@@ -202,14 +221,18 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.equal(wechatResponse.status, 200);
 
     const wechat = (await wechatResponse.json()) as WechatPreparation;
+    const temporaryPrefix = `wechat-test/temporary/${getShanghaiDateKey()}`;
     const qiniuImageUrl =
-      `https://cdn.example.test/wechat-test/${imported.hash}.png`;
+      `https://cdn.example.test/${temporaryPrefix}/${imported.hash}.png`;
     const footerHammerUrl =
       "https://notes.fangyuanxiaozhan.com/images/d5a157fccd36ca63fc5fb53afd0223d45448263fd349a9e2f17d54fb94fe3e4d.png";
 
     assert.equal(wechat.imageCount, 2);
     assert.equal(wechat.uploadedImageCount, 1);
     assert.equal(wechat.reusedImageCount, 1);
+    assert.equal(wechat.anonymousQuota?.limit, 500);
+    assert.equal(wechat.anonymousQuota?.used, 1);
+    assert.equal(wechat.anonymousQuota?.remaining, 499);
     assert.equal(qiniuUploadCount, 1);
     assert.equal(
       (
@@ -222,12 +245,21 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.equal(qiniuUploadBodies.length, 1);
     assert.match(
       qiniuUploadBodies[0],
-      new RegExp(`wechat-test/${imported.hash}\\.png`),
+      new RegExp(`${temporaryPrefix}/${imported.hash}\\.png`),
     );
     assert.match(
       qiniuUploadBodies[0],
       new RegExp(`filename="${imported.hash}\\.png"`),
     );
+    const uploadTokenMatch =
+      /name="token"\r\n\r\n([^\r\n]+)/.exec(qiniuUploadBodies[0]);
+    assert.ok(uploadTokenMatch);
+    const uploadPolicy = JSON.parse(
+      Buffer.from(uploadTokenMatch[1].split(":")[2], "base64url").toString(
+        "utf8",
+      ),
+    ) as { deleteAfterDays?: number };
+    assert.equal(uploadPolicy.deleteAfterDays, 1);
     assert.match(wechat.html, /data-tool="锤子便签Skill"/);
     assert.match(wechat.html, /data-smartisan-theme="warm-paper"/);
     assert.match(wechat.html, /data-smartisan-paper="true"/);
@@ -353,6 +385,81 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     );
     assert.doesNotMatch(wechat.html, /src="data:/);
     assert.doesNotMatch(wechat.html, /<link\b[^>]*rel="preload"/);
+
+    const adminLoginResponse = await fetch(
+      `${baseUrl}/api/superadmin/login`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password: "wechat-feedback-password",
+          remember: false,
+          username: "wechat-feedback-admin",
+        }),
+      },
+    );
+    const adminCookie =
+      adminLoginResponse.headers.get("set-cookie")?.split(";")[0] || "";
+    assert.ok(adminCookie);
+
+    const accountResponse = await fetch(`${baseUrl}/api/superadmin/users`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: adminCookie,
+      },
+      body: JSON.stringify({ username: "wechat-registered-user" }),
+    });
+    assert.equal(accountResponse.status, 201);
+    const createdAccount = (await accountResponse.json()) as {
+      user: { initialPassword: string; username: string };
+    };
+
+    const userLoginResponse = await fetch(`${baseUrl}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        password: createdAccount.user.initialPassword,
+        remember: false,
+        username: createdAccount.user.username,
+      }),
+    });
+    const userCookie =
+      userLoginResponse.headers.get("set-cookie")?.split(";")[0] || "";
+    assert.ok(userCookie);
+
+    const registeredWechatResponse = await fetch(`${baseUrl}/api/wechat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: userCookie,
+      },
+      body: JSON.stringify({
+        markdown: `![注册用户图片](${baseUrl}${imported.path})`,
+      }),
+    });
+    assert.equal(registeredWechatResponse.status, 200);
+    const registeredWechat =
+      (await registeredWechatResponse.json()) as WechatPreparation;
+    assert.equal(registeredWechat.anonymousQuota, null);
+    assert.equal(qiniuUploadCount, 2);
+    assert.match(
+      registeredWechat.markdown,
+      new RegExp(
+        `https://cdn\\.example\\.test/wechat-test/${imported.hash}\\.png`,
+      ),
+    );
+    assert.doesNotMatch(qiniuUploadBodies[1], /temporary/);
+    const registeredTokenMatch =
+      /name="token"\r\n\r\n([^\r\n]+)/.exec(qiniuUploadBodies[1]);
+    assert.ok(registeredTokenMatch);
+    const registeredPolicy = JSON.parse(
+      Buffer.from(
+        registeredTokenMatch[1].split(":")[2],
+        "base64url",
+      ).toString("utf8"),
+    ) as { deleteAfterDays?: number };
+    assert.equal(registeredPolicy.deleteAfterDays, undefined);
   } catch (error) {
     throw new Error(
       [

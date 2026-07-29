@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import {
   getCategoryNoteDocuments,
   getFolderCategoryId,
@@ -11,6 +17,7 @@ import type {
 
 interface CategorySidebarProps {
   activeCategoryId: NoteCategoryId;
+  desktopFooter?: ReactNode;
   folders: NoteFolder[];
   isOpen: boolean;
   notes: NoteDocument[];
@@ -77,6 +84,7 @@ function CategoryRow({
 
 export function CategorySidebar({
   activeCategoryId,
+  desktopFooter,
   folders,
   isOpen,
   notes,
@@ -237,24 +245,9 @@ export function CategorySidebar({
         />
       </ul>
 
-      <div className="category-download-banner">
-        <svg
-          className="category-download-icon"
-          aria-hidden="true"
-          width="20"
-          height="20"
-          viewBox="0 0 20 20"
-          fill="none"
-        >
-          <path
-            fillRule="evenodd"
-            clipRule="evenodd"
-            d="M5 2.5H0V7.5H5V2.5ZM3.33333 4.16667H1.66667V5.83333H3.33333V4.16667ZM0 9.16667H5V10.8333H0V9.16667ZM6.66634 2.5H19.9997V17.5H6.66634V2.5ZM8.33301 4.16667H18.333V15.8333H8.33301V4.16667ZM12.5003 5.83366H14.167V11.3217L15.6626 9.82605L16.8411 11.0046L13.332 14.5137L12.1535 13.3352L12.1551 13.3335L9.83268 11.0111L11.0112 9.83256L12.5003 11.3217V5.83366ZM5 11.6667H3.33333V13.3333H5V11.6667ZM0 12.5H1.66667V14.1667H0V12.5ZM3.33333 15.8333V14.1667L1.66667 14.1667V15.8333H0V17.5H1.66667V15.8333H3.33333ZM3.33333 15.8333V17.5H5V15.8333H3.33333Z"
-            fill="currentColor"
-          />
-        </svg>
-        <span>下载锤子便签 APP</span>
-      </div>
+      {desktopFooter ? (
+        <div className="category-desktop-footer">{desktopFooter}</div>
+      ) : null}
 
       <div className="category-popover-footer">
         <button

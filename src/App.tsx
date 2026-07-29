@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CategorySidebar } from "./components/CategorySidebar";
+import { ChangePasswordDialog } from "./components/ChangePasswordDialog";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { EditorPanel, type EditorPanelHandle } from "./components/EditorPanel";
+import { LoginDialog } from "./components/LoginDialog";
 import { MoveNoteDialog } from "./components/MoveNoteDialog";
 import { NoteSidebar } from "./components/NoteSidebar";
 import { PreviewPanel } from "./components/PreviewPanel";
@@ -10,10 +12,20 @@ import { SharePanel } from "./components/SharePanel";
 import {
   getInitialFooterBrand,
   getInitialFooterVia,
+  getInitialNoteWorkspace,
   getRenderMode,
   persistNoteWorkspace,
   THEME_STORAGE_KEY,
 } from "./lib/app-state";
+import {
+  changeUserPassword,
+  getAuthSession,
+  getCloudWorkspace,
+  loginUser,
+  logoutUser,
+  saveCloudWorkspace,
+  type AuthUser,
+} from "./lib/auth";
 import { copyTextToClipboard, normalizeClipboardMarkdown } from "./lib/clipboard";
 import { exportMarkdownArchive, exportMarkdownAsPng, getExportErrorMessage } from "./lib/export";
 import { splitSections } from "./lib/markdown";
@@ -23,13 +35,31 @@ import {
 } from "./lib/notes";
 import { copyMarkdownForWechat } from "./lib/wechat";
 import { useAppStore } from "./store/useAppStore";
-import type { CopyState, NoteCategoryId, NoteFolder } from "./types/app";
+import type {
+  CopyState,
+  NoteCategoryId,
+  NoteFolder,
+  NoteWorkspace,
+} from "./types/app";
 
 type MobileWorkspaceView = "notes" | "editor" | "preview";
 type DesktopWorkspaceView = "editor" | "preview";
 type WechatCopyState = "idle" | "preparing" | "copied" | "failed";
 
 const NOTE_REFRESH_DELAY_MS = 650;
+const CLOUD_SAVE_DELAY_MS = 650;
+const CLOUD_POLL_INTERVAL_MS = 15_000;
+
+function getCurrentWorkspace(): NoteWorkspace {
+  const state = useAppStore.getState();
+
+  return {
+    activeNoteId: state.activeNoteId,
+    folders: state.folders,
+    notes: state.notes,
+    version: 1,
+  };
+}
 
 function getCategoryLabel(
   categoryId: NoteCategoryId,
@@ -110,6 +140,15 @@ export default function App() {
   const [isDesktopCategoryCollapsed, setIsDesktopCategoryCollapsed] =
     useState(false);
   const [isDesktopSharePreview, setIsDesktopSharePreview] = useState(false);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authStatus, setAuthStatus] = useState<"loading" | "ready">("loading");
+  const [cloudSyncState, setCloudSyncState] = useState<
+    "local" | "syncing" | "synced" | "failed"
+  >("local");
+  const [cloudSyncError, setCloudSyncError] = useState("");
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [wechatCopyState, setWechatCopyState] =
     useState<WechatCopyState>("idle");
   const [activeCategoryId, setActiveCategoryId] =
@@ -123,8 +162,13 @@ export default function App() {
   const refreshTimeoutRef = useRef<number | null>(null);
   const settingsContainerRef = useRef<HTMLDivElement | null>(null);
   const shareContainerRef = useRef<HTMLDivElement | null>(null);
+  const accountContainerRef = useRef<HTMLDivElement | null>(null);
   const desktopViewMenuRef = useRef<HTMLDivElement | null>(null);
   const desktopViewBeforeShareRef = useRef<DesktopWorkspaceView>("editor");
+  const cloudSaveTimeoutRef = useRef<number | null>(null);
+  const cloudRevisionRef = useRef(0);
+  const cloudHydratedUserIdRef = useRef<string | null>(null);
+  const skipNextCloudSaveRef = useRef(false);
   const activeNoteId = useAppStore((state) => state.activeNoteId);
   const folders = useAppStore((state) => state.folders);
   const noteDocuments = useAppStore((state) => state.notes);
@@ -144,6 +188,7 @@ export default function App() {
   const requestPermanentlyDeleteNote = useAppStore(
     (state) => state.requestPermanentlyDeleteNote,
   );
+  const replaceWorkspace = useAppStore((state) => state.replaceWorkspace);
   const restoreNote = useAppStore((state) => state.restoreNote);
   const setMarkdown = useAppStore((state) => state.setMarkdown);
   const setSelectedTheme = useAppStore((state) => state.setSelectedTheme);
@@ -171,18 +216,162 @@ export default function App() {
     : 0;
 
   useEffect(() => {
-    persistNoteWorkspace({
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const session = await getAuthSession();
+
+        if (cancelled) {
+          return;
+        }
+
+        if (session?.role === "user") {
+          setCloudSyncState("syncing");
+          const cloud = await getCloudWorkspace();
+
+          if (cancelled) {
+            return;
+          }
+
+          if (cloud.workspace) {
+            skipNextCloudSaveRef.current = true;
+            replaceWorkspace(cloud.workspace);
+            cloudRevisionRef.current = cloud.updatedAt ?? 0;
+          } else {
+            const saved = await saveCloudWorkspace(getCurrentWorkspace());
+
+            if (cancelled) {
+              return;
+            }
+
+            cloudRevisionRef.current = saved.updatedAt ?? 0;
+            skipNextCloudSaveRef.current = true;
+          }
+
+          cloudHydratedUserIdRef.current = session.id;
+          setCloudSyncState("synced");
+        }
+
+        setAuthUser(session);
+      } catch (error) {
+        if (!cancelled) {
+          setCloudSyncState("failed");
+          setCloudSyncError(
+            error instanceof Error ? error.message : "云端同步初始化失败。",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setAuthStatus("ready");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [replaceWorkspace]);
+
+  useEffect(() => {
+    if (authStatus !== "ready") {
+      return;
+    }
+
+    const workspace: NoteWorkspace = {
       activeNoteId,
       folders,
       notes: noteDocuments,
       version: 1,
-    });
-  }, [activeNoteId, folders, noteDocuments]);
+    };
+
+    if (authUser?.role !== "user") {
+      persistNoteWorkspace(workspace);
+      setCloudSyncState("local");
+      return;
+    }
+
+    if (cloudHydratedUserIdRef.current !== authUser.id) {
+      return;
+    }
+
+    if (skipNextCloudSaveRef.current) {
+      skipNextCloudSaveRef.current = false;
+      return;
+    }
+
+    if (cloudSaveTimeoutRef.current !== null) {
+      window.clearTimeout(cloudSaveTimeoutRef.current);
+    }
+
+    setCloudSyncState("syncing");
+    cloudSaveTimeoutRef.current = window.setTimeout(() => {
+      cloudSaveTimeoutRef.current = null;
+      void saveCloudWorkspace(workspace)
+        .then((stored) => {
+          cloudRevisionRef.current = stored.updatedAt ?? Date.now();
+          setCloudSyncError("");
+          setCloudSyncState("synced");
+        })
+        .catch((error) => {
+          setCloudSyncError(
+            error instanceof Error ? error.message : "云端便签保存失败。",
+          );
+          setCloudSyncState("failed");
+        });
+    }, CLOUD_SAVE_DELAY_MS);
+  }, [
+    activeNoteId,
+    authStatus,
+    authUser,
+    folders,
+    noteDocuments,
+  ]);
+
+  useEffect(() => {
+    if (authUser?.role !== "user") {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      if (cloudSaveTimeoutRef.current !== null) {
+        return;
+      }
+
+      void getCloudWorkspace()
+        .then((cloud) => {
+          if (
+            cloud.workspace &&
+            (cloud.updatedAt ?? 0) > cloudRevisionRef.current
+          ) {
+            cloudRevisionRef.current = cloud.updatedAt ?? 0;
+            skipNextCloudSaveRef.current = true;
+            replaceWorkspace(cloud.workspace);
+            setCloudSyncError("");
+            setCloudSyncState("synced");
+          }
+        })
+        .catch((error) => {
+          setCloudSyncError(
+            error instanceof Error ? error.message : "跨端同步检查失败。",
+          );
+          setCloudSyncState("failed");
+        });
+    }, CLOUD_POLL_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [authUser, replaceWorkspace]);
 
   useEffect(
     () => () => {
       if (refreshTimeoutRef.current !== null) {
         window.clearTimeout(refreshTimeoutRef.current);
+      }
+
+      if (cloudSaveTimeoutRef.current !== null) {
+        window.clearTimeout(cloudSaveTimeoutRef.current);
       }
     },
     [],
@@ -261,6 +450,39 @@ export default function App() {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isSettingsOpen]);
+
+  useEffect(() => {
+    if (!isAccountMenuOpen && !isLoginOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+
+      if (
+        isAccountMenuOpen &&
+        target instanceof Node &&
+        !accountContainerRef.current?.contains(target)
+      ) {
+        setIsAccountMenuOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsAccountMenuOpen(false);
+        setIsLoginOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isAccountMenuOpen, isLoginOpen]);
 
   useEffect(() => {
     if (!isShareOpen) {
@@ -369,6 +591,73 @@ export default function App() {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isCategorySidebarOpen]);
+
+  async function handleUserAuthenticated(user: AuthUser) {
+    if (user.role === "superadmin") {
+      window.location.assign("/superadmin");
+      return;
+    }
+
+    setCloudSyncState("syncing");
+    setCloudSyncError("");
+    const anonymousWorkspace = getCurrentWorkspace();
+
+    try {
+      const cloud = await getCloudWorkspace();
+
+      if (cloud.workspace) {
+        skipNextCloudSaveRef.current = true;
+        replaceWorkspace(cloud.workspace);
+        cloudRevisionRef.current = cloud.updatedAt ?? 0;
+      } else {
+        const stored = await saveCloudWorkspace(anonymousWorkspace);
+        cloudRevisionRef.current = stored.updatedAt ?? 0;
+        skipNextCloudSaveRef.current = true;
+      }
+
+      cloudHydratedUserIdRef.current = user.id;
+      setCloudSyncState("synced");
+    } catch (error) {
+      cloudHydratedUserIdRef.current = null;
+      setCloudSyncState("failed");
+      setCloudSyncError(
+        error instanceof Error ? error.message : "云端便签加载失败。",
+      );
+    }
+
+    setAuthUser(user);
+    setAuthStatus("ready");
+    setIsLoginOpen(false);
+    setIsAccountMenuOpen(false);
+  }
+
+  async function handleLogout() {
+    if (
+      authUser?.role === "user" &&
+      cloudHydratedUserIdRef.current === authUser.id
+    ) {
+      if (cloudSaveTimeoutRef.current !== null) {
+        window.clearTimeout(cloudSaveTimeoutRef.current);
+        cloudSaveTimeoutRef.current = null;
+      }
+
+      try {
+        await saveCloudWorkspace(getCurrentWorkspace());
+      } catch (error) {
+        setCloudSyncError(
+          error instanceof Error ? error.message : "退出前云端保存失败。",
+        );
+      }
+    }
+
+    await logoutUser();
+    cloudHydratedUserIdRef.current = null;
+    cloudRevisionRef.current = 0;
+    setAuthUser(null);
+    setCloudSyncState("local");
+    setIsAccountMenuOpen(false);
+    replaceWorkspace(getInitialNoteWorkspace());
+  }
 
   async function handleExport() {
     if (isExporting) {
@@ -538,11 +827,101 @@ export default function App() {
     setDesktopWorkspaceView(desktopViewBeforeShareRef.current);
   }
 
+  const desktopAccountEntry = (
+    <div className="app-account" ref={accountContainerRef}>
+      <button
+        type="button"
+        className="auth-trigger"
+        disabled={authStatus === "loading"}
+        aria-haspopup={authUser ? "menu" : "dialog"}
+        aria-expanded={authUser ? isAccountMenuOpen : isLoginOpen}
+        aria-label={
+          authStatus === "loading"
+            ? "正在检查登录状态"
+            : authUser
+              ? `账号：${authUser.username}`
+              : "登录账号"
+        }
+        title={
+          authUser
+            ? `${authUser.username} · 点击查看账号菜单`
+            : "登录账号"
+        }
+        onClick={() => {
+          setIsSettingsOpen(false);
+          setIsShareOpen(false);
+
+          if (authUser) {
+            setIsAccountMenuOpen((isOpen) => !isOpen);
+          } else {
+            setIsLoginOpen(true);
+          }
+        }}
+      >
+        <span className="auth-trigger-dot" aria-hidden="true" />
+        <span className="auth-trigger-label">
+          {authStatus === "loading"
+            ? "检查登录..."
+            : authUser?.username ?? "登录锤子便签"}
+        </span>
+      </button>
+
+      {authUser && isAccountMenuOpen ? (
+        <div className="account-menu" role="menu">
+          <div className="account-menu-summary">
+            <strong title={authUser.username}>{authUser.username}</strong>
+            <span>
+              {authUser.role === "superadmin"
+                ? "管理员会话"
+                : cloudSyncState === "syncing"
+                  ? "正在同步云端..."
+                  : cloudSyncState === "failed"
+                    ? "云端同步异常"
+                    : "云端已同步"}
+            </span>
+          </div>
+          {cloudSyncError ? <p role="alert">{cloudSyncError}</p> : null}
+          {authUser.role === "superadmin" ? (
+            <a
+              className="account-menu-item"
+              href="/superadmin"
+              role="menuitem"
+            >
+              进入管理后台
+            </a>
+          ) : null}
+          {authUser.role === "user" ? (
+            <button
+              type="button"
+              className="account-menu-item"
+              role="menuitem"
+              onClick={() => {
+                setIsAccountMenuOpen(false);
+                setIsChangePasswordOpen(true);
+              }}
+            >
+              修改密码
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="account-menu-item account-menu-logout"
+            role="menuitem"
+            onClick={() => void handleLogout()}
+          >
+            退出登录
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+
   return (
     <>
       <div
         className="app-layout"
         data-theme={selectedTheme}
+        data-authenticated={authUser ? "true" : "false"}
         data-render-mode={isPlaywrightRender ? "playwright" : undefined}
         data-desktop-view={desktopWorkspaceView}
         data-desktop-category-collapsed={
@@ -798,8 +1177,33 @@ export default function App() {
 
                 {isSettingsOpen ? (
                   <SettingsPanel
+                    authUsername={authUser?.username}
+                    canChangePassword={authUser?.role === "user"}
+                    cloudStatusLabel={
+                      authUser?.role === "user"
+                        ? cloudSyncState === "syncing"
+                          ? "正在同步云端"
+                          : cloudSyncState === "failed"
+                            ? "云端同步异常"
+                            : "便签已保存到云端"
+                        : authUser?.role === "superadmin"
+                          ? "管理员会话"
+                          : "数据仅保存在当前浏览器"
+                    }
                     selectedTheme={selectedTheme}
+                    onChangePassword={() => {
+                      setIsSettingsOpen(false);
+                      setIsChangePasswordOpen(true);
+                    }}
                     onClose={() => setIsSettingsOpen(false)}
+                    onLogin={() => {
+                      setIsSettingsOpen(false);
+                      setIsLoginOpen(true);
+                    }}
+                    onLogout={() => {
+                      setIsSettingsOpen(false);
+                      void handleLogout();
+                    }}
                     onThemeChange={setSelectedTheme}
                   />
                 ) : null}
@@ -811,6 +1215,7 @@ export default function App() {
         <div className="app-shell">
           <CategorySidebar
             activeCategoryId={activeCategoryId}
+            desktopFooter={desktopAccountEntry}
             folders={folders}
             isOpen={isCategorySidebarOpen}
             notes={noteDocuments}
@@ -841,6 +1246,7 @@ export default function App() {
             searchQuery={searchQuery}
             onClose={() => setIsNoteSidebarOpen(false)}
             onCreateNote={handleCreateNote}
+            onDeleteNote={requestDeleteNote}
             onPermanentlyDeleteNote={requestPermanentlyDeleteNote}
             onReorderNotes={reorderNotes}
             onRestoreNote={restoreNote}
@@ -1012,6 +1418,21 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {isLoginOpen ? (
+        <LoginDialog
+          login={loginUser}
+          onAuthenticated={handleUserAuthenticated}
+          onClose={() => setIsLoginOpen(false)}
+        />
+      ) : null}
+
+      {isChangePasswordOpen ? (
+        <ChangePasswordDialog
+          changePassword={changeUserPassword}
+          onClose={() => setIsChangePasswordOpen(false)}
+        />
+      ) : null}
 
       <ConfirmDialog
         pendingAction={pendingAction}

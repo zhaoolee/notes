@@ -31,6 +31,12 @@ import {
   getUrlAfterConsumingTestDataReset,
   RESET_TEST_DATA_SEARCH_PARAM,
 } from "../../src/lib/test-data-url.js";
+import {
+  getMobileNoteSwipeAxis,
+  getMobileNoteSwipeOffset,
+  MOBILE_NOTE_SWIPE_OPEN_OFFSET,
+  shouldOpenMobileNoteSwipe,
+} from "../../src/lib/mobile-note-swipe.js";
 
 test("便签标题与摘要从 Markdown 内容自动提取", () => {
   const markdown = [
@@ -237,7 +243,7 @@ test("普通便签拖拽只交换普通排序槽位", () => {
   );
 });
 
-test("便签侧栏呈现搜索、新建和切换入口且不重复提供删除按钮", () => {
+test("便签侧栏呈现搜索、新建、切换入口和移动端横滑删除按钮", () => {
   const firstNote = createNoteDocument("# 第一张便签\n正文 A", 1_000);
   const secondNote = {
     ...createNoteDocument("# 第二张便签\n正文 B", 2_000),
@@ -255,6 +261,7 @@ test("便签侧栏呈现搜索、新建和切换入口且不重复提供删除�
       searchQuery: "",
       onClose: noop,
       onCreateNote: noop,
+      onDeleteNote: noop,
       onPermanentlyDeleteNote: noop,
       onReorderNotes: noop,
       onRestoreNote: noop,
@@ -275,7 +282,11 @@ test("便签侧栏呈现搜索、新建和切换入口且不重复提供删除�
   assert.match(html, /第二张便签/);
   assert.doesNotMatch(html, /正文 A|正文 B|正在编辑/);
   assert.match(html, /aria-label="新建便签"/);
-  assert.doesNotMatch(html, /aria-label="删除便签：第二张便签"/);
+  assert.match(html, /aria-label="删除便签：第二张便签"/);
+  assert.match(
+    html,
+    /class="note-list-swipe-delete" aria-hidden="true" aria-label="删除便签：第二张便签" tabindex="-1"/,
+  );
   assert.doesNotMatch(html, /class="note-list-delete"/);
   assert.match(html, /aria-label="取消置顶：第二张便签"/);
   assert.match(html, /aria-label="置顶便签：第一张便签"/);
@@ -298,6 +309,11 @@ test("分类侧栏呈现官方四类入口、数量与自定义文件夹", () =>
   const html = renderToStaticMarkup(
     createElement(CategorySidebar, {
       activeCategoryId: getFolderCategoryId(folder.id),
+      desktopFooter: createElement(
+        "button",
+        { type: "button" },
+        "登录锤子便签",
+      ),
       folders: [folder],
       isOpen: true,
       notes: [note, deleted],
@@ -317,7 +333,9 @@ test("分类侧栏呈现官方四类入口、数量与自定义文件夹", () =>
   assert.match(html, /aria-label="新建文件夹"/);
   assert.match(html, /placeholder="快速搜索关键字"/);
   assert.match(html, /aria-current="page"/);
-  assert.match(html, /下载锤子便签 APP/);
+  assert.match(html, /class="category-desktop-footer"/);
+  assert.match(html, /登录锤子便签/);
+  assert.doesNotMatch(html, /下载锤子便签 APP/);
   assert.ok(html.indexOf("全部便签") < html.indexOf("加星便签"));
   assert.ok(html.indexOf("加星便签") < html.indexOf("工作"));
   assert.ok(html.indexOf("工作") < html.indexOf("回收站"));
@@ -414,6 +432,22 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   assert.doesNotMatch(
     styles,
     /\.preview-stage \.note-sheet\s*\{[^}]*width:\s*100%;[^}]*min-height:\s*100%;/s,
+  );
+  assert.match(
+    styles,
+    /\.sheet-corner-top-left\s*\{[^}]*left:\s*calc\(5px \* var\(--note-scale\)\);[^}]*top:\s*calc\(11px \* var\(--note-scale\)\);/s,
+  );
+  assert.match(
+    styles,
+    /\.sheet-corner-top-right\s*\{[^}]*right:\s*calc\(5px \* var\(--note-scale\)\);[^}]*top:\s*calc\(11px \* var\(--note-scale\)\);/s,
+  );
+  assert.match(
+    styles,
+    /\.sheet-corner-bottom-left\s*\{[^}]*left:\s*calc\(5px \* var\(--note-scale\)\);[^}]*bottom:\s*calc\(51px \* var\(--note-scale\)\);/s,
+  );
+  assert.match(
+    styles,
+    /\.sheet-corner-bottom-right\s*\{[^}]*right:\s*calc\(5px \* var\(--note-scale\)\);[^}]*bottom:\s*calc\(51px \* var\(--note-scale\)\);/s,
   );
   assert.doesNotMatch(styles, /:has\(\.markdown-editor:focus\)/);
 });
@@ -583,7 +617,7 @@ test("桌面工作区使用锤子便签网页版的纸面、细线和栏宽比�
   );
   assert.match(
     styles,
-    /\.category-download-banner,[\s\S]*\.note-sidebar-bottom-menu\s*\{[^}]*height:\s*50px;[^}]*border-top:\s*1px solid #e9dece;[^}]*background:\s*var\(--note-list-surface\);/s,
+    /\.category-desktop-footer,[\s\S]*\.note-sidebar-bottom-menu\s*\{[^}]*height:\s*50px;[^}]*border-top:\s*1px solid #e9dece;[^}]*background:\s*var\(--note-list-surface\);/s,
   );
   assert.match(
     styles,
@@ -658,6 +692,28 @@ test("移动端复用安卓版 48dp 顶栏素材且返回按钮不会被标题�
   assert.ok(existsSync("public/smartisan/mobile/btn_settings.png"));
   assert.ok(existsSync("public/smartisan/mobile/btn_back.png"));
   assert.ok(existsSync("public/smartisan/mobile/btn_create.png"));
+  assert.ok(existsSync("public/smartisan/mobile/btn_slide_delete_normal.png"));
+  assert.ok(existsSync("public/smartisan/mobile/btn_slide_delete_pressed.png"));
+});
+
+test("移动端横滑锁定方向并按真机距离吸附", () => {
+  assert.equal(getMobileNoteSwipeAxis(4, 2), "pending");
+  assert.equal(getMobileNoteSwipeAxis(18, 4), "horizontal");
+  assert.equal(getMobileNoteSwipeAxis(8, 18), "vertical");
+  assert.equal(getMobileNoteSwipeAxis(12, 12), "vertical");
+
+  assert.equal(getMobileNoteSwipeOffset(0, -40), 0);
+  assert.equal(getMobileNoteSwipeOffset(0, 32), 32);
+  assert.equal(
+    getMobileNoteSwipeOffset(40, 80),
+    MOBILE_NOTE_SWIPE_OPEN_OFFSET,
+  );
+  assert.equal(
+    getMobileNoteSwipeOffset(MOBILE_NOTE_SWIPE_OPEN_OFFSET, -20),
+    46,
+  );
+  assert.equal(shouldOpenMobileNoteSwipe(27), false);
+  assert.equal(shouldOpenMobileNoteSwipe(28), true);
 });
 
 test("移动端保留安卓版纸片、固定装订夹与木纹资源", () => {
@@ -671,6 +727,7 @@ test("移动端保留安卓版纸片、固定装订夹与木纹资源", () => {
     sidebarSource,
     /src="\/smartisan\/mobile\/note_item_clip_normal\.png"/,
   );
+  assert.match(sidebarSource, /className="note-list-swipe-delete"/);
   assert.match(sidebarSource, /className="note-list-image-indicator"/);
   assert.match(sidebarSource, /className="note-search-icon"/);
   assert.match(sidebarSource, /icon_top_checked\.png/);
@@ -697,7 +754,19 @@ test("移动端保留安卓版纸片、固定装订夹与木纹资源", () => {
   );
   assert.match(
     styles,
-    /\.app-layout\[data-theme="default"\] \.note-list-item\s*\{[^}]*list-item-normal-right\.png[^}]*list-item-normal-left\.png[^}]*list-item-normal-center\.png/s,
+    /\.app-layout\[data-theme="default"\] \.note-list-card\s*\{[^}]*list-item-normal-right\.png[^}]*list-item-normal-left\.png[^}]*list-item-normal-center\.png/s,
+  );
+  assert.match(
+    styles,
+    /\.note-list-swipe-delete\s*\{[^}]*left:\s*22px;[^}]*width:\s*73\.6667px;[^}]*height:\s*35\.6667px;[^}]*btn_slide_delete_normal\.png/s,
+  );
+  assert.match(
+    styles,
+    /\.note-list-swipe-delete:active\s*\{[^}]*btn_slide_delete_pressed\.png/s,
+  );
+  assert.match(
+    styles,
+    /\.note-list-card\s*\{[^}]*touch-action:\s*pan-y;[^}]*translate3d\(var\(--note-swipe-offset,\s*0\),\s*0,\s*0\)/s,
   );
 
   for (const file of [
@@ -719,7 +788,10 @@ test("移动端拖拽只移动便签本体且图钉保留安全间距", () => {
   const styles = readFileSync("src/styles.css", "utf8");
 
   assert.match(sidebarSource, /const \[isDragging, setIsDragging\] = useState\(false\);/);
-  assert.match(sidebarSource, /onDragStart=\{\(\) => setIsDragging\(true\)\}/);
+  assert.match(
+    sidebarSource,
+    /onDragStart=\{\(\) => \{[^}]*setOpenSwipeNoteId\(null\);[^}]*setIsDragging\(true\);/s,
+  );
   assert.match(sidebarSource, /onDragCancel=\{\(\) => setIsDragging\(false\)\}/);
   assert.match(
     sidebarSource,
@@ -739,7 +811,7 @@ test("移动端拖拽只移动便签本体且图钉保留安全间距", () => {
   );
   assert.match(
     styles,
-    /\.app-layout\[data-theme="default"\] \.note-list-item\.is-dragging\s*\{[^}]*list-item-pressed-right\.png[^}]*box-shadow:\s*none;/s,
+    /\.app-layout\[data-theme="default"\] \.note-list-item\.is-dragging \.note-list-card\s*\{[^}]*list-item-pressed-right\.png[^}]*box-shadow:\s*none;/s,
   );
   assert.match(
     styles,

@@ -14,6 +14,7 @@ import type {
   CopyState,
   NoteDocument,
   NoteFolder,
+  NoteWorkspace,
   PendingAction,
   ThemeId,
 } from "../types/app";
@@ -38,6 +39,7 @@ interface AppStoreState {
   selectNote: (noteId: string) => void;
   requestDeleteNote: (noteId: string) => void;
   requestPermanentlyDeleteNote: (noteId: string) => void;
+  replaceWorkspace: (workspace: NoteWorkspace) => void;
   restoreNote: (noteId: string) => void;
   reorderNotes: (activeNoteId: string, overNoteId: string) => void;
   moveNoteToFolder: (noteId: string, folderId: string | null) => void;
@@ -173,6 +175,24 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
         description: "永久删除后无法恢复，便签中的 Markdown 内容也会一并移除。",
         confirmLabel: "永久删除",
       },
+    });
+  },
+  replaceWorkspace: (workspace) => {
+    const activeNote =
+      workspace.notes.find((note) => note.id === workspace.activeNoteId) ??
+      workspace.notes[0];
+
+    if (!activeNote) {
+      return;
+    }
+
+    set({
+      activeNoteId: activeNote.id,
+      exportError: "",
+      folders: workspace.folders,
+      markdown: activeNote.markdown,
+      notes: workspace.notes,
+      pendingAction: null,
     });
   },
   restoreNote: (noteId) =>

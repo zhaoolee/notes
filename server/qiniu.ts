@@ -26,6 +26,11 @@ export interface QiniuUploadResult {
   url: string;
 }
 
+export interface QiniuUploadOptions {
+  deleteAfterDays?: number;
+  prefix?: string;
+}
+
 export class QiniuConfigurationError extends Error {
   constructor(message: string) {
     super(message);
@@ -168,12 +173,22 @@ export function createQiniuUploadToken(
   config: QiniuConfig,
   key: string,
   now = Date.now(),
+  deleteAfterDays?: number,
 ): string {
-  const policy = JSON.stringify({
+  const policy: Record<string, number | string> = {
     scope: `${config.bucket}:${key}`,
     deadline: Math.floor(now / 1000) + 3600,
-  });
-  const encodedPolicy = urlSafeBase64(policy);
+  };
+
+  if (
+    typeof deleteAfterDays === "number" &&
+    Number.isInteger(deleteAfterDays) &&
+    deleteAfterDays > 0
+  ) {
+    policy.deleteAfterDays = deleteAfterDays;
+  }
+
+  const encodedPolicy = urlSafeBase64(JSON.stringify(policy));
   const encodedSignature = urlSafeBase64(
     createHmac("sha1", config.secretKey).update(encodedPolicy).digest(),
   );
@@ -250,12 +265,13 @@ export async function uploadImageBufferToQiniu(
   buffer: Buffer,
   extension: string,
   config: QiniuConfig,
+  options: QiniuUploadOptions = {},
 ): Promise<QiniuUploadResult> {
   const normalizedExtension = normalizeImageExtension(extension);
   const key = createContentAddressedQiniuKey(
     buffer,
     normalizedExtension,
-    config.prefix,
+    options.prefix ?? config.prefix,
   );
   const filename = key.slice(key.lastIndexOf("/") + 1);
   const publicUrl = `${config.domain}/${encodeObjectKey(key)}`;
@@ -263,7 +279,15 @@ export async function uploadImageBufferToQiniu(
   async function upload(uploadUrl: string): Promise<Response> {
     const form = new FormData();
 
-    form.append("token", createQiniuUploadToken(config, key));
+    form.append(
+      "token",
+      createQiniuUploadToken(
+        config,
+        key,
+        Date.now(),
+        options.deleteAfterDays,
+      ),
+    );
     form.append("key", key);
     form.append(
       "file",

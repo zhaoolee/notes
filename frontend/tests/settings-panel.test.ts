@@ -19,6 +19,9 @@ test("设置页只保留长期偏好，不混入当前便签操作", () => {
   assert.match(html, /id="app-settings-panel"/);
   assert.match(html, /data-settings-page="root"/);
   assert.match(html, />设置</);
+  assert.match(html, /账号与同步/);
+  assert.match(html, /登录账号/);
+  assert.match(html, /数据仅保存在当前浏览器/);
   assert.match(html, /背景颜色/);
   assert.match(html, /暖白纸感/);
   assert.doesNotMatch(html, /新建空白便签/);
@@ -53,6 +56,28 @@ test("分享面板承接存图、复制和归档", () => {
   assert.match(html, /复制到公众号/);
   assert.match(html, /上传图片并复制微信公众号富文本/);
   assert.match(html, /归档中\.\.\./);
+});
+
+test("登录用户可在移动设置页修改密码或退出", () => {
+  const noop = () => undefined;
+  const html = renderToStaticMarkup(
+    createElement(SettingsPanel, {
+      authUsername: "feedback-user",
+      canChangePassword: true,
+      cloudStatusLabel: "便签已保存到云端",
+      selectedTheme: "default",
+      onChangePassword: noop,
+      onClose: noop,
+      onLogout: noop,
+      onThemeChange: noop,
+    }),
+  );
+
+  assert.match(html, /feedback-user/);
+  assert.match(html, /便签已保存到云端/);
+  assert.match(html, /修改密码/);
+  assert.match(html, /退出登录/);
+  assert.doesNotMatch(html, /登录账号/);
 });
 
 test("移动详情页按原版区分编辑态和预览态操作", () => {

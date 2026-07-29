@@ -23,6 +23,7 @@ frontend/tests/          前端 feedback 测试及渲染样例
 backend/tests/           后端 feedback 测试
 public/                  前端静态资源
 storage/images/          导入图片与导出 PNG 的持久化目录
+storage/data/            账号、云端工作区与匿名额度的服务端持久化目录
 skills/notes-export-api/ API 调用 Skill
 DOCS/                    项目上下文
 TOOLS/                   可用工具与命令
@@ -38,7 +39,15 @@ MEMORY/                  经测试确认的长期事实
 
 移动端沿用原版的页面职责：设置是独立全屏偏好页，只保存背景主题等长期选项；插图和完成属于编辑态，删除和分享属于预览态。保存图片、复制 Markdown 和下载归档由分享面板统一承接。
 
-多便签工作区以 `notes.workspace.v1` 写入浏览器 `localStorage`，包含便签 ID、Markdown 内容、创建/更新时间、普通排序、置顶、加星、文件夹归属和回收站状态，并保存自定义文件夹集合；首次升级时会自动读取旧的 `notes.markdownDraft` 单草稿并迁移，已有 `notes.workspace.v1` 也会自动补齐新增字段。侧栏只显示更新时间和从 Markdown 自动提取的标题或第一句话。当前没有账号与数据库，因此便签集合只在当前浏览器本地持久化。
+多便签工作区包含便签 ID、Markdown 内容、创建/更新时间、普通排序、置顶、加星、
+文件夹归属和回收站状态，并保存自定义文件夹集合；首次升级时会自动读取旧的
+`notes.markdownDraft` 单草稿并迁移，已有 `notes.workspace.v1` 也会自动补齐新增
+字段。侧栏只显示更新时间和从 Markdown 自动提取的标题或第一句话。
+
+匿名状态继续以 `notes.workspace.v1` 写入浏览器 `localStorage`。普通用户登录后，
+服务端以账号 ID 为边界保存独立工作区，前端在变更后延迟 650ms 保存，并每 15 秒
+检查一次较新的服务端版本以支持跨端同步。账号、会话、管理员后台、登录后首次
+迁移和冲突边界详见 `DOCS/auth-and-sync.md`。
 
 官方网页版前 20 条便签作为隔离测试工作区保存在 `src/fixtures/smartisan-web-test-workspace.ts`。访问 `?testData=smartisan-web-20` 使用独立的 `notes.workspace.smartisan-web-20.v1` 存储键；再加 `&resetTestData=1` 可强制恢复测试夹具，不会覆盖用户的正常工作区。重置参数是一次性指令：首次恢复夹具后会立即从地址栏移除，后续点击刷新或浏览器重载会读取已持久化的测试工作区，不会再次覆盖新建便签。桌面网页版像素和交互基线见 `DOCS/desktop-web-parity.md`。
 
@@ -58,6 +67,17 @@ Vite，普通编辑仍可使用，但 `/api/export`、`/api/archive` 和图片�
 ## 后端 API
 
 - `GET /api/health`：健康检查
+- `GET /api/auth/session`：读取当前签名会话
+- `POST /api/auth/login`：普通用户账号密码登录
+- `POST /api/auth/password`：普通用户校验当前密码后修改自己的密码
+- `POST /api/auth/logout`：清除当前会话
+- `POST /api/superadmin/login`：使用服务端环境变量登录管理员后台
+- `GET /api/superadmin/users`：管理员读取普通用户列表
+- `POST /api/superadmin/users`：管理员创建普通用户并生成一次性显示的初始密码
+- `POST /api/superadmin/users/:userId/reset-password`：管理员重置普通用户密码
+  并一次性取得新临时密码
+- `GET /api/workspace`：读取当前普通用户的云端工作区
+- `PUT /api/workspace`：保存当前普通用户的云端工作区
 - `POST /api/images/import`：上传图片或从 URL 下载图片
 - `POST /api/export`：将 Markdown 导出为 PNG
 - `POST /api/archive`：生成包含 Markdown、HTML、图片和字体的 ZIP
@@ -152,6 +172,13 @@ PNG 导出、离线归档和公众号复制共同复用。顶层图片装裱容�
 图片地址时按源 URL 长度降序处理，避免带查询参数的地址被较短基础地址提前部分
 替换。
 
+普通用户登录后调用 `/api/wechat` 不受匿名额度限制，七牛对象沿用长期存储前缀。
+匿名用户共享每天 500 张的上传额度，服务端按北京时间日期在 `storage/data` 中
+原子计数，并在北京时间 0 点切换日期键；匿名对象使用
+`<QINIU_PREFIX>/temporary/<北京时间日期>/` 前缀，上传凭证写入
+`deleteAfterDays: 1`。超额返回 HTTP 429，并提示联系
+`zhaoolee@gmail.com` 注册。额度可用 `ANONYMOUS_DAILY_UPLOAD_LIMIT` 调整。
+
 七牛配置按以下顺序读取：
 
 1. 环境变量 `QINIU_ACCESS_KEY`、`QINIU_SECRET_KEY`、`QINIU_BUCKET`、
@@ -167,11 +194,20 @@ PNG 导出、离线归档和公众号复制共同复用。顶层图片装裱容�
 平台的环境变量或 Secret 注入。若七牛默认上传域名返回区域提示，服务
 会自动切换到提示的区域上传地址并缓存该结果。
 
+管理员凭据只从服务端的 `SUPERADMIN`、`SUPERADMINPASSWORD` 读取；不要使用
+`VITE_` 前缀。生产环境还应配置独立的高熵 `SESSION_SECRET`。账号密码只保存
+scrypt 盐与哈希，登录状态使用 HttpOnly、SameSite=Lax 的签名 Cookie。
+
 ## 部署形态
 
 - 开发双容器：`docker-compose.dev.yml`，Vite HMR 与 `tsx watch`
 - 生产双容器：`docker-compose.yml`，Nginx 前端与 Playwright 后端
 - 生产单镜像：`Dockerfile.app`，Express 同时托管 `dist`、API 和图片
 - Docker Hub 发布：`.github/workflows/docker-publish.yml`
+
+账号与同步数据默认位于 `storage/data/notes-data.json`。Compose 已把
+`storage/data` 挂载为持久卷；其他部署形态也必须为 `DATA_STORAGE_DIR` 提供持久
+存储。当前文件存储通过单进程队列和原子重命名保证一致性，因此生产环境应保持
+单个后端写入实例；若要水平扩容，应先迁移到支持事务和唯一约束的数据库。
 
 具体发布流程见 `PROMPTS/deploy-to-production.md`。

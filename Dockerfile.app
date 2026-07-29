@@ -50,6 +50,7 @@ ENV NODE_ENV=production
 ENV PORT=3001
 ENV EXPORT_APP_URL=http://127.0.0.1:3001
 ENV IMAGE_STORAGE_DIR=/app/storage/images
+ENV DATA_STORAGE_DIR=/app/storage/data
 
 EXPOSE 3001
 
