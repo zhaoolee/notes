@@ -1,4 +1,4 @@
-import type { ImageImportResult } from "../types/app";
+import type { ImageImportResult } from "../types/app.js";
 
 interface ImportByUrlPayload {
   sourceUrl: string;

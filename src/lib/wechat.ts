@@ -11,6 +11,12 @@ interface WechatErrorPayload {
   hint?: string;
 }
 
+interface WechatFooterOptions {
+  footerBrand: string;
+  footerLogoUrl: string;
+  footerVia: string;
+}
+
 async function readWechatError(response: Response): Promise<string> {
   const data = (await response.json().catch(() => null)) as WechatErrorPayload | null;
   const details = [data?.error, data?.hint].filter(
@@ -22,13 +28,16 @@ async function readWechatError(response: Response): Promise<string> {
     : `公众号格式生成失败（${response.status}）`;
 }
 
-async function prepareWechatArticle(markdown: string): Promise<WechatPreparationResult> {
+async function prepareWechatArticle(
+  markdown: string,
+  footer?: WechatFooterOptions,
+): Promise<WechatPreparationResult> {
   const response = await fetch("/api/wechat", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ markdown }),
+    body: JSON.stringify({ markdown, ...footer }),
   });
 
   if (!response.ok) {
@@ -71,8 +80,9 @@ function fallbackCopyRichHtml(html: string): void {
 
 export async function copyMarkdownForWechat(
   markdown: string,
+  footer?: WechatFooterOptions,
 ): Promise<WechatPreparationResult> {
-  const preparation = prepareWechatArticle(markdown);
+  const preparation = prepareWechatArticle(markdown, footer);
 
   if (
     typeof navigator !== "undefined" &&

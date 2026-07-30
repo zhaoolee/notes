@@ -6,6 +6,7 @@ interface PreviewPanelProps {
   notes: NoteSection[];
   exportError: string;
   footerBrand: string;
+  footerLogoUrl: string;
   footerVia: string;
   onFooterBrandChange: (footerBrand: string) => void;
   onFooterViaChange: (footerVia: string) => void;
@@ -87,6 +88,7 @@ export function PreviewPanel({
   notes,
   exportError,
   footerBrand,
+  footerLogoUrl,
   footerVia,
   onFooterBrandChange,
   onFooterViaChange,
@@ -138,6 +140,7 @@ export function PreviewPanel({
       <div className="preview-stage" ref={stageRef} style={previewStyle}>
         <NoteSheet
           notes={notes}
+          footerLogoUrl={footerLogoUrl}
           footerBrand={
             <FooterTextEditor
               className="sheet-footer-brand"

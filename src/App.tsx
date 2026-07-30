@@ -11,9 +11,12 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { SharePanel } from "./components/SharePanel";
 import {
   getInitialFooterBrand,
+  getInitialFooterLogoUrl,
   getInitialFooterVia,
   getInitialNoteWorkspace,
   getRenderMode,
+  persistFooterLogoUrl,
+  persistFooterText,
   persistNoteWorkspace,
   THEME_STORAGE_KEY,
 } from "./lib/app-state";
@@ -128,6 +131,7 @@ export default function App() {
   const renderMode = getRenderMode();
   const isPlaywrightRender = renderMode === "playwright";
   const [footerBrand, setFooterBrand] = useState(getInitialFooterBrand);
+  const [footerLogoUrl, setFooterLogoUrl] = useState(getInitialFooterLogoUrl);
   const [footerVia, setFooterVia] = useState(getInitialFooterVia);
   const [isArchiving, setIsArchiving] = useState(false);
   const [isImportingImage, setIsImportingImage] = useState(false);
@@ -162,6 +166,8 @@ export default function App() {
   const editorPanelRef = useRef<EditorPanelHandle | null>(null);
   const refreshTimeoutRef = useRef<number | null>(null);
   const settingsContainerRef = useRef<HTMLDivElement | null>(null);
+  const desktopSettingsContainerRef = useRef<HTMLDivElement | null>(null);
+  const settingsPanelHostRef = useRef<HTMLDivElement | null>(null);
   const shareContainerRef = useRef<HTMLDivElement | null>(null);
   const accountContainerRef = useRef<HTMLDivElement | null>(null);
   const desktopViewMenuRef = useRef<HTMLDivElement | null>(null);
@@ -397,6 +403,14 @@ export default function App() {
   }, [selectedTheme]);
 
   useEffect(() => {
+    persistFooterText(footerBrand, footerVia);
+  }, [footerBrand, footerVia]);
+
+  useEffect(() => {
+    persistFooterLogoUrl(footerLogoUrl);
+  }, [footerLogoUrl]);
+
+  useEffect(() => {
     if (copyState === "idle") {
       return;
     }
@@ -432,7 +446,15 @@ export default function App() {
     function handlePointerDown(event: PointerEvent) {
       const target = event.target;
 
-      if (target instanceof Node && !settingsContainerRef.current?.contains(target)) {
+      const isInsideSettings =
+        target instanceof Node &&
+        [
+          settingsContainerRef.current,
+          desktopSettingsContainerRef.current,
+          settingsPanelHostRef.current,
+        ].some((container) => container?.contains(target));
+
+      if (target instanceof Node && !isInsideSettings) {
         setIsSettingsOpen(false);
       }
     }
@@ -665,6 +687,7 @@ export default function App() {
       setExportError("");
       await exportMarkdownAsPng(markdown, selectedTheme, {
         footerBrand,
+        footerLogoUrl,
         footerVia,
       });
     } catch (error) {
@@ -685,6 +708,7 @@ export default function App() {
       setExportError("");
       await exportMarkdownArchive(markdown, {
         footerBrand,
+        footerLogoUrl,
         footerVia,
       });
     } catch (error) {
@@ -713,7 +737,11 @@ export default function App() {
     try {
       setWechatCopyState("preparing");
       setExportError("");
-      await copyMarkdownForWechat(markdown);
+      await copyMarkdownForWechat(markdown, {
+        footerBrand,
+        footerLogoUrl,
+        footerVia,
+      });
       setWechatCopyState("copied");
     } catch (error) {
       console.error("Wechat rich-text copy failed", error);
@@ -823,6 +851,13 @@ export default function App() {
     setDesktopWorkspaceView(desktopViewBeforeShareRef.current);
   }
 
+  function handleSettingsToggle() {
+    setIsCategorySidebarOpen(false);
+    setIsShareOpen(false);
+    setIsAccountMenuOpen(false);
+    setIsSettingsOpen((isOpen) => !isOpen);
+  }
+
   const desktopAccountEntry = (
     <div className="app-account" ref={accountContainerRef}>
       <button
@@ -910,6 +945,69 @@ export default function App() {
       ) : null}
     </div>
   );
+
+  const desktopSidebarFooter = (
+    <div className="desktop-sidebar-footer">
+      {desktopAccountEntry}
+      <div className="desktop-settings" ref={desktopSettingsContainerRef}>
+        <button
+          type="button"
+          className="desktop-settings-trigger"
+          aria-label={isSettingsOpen ? "关闭设置" : "打开设置"}
+          aria-controls="app-settings-panel"
+          aria-expanded={isSettingsOpen}
+          title="设置"
+          onClick={handleSettingsToggle}
+        >
+          <img
+            src="/smartisan/mobile/btn_settings.png"
+            alt=""
+            aria-hidden="true"
+            draggable={false}
+          />
+        </button>
+      </div>
+    </div>
+  );
+
+  const settingsPanel = isSettingsOpen ? (
+    <SettingsPanel
+      authUsername={authUser?.username}
+      canChangePassword={authUser?.role === "user"}
+      cloudStatusLabel={
+        canUseCloudWorkspace(authUser)
+          ? cloudSyncState === "syncing"
+            ? "正在同步云端"
+            : cloudSyncState === "failed"
+              ? "云端同步异常"
+              : authUser.role === "superadmin"
+                ? "管理员便签已保存到云端"
+                : "便签已保存到云端"
+          : "数据仅保存在当前浏览器"
+      }
+      footerBrand={footerBrand}
+      footerLogoUrl={footerLogoUrl}
+      footerVia={footerVia}
+      selectedTheme={selectedTheme}
+      onChangePassword={() => {
+        setIsSettingsOpen(false);
+        setIsChangePasswordOpen(true);
+      }}
+      onClose={() => setIsSettingsOpen(false)}
+      onLogin={() => {
+        setIsSettingsOpen(false);
+        setIsLoginOpen(true);
+      }}
+      onLogout={() => {
+        setIsSettingsOpen(false);
+        void handleLogout();
+      }}
+      onFooterBrandChange={setFooterBrand}
+      onFooterLogoChange={setFooterLogoUrl}
+      onFooterViaChange={setFooterVia}
+      onThemeChange={setSelectedTheme}
+    />
+  ) : null;
 
   return (
     <>
@@ -1156,11 +1254,7 @@ export default function App() {
                   aria-controls="app-settings-panel"
                   aria-expanded={isSettingsOpen}
                   title="设置"
-                  onClick={() => {
-                    setIsCategorySidebarOpen(false);
-                    setIsShareOpen(false);
-                    setIsSettingsOpen((isOpen) => !isOpen);
-                  }}
+                  onClick={handleSettingsToggle}
                 >
                   <img
                     src="/smartisan/mobile/btn_settings.png"
@@ -1169,39 +1263,6 @@ export default function App() {
                     draggable={false}
                   />
                 </button>
-
-                {isSettingsOpen ? (
-                  <SettingsPanel
-                    authUsername={authUser?.username}
-                    canChangePassword={authUser?.role === "user"}
-                    cloudStatusLabel={
-                      canUseCloudWorkspace(authUser)
-                        ? cloudSyncState === "syncing"
-                          ? "正在同步云端"
-                          : cloudSyncState === "failed"
-                            ? "云端同步异常"
-                            : authUser.role === "superadmin"
-                              ? "管理员便签已保存到云端"
-                              : "便签已保存到云端"
-                          : "数据仅保存在当前浏览器"
-                    }
-                    selectedTheme={selectedTheme}
-                    onChangePassword={() => {
-                      setIsSettingsOpen(false);
-                      setIsChangePasswordOpen(true);
-                    }}
-                    onClose={() => setIsSettingsOpen(false)}
-                    onLogin={() => {
-                      setIsSettingsOpen(false);
-                      setIsLoginOpen(true);
-                    }}
-                    onLogout={() => {
-                      setIsSettingsOpen(false);
-                      void handleLogout();
-                    }}
-                    onThemeChange={setSelectedTheme}
-                  />
-                ) : null}
               </div>
             </div>
           </div>
@@ -1210,7 +1271,7 @@ export default function App() {
         <div className="app-shell">
           <CategorySidebar
             activeCategoryId={activeCategoryId}
-            desktopFooter={desktopAccountEntry}
+            desktopFooter={desktopSidebarFooter}
             folders={folders}
             isOpen={isCategorySidebarOpen}
             notes={noteDocuments}
@@ -1250,9 +1311,10 @@ export default function App() {
             onTogglePinned={togglePinned}
             onToggleStarred={toggleStarred}
             isDesktopCategoryCollapsed={isDesktopCategoryCollapsed}
-            onToggleDesktopCategory={() =>
-              setIsDesktopCategoryCollapsed((isCollapsed) => !isCollapsed)
-            }
+            onToggleDesktopCategory={() => {
+              setIsSettingsOpen(false);
+              setIsDesktopCategoryCollapsed((isCollapsed) => !isCollapsed);
+            }}
           />
 
           <button
@@ -1398,6 +1460,7 @@ export default function App() {
             notes={notes}
             exportError={exportError}
             footerBrand={footerBrand}
+            footerLogoUrl={footerLogoUrl}
             footerVia={footerVia}
             onFooterBrandChange={setFooterBrand}
             onFooterViaChange={setFooterVia}
@@ -1411,6 +1474,10 @@ export default function App() {
               </button>
             ) : null}
           </div>
+        </div>
+
+        <div className="settings-panel-host" ref={settingsPanelHostRef}>
+          {settingsPanel}
         </div>
       </div>
 

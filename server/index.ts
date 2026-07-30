@@ -14,6 +14,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NoteSheet } from "../src/components/NoteSheet.js";
 import { WechatArticle } from "../src/components/WechatArticle.js";
+import {
+  DEFAULT_FOOTER_LOGO_URL,
+  FOOTER_LOGO_URL_MAX_LENGTH,
+} from "../src/lib/footer.js";
 import { splitSections } from "../src/lib/markdown.js";
 import {
   isQiniuUrl,
@@ -53,6 +57,7 @@ interface ExportRequestBody {
   theme?: string;
   filename?: string;
   footerBrand?: string;
+  footerLogoUrl?: string;
   footerVia?: string;
 }
 
@@ -64,12 +69,16 @@ interface ArchiveRequestBody {
   markdown?: string;
   markdownPath?: string;
   footerBrand?: string;
+  footerLogoUrl?: string;
   footerVia?: string;
 }
 
 interface WechatRequestBody {
   markdown?: string;
   markdownPath?: string;
+  footerBrand?: string;
+  footerLogoUrl?: string;
+  footerVia?: string;
 }
 
 interface LoginRequestBody {
@@ -113,6 +122,7 @@ interface StoredExport {
 
 interface FooterConfig {
   brand?: string;
+  logoUrl?: string;
   via?: string;
 }
 
@@ -210,6 +220,10 @@ function buildRenderUrl(baseUrl: string, theme: ThemeId, footer?: FooterConfig):
 
   if (footer?.brand != null) {
     url.searchParams.set("footerBrand", footer.brand);
+  }
+
+  if (footer?.logoUrl != null) {
+    url.searchParams.set("footerLogoUrl", footer.logoUrl);
   }
 
   if (footer?.via != null) {
@@ -510,9 +524,31 @@ function normalizeFooterText(input: unknown): string | undefined {
   return input.replace(/[\u0000-\u001F\u007F]/g, "").slice(0, 80);
 }
 
+function normalizeFooterLogoUrl(input: unknown): string | undefined {
+  if (typeof input !== "string") {
+    return undefined;
+  }
+
+  const value = input
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .trim()
+    .slice(0, FOOTER_LOGO_URL_MAX_LENGTH);
+
+  if (
+    (value.startsWith("/") && !value.startsWith("//")) ||
+    /^https?:\/\//i.test(value) ||
+    /^data:image\/[a-z0-9.+-]+;base64,/i.test(value)
+  ) {
+    return value;
+  }
+
+  return undefined;
+}
+
 function resolveFooterConfig(body: ExportRequestBody): FooterConfig {
   return {
     brand: normalizeFooterText(body.footerBrand),
+    logoUrl: normalizeFooterLogoUrl(body.footerLogoUrl),
     via: normalizeFooterText(body.footerVia),
   };
 }
@@ -704,6 +740,7 @@ function renderArchiveNoteSheet(markdown: string, footer: FooterConfig): string 
     createElement(NoteSheet, {
       notes: splitSections(markdown),
       footerBrand: createElement("span", { className: "sheet-footer-brand" }, footerBrand),
+      footerLogoUrl: footer.logoUrl ?? DEFAULT_FOOTER_LOGO_URL,
       footerVia: createElement("span", { className: "sheet-footer-via" }, footerVia),
     }),
   );
@@ -727,15 +764,15 @@ function buildArchiveIndexHtml(
     <style>
 ${fontFaceCss}
       :root {
-        --paper: #fefcf6;
-        --sheet-surface: #fefcf6;
+        --paper: #fffcf7;
+        --sheet-surface: #fffcf7;
         --sheet-shadow: 0 24px 42px rgba(89, 65, 34, 0.12);
-        --note-frame: rgba(237, 233, 225, 0.92);
+        --note-frame: #e8e4dc;
         --note-image-frame: #ebe8e3;
         --note-image-mat: #ffffff;
         --note-image-shadow: rgba(88, 70, 52, 0.07);
         --note-heading: rgba(70, 53, 38, 0.96);
-        --note-copy: rgba(106, 86, 67, 0.92);
+        --note-copy: #665749;
         --note-link: #ac9070;
         --note-code-bg: rgba(125, 78, 32, 0.08);
         --note-pre-bg: rgba(243, 236, 225, 0.9);
@@ -791,7 +828,7 @@ ${fontFaceCss}
         margin: 0;
         padding:
           calc(18px * var(--note-scale))
-          calc(18px * var(--note-scale))
+          calc(16px * var(--note-scale))
           calc(24px * var(--note-scale));
         border-radius: 0;
         border: 0;
@@ -809,16 +846,16 @@ ${fontFaceCss}
 
       .sheet-frame-outer {
         inset:
-          calc(14px * var(--note-scale))
-          calc(8px * var(--note-scale))
-          calc(54px * var(--note-scale));
+          calc(16px * var(--note-scale))
+          calc(9.6667px * var(--note-scale))
+          calc(58px * var(--note-scale));
       }
 
       .sheet-frame-inner {
         inset:
-          calc(18px * var(--note-scale))
-          calc(12px * var(--note-scale))
-          calc(58px * var(--note-scale));
+          calc(18.6667px * var(--note-scale))
+          calc(11.6667px * var(--note-scale))
+          calc(59.6667px * var(--note-scale));
       }
 
       .sheet-corner {
@@ -831,23 +868,23 @@ ${fontFaceCss}
       }
 
       .sheet-corner-top-left {
-        left: calc(5px * var(--note-scale));
-        top: calc(13px * var(--note-scale));
+        left: calc(7.6667px * var(--note-scale));
+        top: calc(15px * var(--note-scale));
       }
 
       .sheet-corner-top-right {
-        right: calc(5px * var(--note-scale));
-        top: calc(13px * var(--note-scale));
+        right: calc(7.6667px * var(--note-scale));
+        top: calc(15px * var(--note-scale));
       }
 
       .sheet-corner-bottom-left {
-        left: calc(5px * var(--note-scale));
-        bottom: calc(53px * var(--note-scale));
+        left: calc(7.6667px * var(--note-scale));
+        bottom: calc(55.1667px * var(--note-scale));
       }
 
       .sheet-corner-bottom-right {
-        right: calc(5px * var(--note-scale));
-        bottom: calc(53px * var(--note-scale));
+        right: calc(7.6667px * var(--note-scale));
+        bottom: calc(55.1667px * var(--note-scale));
       }
 
       .sheet-inner {
@@ -857,8 +894,8 @@ ${fontFaceCss}
         flex-direction: column;
         gap: 0;
         padding:
+          calc(34px * var(--note-scale))
           calc(16px * var(--note-scale))
-          calc(18px * var(--note-scale))
           calc(14px * var(--note-scale));
       }
 
@@ -883,10 +920,13 @@ ${fontFaceCss}
         flex-direction: column;
         gap: 0;
         color: var(--note-copy);
-        font-size: calc(0.89rem * var(--note-scale));
+        font-size: calc(0.76rem * var(--note-scale));
         font-weight: 400;
-        line-height: 1.76;
-        letter-spacing: 0;
+        line-height: 1.8;
+        letter-spacing: 0.03em;
+        -webkit-text-stroke:
+          calc(0.15px * var(--note-scale))
+          color-mix(in srgb, currentColor 62%, transparent);
         overflow-wrap: anywhere;
         word-break: break-word;
       }
@@ -1078,11 +1118,15 @@ ${fontFaceCss}
       .sheet-footer {
         position: relative;
         z-index: 1;
-        margin-top: calc(28px * var(--note-scale));
-        padding: 0 calc(20px * var(--note-scale)) calc(16px * var(--note-scale));
+        margin:
+          calc(30px * var(--note-scale))
+          0
+          0
+          calc(0.6667px * var(--note-scale));
+        padding: 0 0 calc(16.6667px * var(--note-scale));
         display: flex;
         align-items: center;
-        gap: calc(4px * var(--note-scale));
+        gap: calc(6px * var(--note-scale));
         font-size: calc(0.38rem * var(--note-scale));
         line-height: 1;
       }
@@ -1090,30 +1134,37 @@ ${fontFaceCss}
       .sheet-footer-copy {
         display: inline-flex;
         align-items: baseline;
-        gap: calc(4px * var(--note-scale));
+        gap: calc(5px * var(--note-scale));
         min-width: 0;
         white-space: nowrap;
       }
 
       .sheet-footer-brand {
         color: var(--footer-copy);
-        font-size: calc(0.4rem * var(--note-scale));
+        font-size: calc(0.5rem * var(--note-scale));
         font-weight: 500;
         letter-spacing: 0.01em;
       }
 
       .sheet-footer-via {
         color: var(--footer-via);
-        font-size: calc(0.24rem * var(--note-scale));
+        font-size: calc(0.42rem * var(--note-scale));
         font-weight: 400;
         transform: translateY(calc(-0.01rem * var(--note-scale)));
       }
 
       .sheet-footer-icon {
         display: block;
-        width: calc(0.5rem * var(--note-scale));
-        height: calc(0.5rem * var(--note-scale));
+        width: calc(0.64rem * var(--note-scale));
+        height: calc(0.64rem * var(--note-scale));
         flex: 0 0 auto;
+      }
+
+      .sheet-footer-icon img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
       }
 
       .sheet-footer-icon svg {
@@ -1210,6 +1261,7 @@ async function buildArchive(
   const images: ArchiveImage[] = [];
   const replacements = new Map<string, string>();
   const htmlAssetEntries: ZipEntry[] = [];
+  let archivedFooter: FooterConfig = { ...footer };
   const fontAssets = await buildArchiveFontEntries(
     folderName,
     htmlAssetFolderName,
@@ -1224,6 +1276,32 @@ async function buildArchive(
     });
   } catch (error) {
     console.warn("Archive HTML asset skipped", error);
+  }
+
+  try {
+    const logoSource = footer.logoUrl ?? DEFAULT_FOOTER_LOGO_URL;
+    const logoImage = await resolveArchiveImage(logoSource);
+
+    if (logoImage?.buffer.length) {
+      const extension =
+        detectImageFormat(
+          logoImage.buffer,
+          logoImage.mimeType,
+          logoImage.filename || logoSource,
+        ) || "bin";
+      const logoFilename = `footer-logo.${extension}`;
+
+      htmlAssetEntries.push({
+        path: `${folderName}/${htmlAssetFolderName}/${logoFilename}`,
+        data: logoImage.buffer,
+      });
+      archivedFooter = {
+        ...footer,
+        logoUrl: `./${htmlAssetFolderName}/${logoFilename}`,
+      };
+    }
+  } catch (error) {
+    console.warn("Archive footer Logo skipped", error);
   }
 
   for (const [index, source] of collectMarkdownImageSources(markdown).entries()) {
@@ -1262,7 +1340,10 @@ async function buildArchive(
   const entries: ZipEntry[] = [
     {
       path: `${folderName}/index.html`,
-      data: Buffer.from(buildArchiveIndexHtml(archivedMarkdown, footer, fontAssets.fonts), "utf8"),
+      data: Buffer.from(
+        buildArchiveIndexHtml(archivedMarkdown, archivedFooter, fontAssets.fonts),
+        "utf8",
+      ),
     },
     {
       path: `${folderName}/INDEX.md`,
@@ -2024,6 +2105,7 @@ async function renderNotePng(markdown: string, renderUrl: string): Promise<Buffe
 async function prepareWechatArticle(
   markdown: string,
   options: {
+    footer: FooterConfig;
     temporaryUploads: boolean;
   },
 ): Promise<{
@@ -2034,7 +2116,19 @@ async function prepareWechatArticle(
   uploadedImageCount: number;
   reusedImageCount: number;
 }> {
-  const imageSources = collectMarkdownImageSources(markdown);
+  const markdownImageSources = collectMarkdownImageSources(markdown);
+  const customFooterLogoSource =
+    options.footer.logoUrl &&
+    options.footer.logoUrl !== DEFAULT_FOOTER_LOGO_URL
+      ? options.footer.logoUrl
+      : null;
+  const imageSources = Array.from(
+    new Set([
+      ...markdownImageSources,
+      ...(customFooterLogoSource ? [customFooterLogoSource] : []),
+    ]),
+  );
+  const replacements = new Map<string, string>();
   let uploadedImageCount = 0;
   let reusedImageCount = 0;
   let wechatMarkdown = markdown;
@@ -2042,7 +2136,6 @@ async function prepareWechatArticle(
 
   if (imageSources.length > 0) {
     const qiniuConfig = await loadQiniuConfig(rootDir);
-    const replacements = new Map<string, string>();
     const imagesByContentHash = new Map<
       string,
       {
@@ -2138,13 +2231,16 @@ async function prepareWechatArticle(
     }
   }
 
-  const footerHammerUrl =
-    process.env.WECHAT_FOOTER_HAMMER_URL?.trim() ||
-    defaultWechatFooterHammerUrl;
+  const footerHammerUrl = customFooterLogoSource
+    ? replacements.get(customFooterLogoSource) || customFooterLogoSource
+    : process.env.WECHAT_FOOTER_HAMMER_URL?.trim() ||
+      defaultWechatFooterHammerUrl;
   const html = renderToStaticMarkup(
     createElement(WechatArticle, {
+      footerBrand: options.footer.brand ?? "由锤子便签发送",
       markdown: wechatMarkdown,
       footerHammerUrl,
+      footerVia: options.footer.via ?? "via Smartisan Notes",
     }),
   ).replace(
     /<link\b[^>]*\brel="preload"[^>]*\bas="image"[^>]*\/?>/gi,
@@ -2155,7 +2251,7 @@ async function prepareWechatArticle(
     anonymousQuota,
     html,
     markdown: wechatMarkdown,
-    imageCount: imageSources.length,
+    imageCount: markdownImageSources.length,
     uploadedImageCount,
     reusedImageCount,
   };
@@ -2543,6 +2639,7 @@ app.post(
       const authenticatedUser = await getAuthenticatedUser(request);
       response.json(
         await prepareWechatArticle(markdown, {
+          footer: resolveFooterConfig(request.body || {}),
           temporaryUploads: !authenticatedUser,
         }),
       );

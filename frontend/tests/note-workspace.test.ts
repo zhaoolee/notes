@@ -412,11 +412,11 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     editorSource,
-    /className="markdown-editor-caret-mirror"[\s\S]*className="markdown-editor-caret"/,
+    /className="markdown-editor-caret-mirror"[\s\S]*className="markdown-editor-caret"[\s\S]*className="markdown-editor-selection-handle is-start"[\s\S]*className="markdown-editor-selection-handle is-end"/,
   );
   assert.match(
     editorSource,
-    /const anchorHeight = mirrorAnchor\.offsetHeight \|\| caretHeight;[\s\S]*Math\.max\(0, \(anchorHeight - caretHeight\) \/ 2\)/,
+    /const anchorHeight = caretAnchor\.height \|\| caretHeight;[\s\S]*Math\.max\(0, \(anchorHeight - caretHeight\) \/ 2\)/,
   );
   assert.doesNotMatch(
     editorSource,
@@ -424,7 +424,55 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     styles,
-    /@media \(max-width: 640px\)[\s\S]*\.markdown-editor\s*\{[^}]*caret-color:\s*transparent;[^}]*\}[\s\S]*\.markdown-editor-caret\s*\{[^}]*width:\s*2px;[^}]*height:\s*22px;[^}]*background:\s*var\(--accent\);/s,
+    /@media \(max-width: 640px\)[\s\S]*\.markdown-editor\s*\{[^}]*caret-color:\s*transparent;[^}]*\}[\s\S]*\.markdown-editor-caret\s*\{[^}]*width:\s*2px;[^}]*height:\s*22px;[^}]*background:\s*var\(--editor-selection-handle\);/s,
+  );
+  assert.match(
+    styles,
+    /\.markdown-editor-selection-handle\s*\{[^}]*width:\s*2px;[^}]*height:\s*var\(--editor-line-height\);[^}]*background:\s*var\(--editor-selection-handle\);[^}]*pointer-events:\s*none;/s,
+  );
+  assert.match(
+    styles,
+    /\.markdown-editor-selection-handle::before\s*\{[^}]*width:\s*10px;[^}]*height:\s*10px;[^}]*border-radius:\s*50%;[^}]*background:\s*var\(--editor-selection-handle\);/s,
+  );
+  assert.match(
+    editorSource,
+    /textarea\.selectionStart !== textarea\.selectionEnd[\s\S]*positionSelectionHandle\(\s*selectionStartHandle,[\s\S]*positionSelectionHandle\(\s*selectionEndHandle,/s,
+  );
+  assert.match(
+    styles,
+    /--editor-selection-bg:\s*rgba\(166,\s*139,\s*117,\s*0\.2\);[\s\S]*--editor-selection-handle:\s*#a68b75;/s,
+  );
+  assert.match(
+    styles,
+    /:root\[data-theme="smartisan-dark"\]\s*\{[^}]*--note-list-surface:\s*#1e1c1e;[^}]*--note-list-time:\s*#676467;[^}]*--note-list-title:\s*#cecece;[^}]*--editor-paper-base:\s*#1c1a1c;[^}]*--editor-rule-line:\s*#282828;[^}]*--editor-margin-band:\s*#161416;/s,
+  );
+  assert.match(
+    styles,
+    /\.app-layout\[data-theme="smartisan-dark"\] \.note-list-card\s*\{[^}]*dark\/list-item-normal-right\.png[^}]*dark\/list-item-normal-left\.png[^}]*dark\/list-item-normal-center\.png/s,
+  );
+  assert.match(
+    styles,
+    /\.app-layout\[data-theme="smartisan-dark"\] \.markdown-editor-frame::before\s*\{[^}]*border-right-color:\s*#282828;[^}]*#161416;[^}]*\}[\s\S]*\.app-layout\[data-theme="smartisan-dark"\] \.markdown-editor\s*\{[^}]*#282828[^}]*#1c1a1c;[^}]*background-attachment:\s*local;[^}]*color:\s*#cecece;/s,
+  );
+  for (const darkAsset of [
+    "public/smartisan/mobile/dark/action_bar_default.png",
+    "public/smartisan/mobile/dark/note_background.webp",
+    "public/smartisan/mobile/dark/list-item-normal-left.png",
+    "public/smartisan/mobile/dark/list-item-normal-center.png",
+    "public/smartisan/mobile/dark/list-item-normal-right.png",
+    "public/smartisan/mobile/dark/search-field-center.png",
+    "public/smartisan/mobile/dark/note_item_clip_normal.webp",
+    "public/smartisan/mobile/dark/note_item_star_fav.webp",
+  ]) {
+    assert.ok(existsSync(darkAsset), `缺少官方暗黑移动素材：${darkAsset}`);
+  }
+  assert.match(
+    styles,
+    /\.markdown-editor::selection\s*\{[^}]*background-color:\s*var\(--editor-selection-bg\);[^}]*\}[\s\S]*\.markdown-editor::-moz-selection\s*\{[^}]*background-color:\s*var\(--editor-selection-bg\);/s,
+  );
+  assert.match(
+    styles,
+    /\.markdown-editor\s*\{[^}]*caret-color:\s*var\(--editor-selection-handle\);/s,
   );
   assert.match(
     styles,
@@ -476,19 +524,19 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     styles,
-    /\.sheet-corner-top-left\s*\{[^}]*left:\s*calc\(5px \* var\(--note-scale\)\);[^}]*top:\s*calc\(11px \* var\(--note-scale\)\);/s,
+    /\.sheet-corner-top-left\s*\{[^}]*left:\s*calc\(7\.6667px \* var\(--note-scale\)\);[^}]*top:\s*calc\(15px \* var\(--note-scale\)\);/s,
   );
   assert.match(
     styles,
-    /\.sheet-corner-top-right\s*\{[^}]*right:\s*calc\(5px \* var\(--note-scale\)\);[^}]*top:\s*calc\(11px \* var\(--note-scale\)\);/s,
+    /\.sheet-corner-top-right\s*\{[^}]*right:\s*calc\(7\.6667px \* var\(--note-scale\)\);[^}]*top:\s*calc\(15px \* var\(--note-scale\)\);/s,
   );
   assert.match(
     styles,
-    /\.sheet-corner-bottom-left\s*\{[^}]*left:\s*calc\(5px \* var\(--note-scale\)\);[^}]*bottom:\s*calc\(51px \* var\(--note-scale\)\);/s,
+    /\.sheet-corner-bottom-left\s*\{[^}]*left:\s*calc\(7\.6667px \* var\(--note-scale\)\);[^}]*bottom:\s*calc\(55\.1667px \* var\(--note-scale\)\);/s,
   );
   assert.match(
     styles,
-    /\.sheet-corner-bottom-right\s*\{[^}]*right:\s*calc\(5px \* var\(--note-scale\)\);[^}]*bottom:\s*calc\(51px \* var\(--note-scale\)\);/s,
+    /\.sheet-corner-bottom-right\s*\{[^}]*right:\s*calc\(7\.6667px \* var\(--note-scale\)\);[^}]*bottom:\s*calc\(55\.1667px \* var\(--note-scale\)\);/s,
   );
   assert.doesNotMatch(styles, /:has\(\.markdown-editor:focus\)/);
 });
@@ -580,7 +628,11 @@ test("桌面工作区使用锤子便签网页版的纸面、细线和栏宽比�
   assert.match(styles, /--editor-paper-base:\s*#fbf7ed;/);
   assert.match(
     styles,
-    /\.markdown-editor-frame\s*\{[^}]*--editor-gutter-width:\s*25px;[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s,
+    /\.markdown-editor-frame\s*\{[^}]*--editor-gutter-width:\s*25px;[^}]*--editor-paper-scroll-y:\s*0px;[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/s,
+  );
+  assert.match(
+    styles,
+    /\.markdown-editor-frame::before\s*\{[^}]*edge_004e88bdf2\.png[^}]*background-position:\s*0 var\(--editor-paper-scroll-y\);[^}]*background-size:\s*5px var\(--editor-line-height\);/s,
   );
   assert.match(
     styles,
@@ -610,6 +662,42 @@ test("桌面工作区使用锤子便签网页版的纸面、细线和栏宽比�
   assert.match(
     styles,
     /@media \(min-width:\s*641px\)[\s\S]*\.app-layout:not\(\[data-render-mode="playwright"\]\)\s*\{[^}]*text-rendering:\s*auto;[^}]*-webkit-font-smoothing:\s*auto;[^}]*-moz-osx-font-smoothing:\s*auto;/s,
+  );
+  assert.match(
+    styles,
+    /@media \(min-width:\s*641px\)[\s\S]*\.app-layout\[data-theme="smartisan-dark"\] \.category-sidebar,[\s\S]*\.app-layout\[data-theme="smartisan-dark"\] \.desktop-workspace-toolbar,[\s\S]*\.app-layout\[data-theme="smartisan-dark"\] \.editor-panel,[\s\S]*\.app-layout\[data-theme="smartisan-dark"\] \.preview-panel\s*\{[^}]*background:\s*#1e1c1e;/s,
+  );
+  assert.match(
+    styles,
+    /@media \(min-width:\s*641px\)[\s\S]*\.app-layout\[data-theme="smartisan-dark"\] \.desktop-toolbar-button,\s*\.app-layout\[data-theme="smartisan-dark"\] \.mobile-insert-image,\s*\.app-layout\[data-theme="smartisan-dark"\] \.desktop-move-note,\s*\.app-layout\[data-theme="smartisan-dark"\] \.share-trigger,\s*\.app-layout\[data-theme="smartisan-dark"\] \.mobile-delete-note\s*\{[^}]*border-color:\s*#4a464a;[^}]*background:\s*linear-gradient\(#3a363a,\s*#2b282b\);[^}]*0 1px 1px rgba\(0,\s*0,\s*0,\s*0\.3\);/s,
+  );
+  assert.match(
+    styles,
+    /\.app-layout\[data-theme="smartisan-dark"\] \.share-trigger\[aria-expanded="true"\],[\s\S]*\.app-layout\[data-theme="smartisan-dark"\] \.mobile-delete-note:hover\s*\{[^}]*border-color:\s*#5c575c;[^}]*background:\s*linear-gradient\(#454045,\s*#343034\);/s,
+  );
+  assert.match(
+    styles,
+    /\.app-layout\[data-theme="smartisan-dark"\] \.markdown-editor-frame::before\s*\{[^}]*border-right-color:\s*#282828;[^}]*#282828 var\(--editor-line-height\)[^}]*0 var\(--editor-paper-scroll-y\) \/ 100% var\(--editor-line-height\) repeat-y,[^}]*#161416;/s,
+  );
+  assert.match(
+    styles,
+    /\.app-layout\[data-theme="smartisan-dark"\] \.markdown-editor\s*\{[^}]*#282828 var\(--editor-line-height\)[^}]*#1c1a1c;[^}]*background-attachment:\s*local;[^}]*color:\s*#cecece;/s,
+  );
+  const darkEditorRuleBodies = Array.from(
+    styles.matchAll(
+      /\.app-layout\[data-theme="smartisan-dark"\] \.markdown-editor\s*\{([^}]*)\}/g,
+    ),
+    (match) => match[1],
+  ).filter((ruleBody) => ruleBody.includes("#1c1a1c"));
+  assert.ok(darkEditorRuleBodies.length >= 2);
+  assert.ok(
+    darkEditorRuleBodies.every((ruleBody) =>
+      /background-attachment:\s*local;/.test(ruleBody),
+    ),
+  );
+  assert.match(
+    styles,
+    /\.app-layout\[data-theme="smartisan-dark"\] \.desktop-view-menu\s*\{[^}]*border-color:\s*#3b383b;[^}]*background:\s*#1e1c1e;/s,
   );
   assert.match(
     styles,

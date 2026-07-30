@@ -103,7 +103,7 @@ test("superadmin 路由、用户管理和首页云同步入口保持连通", () 
   );
   assert.match(appSource, /className="auth-trigger"/);
   assert.match(appSource, /className="auth-trigger-label"/);
-  assert.match(appSource, /desktopFooter=\{desktopAccountEntry\}/);
+  assert.match(appSource, /desktopFooter=\{desktopSidebarFooter\}/);
   assert.match(appSource, /登录锤子便签/);
   assert.match(appSource, /账号：\$\{authUser\.username\}/);
   assert.match(appSource, /className="account-menu-summary"/);

@@ -82,7 +82,8 @@ Vite，普通编辑仍可使用，但 `/api/export`、`/api/archive` 和图片�
 - `POST /api/images/import`：上传图片或从 URL 下载图片
 - `POST /api/export`：将 Markdown 导出为 PNG
 - `POST /api/archive`：生成包含 Markdown、HTML、图片和字体的 ZIP
-- `POST /api/wechat`：上传文章图片到七牛并生成带内联样式的公众号富文本
+- `POST /api/wechat`：上传文章图片到七牛并生成带内联样式的公众号富文本；
+  请求可携带 `footerBrand`、`footerLogoUrl` 与 `footerVia` 自定义底部署名
 - `GET /images/*`：读取持久化图片与导出结果
 
 图片内容使用 SHA-256 命名以实现去重，默认存储在 `storage/images`，单张图片最大 20 MB。
@@ -128,23 +129,31 @@ Markdown 便签、文件夹分类、加星、置顶以及生成公众号 HTML。
 `POST /api/wechat`，后端扫描 Markdown 与内嵌 HTML 中的图片，读取本地
 `/images/*`、`public/*`、Data URL 或远程图片，并用内容 SHA-256 作为对象名上传
 到七牛。已经指向同一七牛域名的图片不会重复上传。底部署名使用的 Smartisan
-锤子 PNG 固定引用项目生产图片服务提供的 HTTPS 直链，复制结果不包含微信会
-拒绝的 Data URL，也不依赖当前七牛域名是否配置了有效 HTTPS 证书。
+锤子 PNG 默认引用项目生产图片服务提供的 HTTPS 直链；用户上传自定义 Logo 后，
+后端把它与正文图片一起按内容哈希去重并上传，再将公众号页脚替换为 HTTPS 地址。
+复制结果不包含微信会拒绝的 Data URL，也不依赖当前站点域名是否配置有效证书。
+
+底部署名由全局设置中的两段文本控制，默认值为“由锤子便签发送”和
+“via Smartisan Notes”。浏览器分别使用 `notes.footerBrand` 与
+`notes.footerVia` 持久化，每段最多 `80` 个字符；URL 中同名查询参数的优先级
+高于本地设置。Logo 使用 `notes.footerLogoUrl` 保存站内 `/images/*` 相对路径，
+`footerLogoUrl` 查询参数可以覆盖。`NoteSheet` 预览、PNG 导出、离线归档和
+`POST /api/wechat` 使用同一组值，避免屏幕预览与最终产物的署名不一致；离线
+归档会把 Logo 实体写入 `html.assets/footer-logo.*`，不依赖原站继续在线。
 
 图片处理完成后，后端通过共享 React 组件生成只有内联样式的 HTML。富文本不是
 通用黑白 Markdown：外层只保留低对比暖米色纸沿，正文是一张带轻阴影和双细框
 的暖白锤子便签纸，文字、标题、引用、代码块和表格都沿用项目的棕色纸感 Token，
-正文固定使用常规字重与紧凑行距，底部
-保留“由锤子便签发送 / via Smartisan Notes”署名。首行 `[文字]` 会去除方括号，
+正文固定使用常规字重与紧凑行距，底部保留上述可配置署名。首行 `[文字]` 会去除方括号，
 以普通正文样式居中且不附加标题效果；其余标题、列表、引用、代码块、表格、链接
 和图片继续遵循 GFM。前端使用
 Clipboard API 同时写入 `text/html` 和 `text/plain`，不支持 ClipboardItem 时
 回退到富文本选区复制，粘贴到微信公众号编辑器后保留排版。
 
 公众号组件不维护另一套近似颜色：纸面、外沿、双框、标题、正文和署名分别直接
-复用成品便签的 `#fefcf6`、`rgba(239,230,216,.95)`、
-`rgba(237,233,225,.92)`、`rgba(70,53,38,.96)`、
-`rgba(106,86,67,.92)` 和 `#d7cec1`。外框四角各包含一个独立的 `6px`
+复用成品便签的 `#fffcf7`、`rgba(239,230,216,.95)`、
+`#e8e4dc`、`rgba(70,53,38,.96)`、
+`#665749` 和 `#d7cec1`。外框四角各包含一个独立的 `6px`
 空心方格单元格，并填充不可见的不换行空格。四角和四条边使用一个 3×3 的展示
 表格承载，不依赖公众号保存时会清除的绝对定位，避免四个角保存后回流成左上角
 竖条。四个方格位于主框之外：左上方格以右下角、右上方格以左下角、左下方格以

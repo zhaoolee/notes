@@ -1,14 +1,21 @@
 import type { ReactNode } from "react";
+import { DEFAULT_FOOTER_LOGO_URL } from "../lib/footer.js";
 import type { NoteSection } from "../types/app.js";
 import { MarkdownText } from "./MarkdownText.js";
 
 interface NoteSheetProps {
   notes: NoteSection[];
   footerBrand: ReactNode;
+  footerLogoUrl?: string;
   footerVia: ReactNode;
 }
 
-export function NoteSheet({ notes, footerBrand, footerVia }: NoteSheetProps) {
+export function NoteSheet({
+  notes,
+  footerBrand,
+  footerLogoUrl = DEFAULT_FOOTER_LOGO_URL,
+  footerVia,
+}: NoteSheetProps) {
   return (
     <div className="note-sheet">
       <div className="sheet-frame sheet-frame-outer" />
@@ -53,7 +60,7 @@ export function NoteSheet({ notes, footerBrand, footerVia }: NoteSheetProps) {
       <div className="sheet-footer">
         <span className="sheet-footer-icon" aria-hidden="true">
           <img
-            src="/smartisan/web/smartisan_hammer_footer.png"
+            src={footerLogoUrl}
             alt=""
             width="48"
             height="48"

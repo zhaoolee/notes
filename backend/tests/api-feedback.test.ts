@@ -204,6 +204,9 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        footerBrand: "由 API 自定义发送",
+        footerLogoUrl: imported.path,
+        footerVia: "via API Feedback",
         markdown: [
           "[公众号测试]",
           "",
@@ -229,7 +232,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
 
     assert.equal(wechat.imageCount, 2);
     assert.equal(wechat.uploadedImageCount, 1);
-    assert.equal(wechat.reusedImageCount, 1);
+    assert.equal(wechat.reusedImageCount, 2);
     assert.equal(wechat.anonymousQuota?.limit, 500);
     assert.equal(wechat.anonymousQuota?.used, 1);
     assert.equal(wechat.anonymousQuota?.remaining, 499);
@@ -265,7 +268,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.match(wechat.html, /data-smartisan-paper="true"/);
     assert.match(
       wechat.html,
-      /data-smartisan-paper="true" style="[^"]*padding-bottom:12%[^"]*border:0[^"]*background-color:#fefcf6/,
+      /data-smartisan-paper="true" style="[^"]*padding-bottom:12%[^"]*border:0[^"]*background-color:#fffcf7/,
     );
     assert.match(
       wechat.html,
@@ -291,7 +294,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.equal(
       (
         wechat.html.match(
-          /border-bottom:1px solid rgba\(237,233,225,0\.92\)/g,
+          /border-bottom:1px solid #e8e4dc/g,
         ) ?? []
       ).length,
       1,
@@ -299,7 +302,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.equal(
       (
         wechat.html.match(
-          /border-left:1px solid rgba\(237,233,225,0\.92\)/g,
+          /border-left:1px solid #e8e4dc/g,
         ) ?? []
       ).length,
       1,
@@ -307,7 +310,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.equal(
       (
         wechat.html.match(
-          /border-right:1px solid rgba\(237,233,225,0\.92\)/g,
+          /border-right:1px solid #e8e4dc/g,
         ) ?? []
       ).length,
       1,
@@ -315,7 +318,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.equal(
       (
         wechat.html.match(
-          /border-top:1px solid rgba\(237,233,225,0\.92\)/g,
+          /border-top:1px solid #e8e4dc/g,
         ) ?? []
       ).length,
       1,
@@ -367,7 +370,8 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     );
     assert.doesNotMatch(wechat.html, /<li style="[^"]*overflow:hidden/);
     assert.match(wechat.html, new RegExp(qiniuImageUrl.replace(/\./g, "\\.")));
-    assert.match(wechat.html, /由锤子便签发送/);
+    assert.match(wechat.html, /由 API 自定义发送/);
+    assert.match(wechat.html, /via API Feedback/);
     assert.match(
       wechat.html,
       /<section data-smartisan-footer="true" style="[^"]*margin:11px 18px 0[^"]*font-size:0[^"]*line-height:16px/,
@@ -376,6 +380,12 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.doesNotMatch(wechat.html, /<table data-smartisan-footer="true"/);
     assert.match(wechat.html, /data-smartisan-hammer="true"/);
     assert.match(
+      wechat.html,
+      new RegExp(
+        `data-smartisan-hammer="true"[^>]*src="${qiniuImageUrl.replace(/\./g, "\\.")}"`,
+      ),
+    );
+    assert.doesNotMatch(
       wechat.html,
       new RegExp(footerHammerUrl.replace(/\./g, "\\.")),
     );

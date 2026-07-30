@@ -8,13 +8,32 @@ import type { NoteWorkspace, ThemeId } from "../types/app";
 import { createNoteDocument, parseNoteWorkspace } from "./notes";
 import { consumeTestDataResetFromCurrentUrl } from "./test-data-url";
 import { DEFAULT_THEME_ID, isThemeId } from "./themes";
+import {
+  DEFAULT_FOOTER_BRAND,
+  DEFAULT_FOOTER_LOGO_URL,
+  DEFAULT_FOOTER_VIA,
+  FOOTER_BRAND_STORAGE_KEY,
+  FOOTER_LOGO_STORAGE_KEY,
+  FOOTER_LOGO_URL_MAX_LENGTH,
+  FOOTER_TEXT_MAX_LENGTH,
+  FOOTER_VIA_STORAGE_KEY,
+} from "./footer";
+
+export {
+  DEFAULT_FOOTER_BRAND,
+  DEFAULT_FOOTER_LOGO_URL,
+  DEFAULT_FOOTER_VIA,
+  FOOTER_BRAND_STORAGE_KEY,
+  FOOTER_LOGO_STORAGE_KEY,
+  FOOTER_LOGO_URL_MAX_LENGTH,
+  FOOTER_TEXT_MAX_LENGTH,
+  FOOTER_VIA_STORAGE_KEY,
+} from "./footer";
 
 export const FALLBACK_CONTENT = "";
 export const DRAFT_STORAGE_KEY = "notes.markdownDraft";
 export const WORKSPACE_STORAGE_KEY = "notes.workspace.v1";
 export const THEME_STORAGE_KEY = "notes.previewTheme";
-export const DEFAULT_FOOTER_BRAND = "由锤子便签发送";
-export const DEFAULT_FOOTER_VIA = "via Smartisan Notes";
 export const SAMPLE_MARKDOWN_CONTENT = sampleMarkdown || FALLBACK_CONTENT;
 
 function isSmartisanWebTestDataMode(): boolean {
@@ -118,9 +137,51 @@ export function getRenderMode(): string | null {
 }
 
 export function getInitialFooterBrand(): string {
-  return readSearchParam("footerBrand") ?? DEFAULT_FOOTER_BRAND;
+  return (
+    readSearchParam("footerBrand") ??
+    readStoredValue(FOOTER_BRAND_STORAGE_KEY) ??
+    DEFAULT_FOOTER_BRAND
+  ).slice(0, FOOTER_TEXT_MAX_LENGTH);
 }
 
 export function getInitialFooterVia(): string {
-  return readSearchParam("footerVia") ?? DEFAULT_FOOTER_VIA;
+  return (
+    readSearchParam("footerVia") ??
+    readStoredValue(FOOTER_VIA_STORAGE_KEY) ??
+    DEFAULT_FOOTER_VIA
+  ).slice(0, FOOTER_TEXT_MAX_LENGTH);
+}
+
+export function getInitialFooterLogoUrl(): string {
+  return (
+    readSearchParam("footerLogoUrl") ??
+    readStoredValue(FOOTER_LOGO_STORAGE_KEY) ??
+    DEFAULT_FOOTER_LOGO_URL
+  ).slice(0, FOOTER_LOGO_URL_MAX_LENGTH);
+}
+
+export function persistFooterText(footerBrand: string, footerVia: string): void {
+  if (typeof window === "undefined" || getRenderMode() === "playwright") {
+    return;
+  }
+
+  window.localStorage.setItem(
+    FOOTER_BRAND_STORAGE_KEY,
+    footerBrand.slice(0, FOOTER_TEXT_MAX_LENGTH),
+  );
+  window.localStorage.setItem(
+    FOOTER_VIA_STORAGE_KEY,
+    footerVia.slice(0, FOOTER_TEXT_MAX_LENGTH),
+  );
+}
+
+export function persistFooterLogoUrl(footerLogoUrl: string): void {
+  if (typeof window === "undefined" || getRenderMode() === "playwright") {
+    return;
+  }
+
+  window.localStorage.setItem(
+    FOOTER_LOGO_STORAGE_KEY,
+    footerLogoUrl.slice(0, FOOTER_LOGO_URL_MAX_LENGTH),
+  );
 }

@@ -104,6 +104,7 @@ test("NoteSheet 服务端渲染复用前端 Markdown 结构", () => {
     createElement(NoteSheet, {
       notes: splitSections("## **0x01**\n支持 **粗体** 与 `代码`。"),
       footerBrand: createElement("span", null, "由测试发送"),
+      footerLogoUrl: "/images/custom-footer-logo.png",
       footerVia: createElement("span", null, "via Feedback"),
     }),
   );
@@ -113,6 +114,35 @@ test("NoteSheet 服务端渲染复用前端 Markdown 结构", () => {
   assert.match(html, /支持 <strong>粗体<\/strong> 与 <code>代码<\/code>。/);
   assert.match(html, /由测试发送/);
   assert.match(html, /via Feedback/);
+  assert.match(html, /src="\/images\/custom-footer-logo\.png"/);
+});
+
+test("成品便签锁定官方短便签的正文、边框与署名比例", () => {
+  const styles = readFileSync("src/styles.css", "utf8");
+  const archiveSource = readFileSync("server/index.ts", "utf8");
+
+  for (const token of [
+    "--paper: #fffcf7;",
+    "--sheet-surface: #fffcf7;",
+    "--note-frame: #e8e4dc;",
+    "--note-copy: #665749;",
+  ]) {
+    assert.ok(styles.includes(token));
+    assert.ok(archiveSource.includes(token));
+  }
+
+  for (const pattern of [
+    /\.sheet-frame-outer\s*\{[^}]*calc\(16px \* var\(--note-scale\)\)[^}]*calc\(9\.6667px \* var\(--note-scale\)\)[^}]*calc\(58px \* var\(--note-scale\)\);/s,
+    /\.sheet-frame-inner\s*\{[^}]*calc\(18\.6667px \* var\(--note-scale\)\)[^}]*calc\(11\.6667px \* var\(--note-scale\)\)[^}]*calc\(59\.6667px \* var\(--note-scale\)\);/s,
+    /\.sheet-inner\s*\{[^}]*calc\(34px \* var\(--note-scale\)\)[^}]*calc\(16px \* var\(--note-scale\)\)[^}]*calc\(14px \* var\(--note-scale\)\);/s,
+    /\.note-copy\s*\{[^}]*font-size:\s*calc\(0\.76rem \* var\(--note-scale\)\);[^}]*font-weight:\s*400;[^}]*line-height:\s*1\.8;[^}]*letter-spacing:\s*0\.03em;[^}]*-webkit-text-stroke:\s*calc\(0\.15px \* var\(--note-scale\)\)\s*color-mix\(in srgb, currentColor 62%, transparent\);/s,
+    /\.sheet-footer\s*\{[^}]*calc\(30px \* var\(--note-scale\)\)[^}]*calc\(0\.6667px \* var\(--note-scale\)\);[^}]*calc\(16\.6667px \* var\(--note-scale\)\);/s,
+    /\.sheet-footer-brand\s*\{[^}]*font-size:\s*calc\(0\.5rem \* var\(--note-scale\)\);/s,
+    /\.sheet-footer-via\s*\{[^}]*font-size:\s*calc\(0\.42rem \* var\(--note-scale\)\);/s,
+  ]) {
+    assert.match(styles, pattern);
+    assert.match(archiveSource, pattern);
+  }
 });
 
 test("NoteSheet 将无缩进列表图片提升到正文层并相对便签居中", () => {
@@ -197,7 +227,9 @@ test("NoteSheet 移除方括号并只对该正文行应用居中", () => {
 test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   const html = renderToStaticMarkup(
     createElement(WechatArticle, {
+      footerBrand: "由方圆小站发送",
       footerHammerUrl: "https://cdn.example.com/smartisan-hammer.png",
+      footerVia: "via Notes Skill",
       markdown: [
         "[公众号居中正文]",
         "",
@@ -221,10 +253,10 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.match(html, /data-smartisan-paper="true"/);
   assert.match(
     html,
-    /data-smartisan-paper="true" style="[^"]*padding-bottom:12%[^"]*border:0[^"]*background-color:#fefcf6/,
+    /data-smartisan-paper="true" style="[^"]*padding-bottom:12%[^"]*border:0[^"]*background-color:#fffcf7/,
   );
   assert.match(html, /background-color:rgba\(239,230,216,0\.95\)/);
-  assert.match(html, /background-color:#fefcf6/);
+  assert.match(html, /background-color:#fffcf7/);
   assert.match(html, /data-smartisan-frame="outer"/);
   assert.match(html, /data-smartisan-frame="inner"/);
   assert.equal((html.match(/data-smartisan-corner=/g) ?? []).length, 4);
@@ -243,28 +275,28 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.equal(
     (
       html.match(
-        /border-bottom:1px solid rgba\(237,233,225,0\.92\)/g,
+        /border-bottom:1px solid #e8e4dc/g,
       ) ?? []
     ).length,
     1,
   );
   assert.equal(
     (
-      html.match(/border-left:1px solid rgba\(237,233,225,0\.92\)/g) ??
+      html.match(/border-left:1px solid #e8e4dc/g) ??
       []
     ).length,
     1,
   );
   assert.equal(
     (
-      html.match(/border-right:1px solid rgba\(237,233,225,0\.92\)/g) ??
+      html.match(/border-right:1px solid #e8e4dc/g) ??
       []
     ).length,
     1,
   );
   assert.equal(
     (
-      html.match(/border-top:1px solid rgba\(237,233,225,0\.92\)/g) ??
+      html.match(/border-top:1px solid #e8e4dc/g) ??
       []
     ).length,
     1,
@@ -285,7 +317,7 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.doesNotMatch(html, /<\/strong>[\u00a0\u2060]vibe coding/);
   assert.match(
     html,
-    /<p style="[^"]*color:rgba\(106,86,67,0\.92\)[^"]*line-height:1\.68/,
+    /<p style="[^"]*color:#665749[^"]*line-height:1\.68/,
   );
   assert.match(html, /<a href="https:\/\/example\.com" style=/);
   assert.match(html, /data-smartisan-image="true"/);
@@ -320,8 +352,8 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
     /width:100% !important;max-width:100% !important;height:auto !important/,
   );
   assert.match(html, /<table style=/);
-  assert.match(html, /由锤子便签发送/);
-  assert.match(html, /via Smartisan Notes/);
+  assert.match(html, /由方圆小站发送/);
+  assert.match(html, /via Notes Skill/);
   assert.match(
     html,
     /<section data-smartisan-footer="true" style="[^"]*margin:11px 18px 0[^"]*font-size:0[^"]*line-height:16px/,

@@ -7,8 +7,10 @@ import {
 } from "../lib/markdown.js";
 
 interface WechatArticleProps {
+  footerBrand: string;
   markdown: string;
   footerHammerUrl: string;
+  footerVia: string;
 }
 
 const colors = {
@@ -16,11 +18,11 @@ const colors = {
   border: "rgba(220,209,191,0.88)",
   code: "rgba(125,78,32,0.08)",
   footer: "#d7cec1",
-  frame: "rgba(237,233,225,0.92)",
+  frame: "#e8e4dc",
   heading: "rgba(70,53,38,0.96)",
   muted: "#c0b5a7",
-  paper: "#fefcf6",
-  text: "rgba(106,86,67,0.92)",
+  paper: "#fffcf7",
+  text: "#665749",
   wood: "rgba(239,230,216,0.95)",
 };
 
@@ -478,8 +480,10 @@ function FrameCornerCell({
 }
 
 export function WechatArticle({
+  footerBrand,
   markdown,
   footerHammerUrl,
+  footerVia,
 }: WechatArticleProps) {
   const sections = splitSections(markdown);
 
@@ -713,11 +717,11 @@ export function WechatArticle({
               whiteSpace: "nowrap",
             }}
           >
-            <strong style={{ fontWeight: 400 }}>由锤子便签发送</strong>
+            <strong style={{ fontWeight: 400 }}>{footerBrand}</strong>
             <span
               style={{ marginLeft: "4px", fontSize: "8px", fontWeight: 400 }}
             >
-              via Smartisan Notes
+              {footerVia}
             </span>
           </span>
         </section>
