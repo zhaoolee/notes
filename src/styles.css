@@ -2182,7 +2182,7 @@ body,
   position: absolute;
   z-index: 1;
   inset: 0 auto 0 0;
-  width: 25px;
+  width: var(--editor-gutter-width);
   border-right: 1px solid #e8e2d7;
   background: url("/smartisan/web/edge_004e88bdf2.png") repeat;
   pointer-events: none;
@@ -2851,11 +2851,13 @@ body,
     --editor-line-height: 42px;
     --editor-font-size: 16px;
     --editor-rule-offset-y: 0px;
+    --editor-rule-thickness: 0.6667px;
     --editor-paper-base: #fbf7ed;
-    --editor-rule-line: #e5ded4;
-    --editor-rule-highlight: #e5ded4;
+    --editor-rule-line: #f4ebde;
+    --editor-rule-highlight: #f4ebde;
     --editor-margin-band: #fbf7ed;
     --editor-margin-line: #e5ded4;
+    --mobile-editor-gutter-width: 25px;
     --preview-stage-padding-x: 8px;
   }
 
@@ -3817,21 +3819,30 @@ body,
   }
 
   .mobile-workspace-tabs {
+    --editor-gutter-width: var(--mobile-editor-gutter-width);
     position: relative;
     height: 50px;
-    padding: 0 10px 0 35px;
+    padding: 0 10px 0 calc(var(--editor-gutter-width) + 10px);
     align-items: center;
     gap: 8px;
     border-bottom: 1px solid var(--note-list-divider);
-    background:
-      linear-gradient(
-        to right,
-        transparent 29px,
-        var(--editor-margin-line) 29px,
-        var(--editor-margin-line) 30px,
-        transparent 30px
-      ),
-      var(--editor-paper-base);
+    background: var(--editor-paper-base);
+  }
+
+  .mobile-workspace-tabs::before {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    inset: 0 auto 0 0;
+    width: var(--editor-gutter-width);
+    border-right: 1px solid #e8e2d7;
+    background: url("/smartisan/web/edge_004e88bdf2.png") repeat;
+    pointer-events: none;
+  }
+
+  .mobile-workspace-tabs > * {
+    position: relative;
+    z-index: 1;
   }
 
   .app-layout:not([data-render-mode="playwright"])[data-mobile-view="editor"] .editor-panel,
@@ -3953,10 +3964,16 @@ body,
   }
 
   .markdown-editor-frame {
-    --editor-gutter-width: 30px;
+    --editor-gutter-width: var(--mobile-editor-gutter-width);
+    --editor-paper-scroll-y: 0px;
     border: 0;
     background: #fbf7ed;
     box-shadow: none;
+  }
+
+  .markdown-editor-frame::before {
+    background-position: 0 var(--editor-paper-scroll-y);
+    background-size: 5px var(--editor-line-height);
   }
 
   .preview-panel {
@@ -3992,6 +4009,19 @@ body,
     min-height: 0;
     resize: none;
     padding: 0 18px 18px 39px;
+    background:
+      linear-gradient(
+          to bottom,
+          transparent 0,
+          transparent
+            calc(var(--editor-line-height) - var(--editor-rule-thickness)),
+          var(--editor-rule-line)
+            calc(var(--editor-line-height) - var(--editor-rule-thickness)),
+          var(--editor-rule-line) var(--editor-line-height)
+        )
+        0 0 / 100% var(--editor-line-height) repeat-y,
+      var(--editor-paper-base);
+    background-attachment: local;
     color: #5c3c2ad1;
     caret-color: transparent;
     font-weight: 400;

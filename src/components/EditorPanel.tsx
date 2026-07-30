@@ -97,6 +97,13 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     const mirrorAnchor = caretMirrorAnchorRef.current;
     const customCaret = customCaretRef.current;
 
+    if (textarea) {
+      textarea.parentElement?.style.setProperty(
+        "--editor-paper-scroll-y",
+        `${-textarea.scrollTop}px`,
+      );
+    }
+
     if (
       !textarea ||
       !mirrorText ||
@@ -113,15 +120,14 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     mirrorText.textContent = textarea.value.slice(0, textarea.selectionStart);
     customCaret.classList.add("is-visible");
 
-    const textareaStyle = window.getComputedStyle(textarea);
     const caretStyle = window.getComputedStyle(customCaret);
-    const lineHeight = Number.parseFloat(textareaStyle.lineHeight) || 42;
     const caretHeight = Number.parseFloat(caretStyle.height) || 22;
+    const anchorHeight = mirrorAnchor.offsetHeight || caretHeight;
     const left = mirrorAnchor.offsetLeft - textarea.scrollLeft;
     const top =
       mirrorAnchor.offsetTop -
       textarea.scrollTop +
-      Math.max(0, (lineHeight - caretHeight) / 2);
+      Math.max(0, (anchorHeight - caretHeight) / 2);
 
     if (
       left < 0 ||

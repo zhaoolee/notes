@@ -127,6 +127,16 @@ export class AccountNotFoundError extends Error {
   }
 }
 
+export class WorkspaceConflictError extends Error {
+  readonly updatedAt: number | null;
+
+  constructor(updatedAt: number | null) {
+    super("云端工作区已被其他客户端更新，请读取最新版本后重试。");
+    this.name = "WorkspaceConflictError";
+    this.updatedAt = updatedAt;
+  }
+}
+
 export class AnonymousQuotaExceededError extends Error {
   readonly quota: AnonymousQuotaStatus;
 
@@ -585,6 +595,7 @@ export class NotesDataStore {
     userId: string,
     value: unknown,
     now = Date.now(),
+    expectedUpdatedAt?: number | null,
   ): Promise<StoredWorkspace> {
     return this.runExclusive(async () => {
       const workspace = parseNoteWorkspace(JSON.stringify(value));
@@ -594,8 +605,17 @@ export class NotesDataStore {
       }
 
       const database = await this.readDatabase();
+      const currentUpdatedAt = database.workspaces[userId]?.updatedAt ?? null;
+
+      if (
+        expectedUpdatedAt !== undefined &&
+        currentUpdatedAt !== expectedUpdatedAt
+      ) {
+        throw new WorkspaceConflictError(currentUpdatedAt);
+      }
+
       const stored = {
-        updatedAt: now,
+        updatedAt: Math.max(now, (currentUpdatedAt ?? 0) + 1),
         workspace,
       };
       database.workspaces[userId] = stored;

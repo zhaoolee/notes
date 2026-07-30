@@ -24,7 +24,7 @@ backend/tests/           后端 feedback 测试
 public/                  前端静态资源
 storage/images/          导入图片与导出 PNG 的持久化目录
 storage/data/            账号、云端工作区与匿名额度的服务端持久化目录
-skills/notes-export-api/ API 调用 Skill
+skills/notes-export-api/ 长图导出与登录工作区管理 API Skill
 DOCS/                    项目上下文
 TOOLS/                   可用工具与命令
 PROMPTS/                 固定工作流 Prompt
@@ -77,7 +77,8 @@ Vite，普通编辑仍可使用，但 `/api/export`、`/api/archive` 和图片�
 - `POST /api/superadmin/users/:userId/reset-password`：管理员重置普通用户密码
   并一次性取得新临时密码
 - `GET /api/workspace`：读取当前登录账号的云端工作区
-- `PUT /api/workspace`：保存当前登录账号的云端工作区
+- `PUT /api/workspace`：保存当前登录账号的云端工作区；可传
+  `expectedUpdatedAt` 做乐观并发控制，版本不一致时返回 HTTP 409
 - `POST /api/images/import`：上传图片或从 URL 下载图片
 - `POST /api/export`：将 Markdown 导出为 PNG
 - `POST /api/archive`：生成包含 Markdown、HTML、图片和字体的 ZIP
@@ -85,6 +86,21 @@ Vite，普通编辑仍可使用，但 `/api/export`、`/api/archive` 和图片�
 - `GET /images/*`：读取持久化图片与导出结果
 
 图片内容使用 SHA-256 命名以实现去重，默认存储在 `storage/images`，单张图片最大 20 MB。
+
+## 便签 API Skill
+
+`skills/notes-export-api` 在原有 Markdown 长图导出能力之外，把登录、工作区读取
+与条件保存、公众号富文本生成封装为统一命令，支持便签列表和全文查询、新增
+Markdown 便签、文件夹分类、加星、置顶以及生成公众号 HTML。项目现有“分类”
+数据结构是 `folderId`，Skill 不维护另一套标签字段。Skill 强烈建议使用用户自行
+部署的本地服务；只有本地无法部署时才回退 `notes.fangyuanxiaozhan.com`
+公益服，公益服没有 SLA，不保证稳定性。
+
+新增、分类、加星和置顶仍通过 `GET/PUT /api/workspace` 保存完整工作区，但脚本会
+把读取到的 `updatedAt` 作为 `expectedUpdatedAt` 提交。服务端在单进程写入队列
+内部核对当前版本；若浏览器或另一调用方已经保存新版本，返回 409，脚本重新读取
+后只重做目标修改，最多尝试 4 次。旧前端不传该字段时保持原有最后写入者优先
+行为。
 
 ## PNG 导出链路
 

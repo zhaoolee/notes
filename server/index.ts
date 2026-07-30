@@ -38,6 +38,7 @@ import {
   readSessionToken,
   safeStringEqual,
   verifySessionToken,
+  WorkspaceConflictError,
   type AnonymousQuotaStatus,
   type AuthRole,
   type AuthSession,
@@ -87,6 +88,7 @@ interface ChangePasswordRequestBody {
 }
 
 interface WorkspaceRequestBody {
+  expectedUpdatedAt?: number | null;
   workspace?: unknown;
 }
 
@@ -2428,13 +2430,35 @@ app.put(
       return;
     }
 
+    const expectedUpdatedAt = request.body?.expectedUpdatedAt;
+
+    if (
+      expectedUpdatedAt !== undefined &&
+      expectedUpdatedAt !== null &&
+      (typeof expectedUpdatedAt !== "number" ||
+        !Number.isFinite(expectedUpdatedAt))
+    ) {
+      response.status(400).json({
+        error: "expectedUpdatedAt 必须是服务端返回的时间戳或 null。",
+      });
+      return;
+    }
+
     try {
       response.json(
-        await notesDataStore.saveWorkspace(user.id, request.body?.workspace),
+        await notesDataStore.saveWorkspace(
+          user.id,
+          request.body?.workspace,
+          Date.now(),
+          expectedUpdatedAt,
+        ),
       );
     } catch (error) {
-      response.status(400).json({
+      response.status(error instanceof WorkspaceConflictError ? 409 : 400).json({
         error: error instanceof Error ? error.message : "云端工作区保存失败。",
+        ...(error instanceof WorkspaceConflictError
+          ? { updatedAt: error.updatedAt }
+          : {}),
       });
     }
   },

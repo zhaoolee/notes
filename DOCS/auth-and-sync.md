@@ -74,6 +74,12 @@ Secret 注入，并为 `SESSION_SECRET` 配置独立的高熵随机值。未配�
 保存变更时，每 15 秒读取一次云端版本，较新的 `updatedAt` 会替换当前页面状态。
 当前策略为服务端时间戳驱动的最后写入者优先，不提供逐便签合并。
 
+`skills/notes-export-api` 的工作区写操作会额外把读取到的时间戳作为
+`expectedUpdatedAt` 提交。服务端在原子写入队列中发现版本已变化时返回 HTTP
+409，Skill 重新读取最新工作区并再次应用目标便签的分类、星标、置顶或新增操作。
+这可以防止 API 自动化静默覆盖并发保存，但不会改变尚未使用条件写入的网页端
+“最后写入者优先”策略。
+
 退出登录前会尝试立即保存当前云端工作区，随后清除 HttpOnly Cookie，并恢复登录
 前保存在浏览器中的匿名工作区。
 
@@ -101,5 +107,8 @@ Secret 注入，并为 `SESSION_SECRET` 配置独立的高熵随机值。未配�
   0 点重置。
 - `backend/tests/api-feedback.test.ts`：匿名临时上传策略，以及普通用户和超级
   管理员的长期上传、无限额分支。
+- `backend/tests/notes-export-api-skill-feedback.test.ts`：通过真实 Skill
+  命令验证管理员查询、新增、文件夹分类、星标、置顶、公众号 HTML，以及过期
+  `expectedUpdatedAt` 返回 409。
 - `frontend/tests/auth-ui.test.ts`：单一账号密码登录、浏览器密码管理语义、普通
   用户修改密码表单、管理员重置入口、管理员路由与云同步入口。

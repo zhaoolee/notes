@@ -415,8 +415,40 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
     /className="markdown-editor-caret-mirror"[\s\S]*className="markdown-editor-caret"/,
   );
   assert.match(
+    editorSource,
+    /const anchorHeight = mirrorAnchor\.offsetHeight \|\| caretHeight;[\s\S]*Math\.max\(0, \(anchorHeight - caretHeight\) \/ 2\)/,
+  );
+  assert.doesNotMatch(
+    editorSource,
+    /Math\.max\(0, \(lineHeight - caretHeight\) \/ 2\)/,
+  );
+  assert.match(
     styles,
     /@media \(max-width: 640px\)[\s\S]*\.markdown-editor\s*\{[^}]*caret-color:\s*transparent;[^}]*\}[\s\S]*\.markdown-editor-caret\s*\{[^}]*width:\s*2px;[^}]*height:\s*22px;[^}]*background:\s*var\(--accent\);/s,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 640px\)[\s\S]*--editor-rule-thickness:\s*0\.6667px;[\s\S]*--editor-rule-line:\s*#f4ebde;[\s\S]*\.markdown-editor\s*\{[^}]*transparent\s*calc\(var\(--editor-line-height\) - var\(--editor-rule-thickness\)\)[^}]*var\(--editor-rule-line\) var\(--editor-line-height\)[^}]*0 0 \/ 100% var\(--editor-line-height\) repeat-y,[^}]*var\(--editor-paper-base\);[^}]*background-attachment:\s*local;/s,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 640px\)[\s\S]*--mobile-editor-gutter-width:\s*25px;[\s\S]*\.mobile-workspace-tabs\s*\{[^}]*--editor-gutter-width:\s*var\(--mobile-editor-gutter-width\);[^}]*padding:\s*0 10px 0 calc\(var\(--editor-gutter-width\) \+ 10px\);[^}]*background:\s*var\(--editor-paper-base\);/s,
+  );
+  assert.match(
+    styles,
+    /\.mobile-workspace-tabs::before\s*\{[^}]*width:\s*var\(--editor-gutter-width\);[^}]*edge_004e88bdf2\.png[^}]*pointer-events:\s*none;/s,
+  );
+  assert.match(
+    styles,
+    /\.markdown-editor-frame::before\s*\{[^}]*width:\s*var\(--editor-gutter-width\);[^}]*edge_004e88bdf2\.png/s,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 640px\)[\s\S]*\.markdown-editor-frame\s*\{[^}]*--editor-paper-scroll-y:\s*0px;[^}]*\}[\s\S]*\.markdown-editor-frame::before\s*\{[^}]*background-position:\s*0 var\(--editor-paper-scroll-y\);[^}]*background-size:\s*5px var\(--editor-line-height\);/s,
+  );
+  assert.match(
+    editorSource,
+    /style\.setProperty\(\s*"--editor-paper-scroll-y",\s*`\$\{-textarea\.scrollTop\}px`,\s*\);/,
   );
   assert.match(
     styles,
@@ -585,7 +617,7 @@ test("桌面工作区使用锤子便签网页版的纸面、细线和栏宽比�
   );
   assert.match(
     styles,
-    /\.markdown-editor-frame::before\s*\{[^}]*width:\s*25px;[^}]*edge_004e88bdf2\.png/s,
+    /\.markdown-editor-frame::before\s*\{[^}]*width:\s*var\(--editor-gutter-width\);[^}]*edge_004e88bdf2\.png/s,
   );
   assert.match(
     styles,
