@@ -15,6 +15,7 @@ test("Markdown 兼容性矩阵生成预期语义结构", async () => {
     new URL("./markdown-support-visual.md", import.meta.url),
     "utf8",
   );
+  const styles = await readFile("src/styles.css", "utf8");
   const notes = splitSections(markdown);
   const html = renderToStaticMarkup(
     createElement(NoteSheet, {
@@ -42,6 +43,10 @@ test("Markdown 兼容性矩阵生成预期语义结构", async () => {
   assert.match(html, /href="https:\/\/example\.org"/);
 
   assert.ok(countMatches(html, /<blockquote>/g) >= 3);
+  assert.match(
+    styles,
+    /\.note-copy blockquote\s*\{[^}]*margin:\s*calc\(8px \* var\(--note-scale\)\)\s*0\s*calc\(8px \* var\(--note-scale\)\);/s,
+  );
   assert.ok(countMatches(html, /<ul/g) >= 4);
   assert.ok(countMatches(html, /<ol/g) >= 5);
   assert.match(html, /class="contains-task-list"/);

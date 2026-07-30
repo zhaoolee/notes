@@ -39,6 +39,35 @@ test("设置页只保留长期偏好，不混入当前便签操作", () => {
   assert.doesNotMatch(html, /复制文本/);
 });
 
+test("AI 服务可用时才显示开启选项，并明确逐条确认", () => {
+  const noop = () => undefined;
+  const unavailableHtml = renderToStaticMarkup(
+    createElement(SettingsPanel, {
+      aiAvailable: false,
+      selectedTheme: "default",
+      onClose: noop,
+      onThemeChange: noop,
+    }),
+  );
+  const availableHtml = renderToStaticMarkup(
+    createElement(SettingsPanel, {
+      aiAvailable: true,
+      aiEnabled: true,
+      authUsername: "feedback-user",
+      selectedTheme: "default",
+      onAiEnabledChange: noop,
+      onClose: noop,
+      onThemeChange: noop,
+    }),
+  );
+
+  assert.doesNotMatch(unavailableHtml, /AI 辅助审阅/);
+  assert.match(availableHtml, /AI 辅助审阅/);
+  assert.match(availableHtml, /role="switch"/);
+  assert.match(availableHtml, /aria-checked="true"/);
+  assert.match(availableHtml, /逐条确认修改建议，不会自动改写/);
+});
+
 test("底部显示设置提供四角格、Logo 上传、双文本编辑、恢复默认与持久化", () => {
   const appSource = readFileSync("src/App.tsx", "utf8");
   const settingsSource = readFileSync("src/components/SettingsPanel.tsx", "utf8");

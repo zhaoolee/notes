@@ -34,6 +34,7 @@ export const FALLBACK_CONTENT = "";
 export const DRAFT_STORAGE_KEY = "notes.markdownDraft";
 export const WORKSPACE_STORAGE_KEY = "notes.workspace.v1";
 export const THEME_STORAGE_KEY = "notes.previewTheme";
+export const AI_ENABLED_STORAGE_KEY = "notes.aiEnabled";
 export const SAMPLE_MARKDOWN_CONTENT = sampleMarkdown || FALLBACK_CONTENT;
 
 function isSmartisanWebTestDataMode(): boolean {
@@ -134,6 +135,18 @@ export function getInitialTheme(): ThemeId {
 
 export function getRenderMode(): string | null {
   return readSearchParam("renderMode");
+}
+
+export function getInitialAiEnabled(): boolean {
+  return readStoredValue(AI_ENABLED_STORAGE_KEY) === "true";
+}
+
+export function persistAiEnabled(enabled: boolean): void {
+  if (typeof window === "undefined" || getRenderMode() === "playwright") {
+    return;
+  }
+
+  window.localStorage.setItem(AI_ENABLED_STORAGE_KEY, enabled ? "true" : "false");
 }
 
 export function getInitialFooterBrand(): string {

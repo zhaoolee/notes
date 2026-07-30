@@ -54,6 +54,8 @@ mkdir -p storage/images storage/data
 - 独立、高熵且非空的 `SESSION_SECRET`
 - `ANONYMOUS_DAILY_UPLOAD_LIMIT`，默认 `500`
 - 使用公众号图片功能时所需的 `QINIU_*` 变量
+- 使用 AI 审阅时所需的 `OPENAI_API_KEY`、`OPENAI_BASE_URL` 和
+  `OPENAI_MODEL`
 
 服务端变量不能使用 `VITE_` 前缀。Secret 不得写入仓库、日志、报告或 `MEMORY`。
 如需设置 `WECHAT_FOOTER_HAMMER_URL`，应先确认 Compose 已将它透传给后端。
@@ -88,8 +90,10 @@ docker compose logs --tail=200
 
 1. Compose 服务稳定运行，日志中没有持续重启、Playwright 启动失败或存储权限错误。
 2. 本机和公网 `/api/health` 都返回 `{"ok":true}`。
-3. 桌面和手机页面能加载，匿名编辑和刷新正常。
-4. 匿名 Skill 可以生成有效 PNG：
+3. 配置 AI 时，本机和公网 `/api/ai/status` 都返回
+   `{"available":true}`，容器日志包含启动探测成功信息且不泄露密钥。
+4. 桌面和手机页面能加载，匿名编辑和刷新正常。
+5. 匿名 Skill 可以生成有效 PNG：
 
    ```bash
    skills/notes-export-api/scripts/export_note.sh \
@@ -99,12 +103,12 @@ docker compose logs --tail=200
    file /tmp/notes-production-smoke.png
    ```
 
-5. 图片导入、带图片 PNG 导出和 ZIP 归档正常，文件写入 `storage/images`。
-6. `/superadmin`、专用测试用户登录和云工作区同步正常。
-7. 重启容器后，测试账号和云工作区仍然存在，`storage/data/notes-data.json` 未被
+6. 图片导入、带图片 PNG 导出和 ZIP 归档正常，文件写入 `storage/images`。
+7. `/superadmin`、专用测试用户登录和云工作区同步正常。
+8. 重启容器后，测试账号和云工作区仍然存在，`storage/data/notes-data.json` 未被
    重建或清空。
-8. 配置七牛时，“复制到公众号”的匿名额度、登录用户长期对象和公网图片均正常。
-9. HTTPS 登录 Cookie 包含 `Secure`，`X-Export-Url` 使用公网 HTTPS 域名。
+9. 配置七牛时，“复制到公众号”的匿名额度、登录用户长期对象和公网图片均正常。
+10. HTTPS 登录 Cookie 包含 `Secure`，`X-Export-Url` 使用公网 HTTPS 域名。
 
 任一关键检查失败都应停止发布或执行回滚。验证时不要破坏真实用户数据。
 

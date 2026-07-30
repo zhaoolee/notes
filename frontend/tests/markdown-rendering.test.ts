@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { inflateSync } from "node:zlib";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NoteSheet } from "../../src/components/NoteSheet.js";
@@ -11,6 +13,83 @@ import {
   preserveMarkdownBlankLines,
   splitSections,
 } from "../../src/lib/markdown.js";
+
+function readRgbaPngAlpha(
+  png: Buffer,
+  targetX: number,
+  targetY: number,
+): number {
+  assert.equal(png.toString("ascii", 1, 4), "PNG");
+  const width = png.readUInt32BE(16);
+  const height = png.readUInt32BE(20);
+  const bitDepth = png[24];
+  const colorType = png[25];
+  const idatChunks: Buffer[] = [];
+  let offset = 8;
+
+  while (offset < png.length) {
+    const chunkLength = png.readUInt32BE(offset);
+    const chunkType = png.toString("ascii", offset + 4, offset + 8);
+    const chunkDataStart = offset + 8;
+
+    if (chunkType === "IDAT") {
+      idatChunks.push(png.subarray(chunkDataStart, chunkDataStart + chunkLength));
+    }
+
+    offset = chunkDataStart + chunkLength + 4;
+  }
+
+  assert.equal(bitDepth, 8);
+  assert.equal(colorType, 6);
+  assert.ok(targetX >= 0 && targetX < width);
+  assert.ok(targetY >= 0 && targetY < height);
+
+  const bytesPerPixel = 4;
+  const stride = width * bytesPerPixel;
+  const filtered = inflateSync(Buffer.concat(idatChunks));
+  const decoded = Buffer.alloc(stride * height);
+
+  for (let y = 0; y < height; y += 1) {
+    const filter = filtered[y * (stride + 1)];
+    const sourceStart = y * (stride + 1) + 1;
+    const rowStart = y * stride;
+
+    for (let x = 0; x < stride; x += 1) {
+      const source = filtered[sourceStart + x];
+      const left = x >= bytesPerPixel ? decoded[rowStart + x - bytesPerPixel] : 0;
+      const above = y > 0 ? decoded[rowStart + x - stride] : 0;
+      const upperLeft =
+        y > 0 && x >= bytesPerPixel
+          ? decoded[rowStart + x - stride - bytesPerPixel]
+          : 0;
+      const paethBase = left + above - upperLeft;
+      const paethLeft = Math.abs(paethBase - left);
+      const paethAbove = Math.abs(paethBase - above);
+      const paethUpperLeft = Math.abs(paethBase - upperLeft);
+      const predictor =
+        paethLeft <= paethAbove && paethLeft <= paethUpperLeft
+          ? left
+          : paethAbove <= paethUpperLeft
+            ? above
+            : upperLeft;
+      const reconstructed =
+        filter === 0
+          ? source
+          : filter === 1
+            ? source + left
+            : filter === 2
+              ? source + above
+              : filter === 3
+                ? source + Math.floor((left + above) / 2)
+                : source + predictor;
+
+      assert.ok(filter >= 0 && filter <= 4);
+      decoded[rowStart + x] = reconstructed & 0xff;
+    }
+  }
+
+  return decoded[targetY * stride + targetX * bytesPerPixel + 3];
+}
 
 test("splitSections 以二级标题拆分便签区块", () => {
   const sections = splitSections(
@@ -115,6 +194,31 @@ test("NoteSheet 服务端渲染复用前端 Markdown 结构", () => {
   assert.match(html, /由测试发送/);
   assert.match(html, /via Feedback/);
   assert.match(html, /src="\/images\/custom-footer-logo\.png"/);
+  assert.doesNotMatch(html, /is-default-footer-logo/);
+});
+
+test("暗黑主题只降低内置便签 Logo 的亮度，不强制改色自定义 Logo", () => {
+  const defaultHtml = renderToStaticMarkup(
+    createElement(NoteSheet, {
+      notes: splitSections("暗黑页脚"),
+      footerBrand: createElement("span", null, "由测试发送"),
+      footerVia: createElement("span", null, "via Feedback"),
+    }),
+  );
+  const styles = readFileSync("src/styles.css", "utf8");
+
+  assert.match(
+    defaultHtml,
+    /class="sheet-footer-icon is-default-footer-logo"/,
+  );
+  assert.match(
+    styles,
+    /:root\[data-theme="smartisan-dark"\]\s*\{[^}]*--default-footer-logo-filter:\s*grayscale\(1\) brightness\(0\.56\) contrast\(2\.4\);[^}]*--default-footer-logo-opacity:\s*0\.72;/s,
+  );
+  assert.match(
+    styles,
+    /\.sheet-footer-icon\.is-default-footer-logo img,[\s\S]*\.settings-footer-preview-copy img\.is-default-footer-logo,[\s\S]*\.settings-footer-logo-card > img\.is-default-footer-logo\s*\{[^}]*filter:\s*var\(--default-footer-logo-filter\);[^}]*opacity:\s*var\(--default-footer-logo-opacity\);/s,
+  );
 });
 
 test("成品便签锁定官方短便签的正文、边框与署名比例", () => {
@@ -136,6 +240,7 @@ test("成品便签锁定官方短便签的正文、边框与署名比例", () =>
     /\.sheet-frame-inner\s*\{[^}]*calc\(18\.6667px \* var\(--note-scale\)\)[^}]*calc\(11\.6667px \* var\(--note-scale\)\)[^}]*calc\(59\.6667px \* var\(--note-scale\)\);/s,
     /\.sheet-inner\s*\{[^}]*calc\(34px \* var\(--note-scale\)\)[^}]*calc\(16px \* var\(--note-scale\)\)[^}]*calc\(14px \* var\(--note-scale\)\);/s,
     /\.note-copy\s*\{[^}]*font-size:\s*calc\(0\.76rem \* var\(--note-scale\)\);[^}]*font-weight:\s*400;[^}]*line-height:\s*1\.8;[^}]*letter-spacing:\s*0\.03em;[^}]*-webkit-text-stroke:\s*calc\(0\.15px \* var\(--note-scale\)\)\s*color-mix\(in srgb, currentColor 62%, transparent\);/s,
+    /\.note-copy blockquote\s*\{[^}]*margin:\s*calc\(8px \* var\(--note-scale\)\)\s*0\s*calc\(8px \* var\(--note-scale\)\);/s,
     /\.sheet-footer\s*\{[^}]*calc\(30px \* var\(--note-scale\)\)[^}]*calc\(0\.6667px \* var\(--note-scale\)\);[^}]*calc\(16\.6667px \* var\(--note-scale\)\);/s,
     /\.sheet-footer-brand\s*\{[^}]*font-size:\s*calc\(0\.5rem \* var\(--note-scale\)\);/s,
     /\.sheet-footer-via\s*\{[^}]*font-size:\s*calc\(0\.42rem \* var\(--note-scale\)\);/s,
@@ -250,12 +355,16 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
 
   assert.match(html, /data-tool="锤子便签Skill"/);
   assert.match(html, /data-smartisan-theme="warm-paper"/);
+  assert.match(
+    html,
+    /data-smartisan-theme="warm-paper" style="[^"]*padding:0[^"]*background-color:transparent/,
+  );
+  assert.doesNotMatch(html, /background-color:rgba\(239,230,216,0\.95\)/);
   assert.match(html, /data-smartisan-paper="true"/);
   assert.match(
     html,
     /data-smartisan-paper="true" style="[^"]*padding-bottom:12%[^"]*border:0[^"]*background-color:#fffcf7/,
   );
-  assert.match(html, /background-color:rgba\(239,230,216,0\.95\)/);
   assert.match(html, /background-color:#fffcf7/);
   assert.match(html, /data-smartisan-frame="outer"/);
   assert.match(html, /data-smartisan-frame="inner"/);
@@ -372,6 +481,10 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   const footerHammerAsset = readFileSync(
     "public/smartisan/web/smartisan_hammer_footer.png",
   );
+  const footerHammerHash = createHash("sha256")
+    .update(footerHammerAsset)
+    .digest("hex");
+  const serverSource = readFileSync("server/index.ts", "utf8");
   const pngColorType = footerHammerAsset[25];
   assert.equal(footerHammerAsset.readUInt32BE(16), 48);
   assert.equal(footerHammerAsset.readUInt32BE(20), 48);
@@ -380,6 +493,28 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
       pngColorType === 6 ||
       footerHammerAsset.includes(Buffer.from("tRNS")),
     "公众号底部锤子标识必须包含透明通道，避免暗黑模式出现浅色方块",
+  );
+  for (const [x, y] of [
+    [0, 0],
+    [47, 0],
+    [0, 47],
+    [47, 47],
+  ]) {
+    assert.equal(
+      readRgbaPngAlpha(footerHammerAsset, x, y),
+      0,
+      `锤子标识四角必须透明：${x},${y}`,
+    );
+  }
+  assert.equal(
+    footerHammerHash,
+    "b5d3bd9587fa9a1226b25a0709ff61a450df29d96ca2f127c6afc0b8e193a60e",
+  );
+  assert.match(
+    serverSource,
+    new RegExp(
+      `https://notes\\.fangyuanxiaozhan\\.com/images/${footerHammerHash}\\.png`,
+    ),
   );
   assert.doesNotMatch(html, /src="data:/);
   assert.doesNotMatch(html, /<li[^>]*>\s*<\/li>/);

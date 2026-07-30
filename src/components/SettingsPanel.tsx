@@ -10,6 +10,8 @@ import { THEME_OPTIONS } from "../lib/themes.js";
 import type { ThemeId } from "../types/app.js";
 
 interface SettingsPanelProps {
+  aiAvailable?: boolean;
+  aiEnabled?: boolean;
   authUsername?: string | null;
   canChangePassword?: boolean;
   cloudStatusLabel?: string;
@@ -17,6 +19,7 @@ interface SettingsPanelProps {
   footerLogoUrl?: string;
   footerVia?: string;
   selectedTheme: ThemeId;
+  onAiEnabledChange?: (enabled: boolean) => void;
   onChangePassword?: () => void;
   onClose: () => void;
   onFooterBrandChange?: (footerBrand: string) => void;
@@ -34,6 +37,8 @@ function getThemeName(themeId: ThemeId): string {
 }
 
 export function SettingsPanel({
+  aiAvailable = false,
+  aiEnabled = false,
   authUsername = null,
   canChangePassword = false,
   cloudStatusLabel = "数据仅保存在当前浏览器",
@@ -41,6 +46,7 @@ export function SettingsPanel({
   footerLogoUrl = DEFAULT_FOOTER_LOGO_URL,
   footerVia = DEFAULT_FOOTER_VIA,
   selectedTheme,
+  onAiEnabledChange = () => undefined,
   onChangePassword,
   onClose,
   onFooterBrandChange = () => undefined,
@@ -55,9 +61,10 @@ export function SettingsPanel({
   const [footerLogoError, setFooterLogoError] = useState("");
   const footerLogoInputRef = useRef<HTMLInputElement | null>(null);
   const isRootPage = page === "root";
+  const isDefaultFooterLogo = footerLogoUrl === DEFAULT_FOOTER_LOGO_URL;
   const isDefaultFooter =
     footerBrand === DEFAULT_FOOTER_BRAND &&
-    footerLogoUrl === DEFAULT_FOOTER_LOGO_URL &&
+    isDefaultFooterLogo &&
     footerVia === DEFAULT_FOOTER_VIA;
   const footerSummary =
     !footerBrand && !footerVia ? "不显示" : isDefaultFooter ? "默认" : "自定义";
@@ -227,6 +234,31 @@ export function SettingsPanel({
                   </span>
                 </span>
               </button>
+              {aiAvailable ? (
+                <button
+                  type="button"
+                  className="settings-row settings-ai-row"
+                  role="switch"
+                  aria-checked={aiEnabled}
+                  aria-label={`AI 辅助审阅，当前${aiEnabled ? "已开启" : "已关闭"}`}
+                  onClick={() => onAiEnabledChange(!aiEnabled)}
+                >
+                  <span className="settings-row-label">
+                    AI 辅助审阅
+                    <small>
+                      {authUsername
+                        ? "逐条确认修改建议，不会自动改写"
+                        : "逐条确认修改建议，登录后可使用"}
+                    </small>
+                  </span>
+                  <span
+                    className={`settings-switch${aiEnabled ? " is-on" : ""}`}
+                    aria-hidden="true"
+                  >
+                    <span />
+                  </span>
+                </button>
+              ) : null}
             </section>
           </>
         ) : page === "background" ? (
@@ -271,6 +303,7 @@ export function SettingsPanel({
               <span className="settings-footer-preview-corner is-bottom-right" />
               <div className="settings-footer-preview-copy">
                 <img
+                  className={isDefaultFooterLogo ? "is-default-footer-logo" : undefined}
                   src={footerLogoUrl}
                   alt=""
                   aria-hidden="true"
@@ -286,6 +319,7 @@ export function SettingsPanel({
               aria-label="便签底部 Logo"
             >
               <img
+                className={isDefaultFooterLogo ? "is-default-footer-logo" : undefined}
                 src={footerLogoUrl}
                 alt="当前便签底部 Logo"
                 draggable={false}

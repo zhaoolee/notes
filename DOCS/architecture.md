@@ -79,6 +79,10 @@ Vite，普通编辑仍可使用，但 `/api/export`、`/api/archive` 和图片�
 - `GET /api/workspace`：读取当前登录账号的云端工作区
 - `PUT /api/workspace`：保存当前登录账号的云端工作区；可传
   `expectedUpdatedAt` 做乐观并发控制，版本不一致时返回 HTTP 409
+- `GET /api/ai/status`：返回服务端启动时探测到的 AI 可用状态，不暴露模型地址、
+  密钥或上游错误正文
+- `POST /api/ai/suggestions`：登录用户提交当前 Markdown 与人类审阅要求，取得
+  可逐条确认的原子修改建议；接口本身不写工作区
 - `POST /api/images/import`：上传图片或从 URL 下载图片
 - `POST /api/export`：将 Markdown 导出为 PNG
 - `POST /api/archive`：生成包含 Markdown、HTML、图片和字体的 ZIP
@@ -140,9 +144,13 @@ Markdown 便签、文件夹分类、加星、置顶以及生成公众号 HTML。
 `footerLogoUrl` 查询参数可以覆盖。`NoteSheet` 预览、PNG 导出、离线归档和
 `POST /api/wechat` 使用同一组值，避免屏幕预览与最终产物的署名不一致；离线
 归档会把 Logo 实体写入 `html.assets/footer-logo.*`，不依赖原站继续在线。
+内置锤子 Logo 在暗黑主题下会通过低亮度、低不透明度滤镜压到与署名文字相近的
+对比层级，避免暖白圆标形成亮斑；该规则通过独立类名识别内置资源，不会强制
+改色用户上传的自定义 Logo。设置缩略图和成品预览共用同一规则。内置 PNG 使用
+完整 RGBA 通道，四个角像素均须透明，不能依赖暖白纸面掩盖不完整的 Alpha。
 
 图片处理完成后，后端通过共享 React 组件生成只有内联样式的 HTML。富文本不是
-通用黑白 Markdown：外层只保留低对比暖米色纸沿，正文是一张带轻阴影和双细框
+通用黑白 Markdown：最外层容器不留边距且保持透明，正文是一张带轻阴影和双细框
 的暖白锤子便签纸，文字、标题、引用、代码块和表格都沿用项目的棕色纸感 Token，
 正文固定使用常规字重与紧凑行距，底部保留上述可配置署名。首行 `[文字]` 会去除方括号，
 以普通正文样式居中且不附加标题效果；其余标题、列表、引用、代码块、表格、链接
@@ -150,8 +158,8 @@ Markdown 便签、文件夹分类、加星、置顶以及生成公众号 HTML。
 Clipboard API 同时写入 `text/html` 和 `text/plain`，不支持 ClipboardItem 时
 回退到富文本选区复制，粘贴到微信公众号编辑器后保留排版。
 
-公众号组件不维护另一套近似颜色：纸面、外沿、双框、标题、正文和署名分别直接
-复用成品便签的 `#fffcf7`、`rgba(239,230,216,.95)`、
+公众号组件不维护另一套近似颜色：纸面、双框、标题、正文和署名分别直接
+复用成品便签的 `#fffcf7`、
 `#e8e4dc`、`rgba(70,53,38,.96)`、
 `#665749` 和 `#d7cec1`。外框四角各包含一个独立的 `6px`
 空心方格单元格，并填充不可见的不换行空格。四角和四条边使用一个 3×3 的展示
@@ -167,7 +175,7 @@ Smartisan 圆形锤子 PNG，并改用无边框的行内元素与文字垂直居
 保留纸张宽度 `12%` 的响应式空白，
 匹配 `example/程序员狠话Vol.5.JPG` 在内容结束后仍留下大面积暖白纸面的节奏；
 复制 HTML 默认引用项目生产图片服务中内容哈希为
-`d5a157fccd36ca63fc5fb53afd0223d45448263fd349a9e2f17d54fb94fe3e4d`
+`b5d3bd9587fa9a1226b25a0709ff61a450df29d96ca2f127c6afc0b8e193a60e`
 的有效 PNG 直链，也可通过
 `WECHAT_FOOTER_HAMMER_URL` 覆盖。这样能避免 `localhost`、Data URL 和无有效
 证书的 HTTP 图床进入公众号。React 服务端渲染自动生成的图片 preload `<link>`
@@ -222,6 +230,18 @@ PNG 导出、离线归档和公众号复制共同复用。顶层图片装裱容�
 管理员凭据只从服务端的 `SUPERADMIN`、`SUPERADMINPASSWORD` 读取；不要使用
 `VITE_` 前缀。生产环境还应配置独立的高熵 `SESSION_SECRET`。账号密码只保存
 scrypt 盐与哈希，登录状态使用 HttpOnly、SameSite=Lax 的签名 Cookie。
+
+AI 辅助审阅同样只读取服务端的 `OPENAI_API_KEY`、`OPENAI_BASE_URL` 和可选
+`OPENAI_MODEL`，变量不得使用 `VITE_` 前缀。服务启动时会以有限时
+`GET /models` 探测配置和鉴权；失败只关闭设置中的 AI 选项，不影响便签服务。
+DeepSeek 当前默认选择 `deepseek-v4-flash` 并关闭 thinking。AI 消耗接口只允许
+普通用户或 superadmin 登录后调用，并限制正文长度、并发与频率。
+
+模型只返回 `original / replacement / reason` 原子建议。后端再次验证原文片段在
+提交快照中唯一存在、建议互不重叠后，才派生可信的 `start / end`。前端收到建议
+时不调用 `setMarkdown`，每张建议卡分别提供“确认修改”和“忽略”；只有确认单条
+建议才从原始快照重建正文。若当前便签、正文或云同步版本在审阅期间发生变化，
+旧建议立即失效，不允许覆盖人工编辑，也不提供一键全部接受。
 
 ## 部署形态
 

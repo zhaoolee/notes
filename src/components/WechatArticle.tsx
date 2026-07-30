@@ -23,7 +23,6 @@ const colors = {
   muted: "#c0b5a7",
   paper: "#fffcf7",
   text: "#665749",
-  wood: "rgba(239,230,216,0.95)",
 };
 
 const baseHeadingStyle: CSSProperties = {
@@ -494,10 +493,10 @@ export function WechatArticle({
       style={{
         boxSizing: "border-box",
         margin: "0 auto",
-        padding: "7px",
+        padding: "0",
         width: "100%",
         maxWidth: "100%",
-        backgroundColor: colors.wood,
+        backgroundColor: "transparent",
         color: colors.text,
         fontFamily:
           '"PingFang SC","Hiragino Sans GB","Microsoft YaHei",Arial,sans-serif',

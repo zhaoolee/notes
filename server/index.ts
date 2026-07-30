@@ -48,6 +48,11 @@ import {
   type AuthSession,
   type AuthUser,
 } from "./auth.js";
+import {
+  checkAiAvailability,
+  createAiSuggestions,
+  isAiAvailable,
+} from "./ai.js";
 
 type ThemeId = "default" | "smartisan-dark";
 
@@ -99,6 +104,11 @@ interface ChangePasswordRequestBody {
 interface WorkspaceRequestBody {
   expectedUpdatedAt?: number | null;
   workspace?: unknown;
+}
+
+interface AiSuggestionsRequestBody {
+  instruction?: unknown;
+  markdown?: unknown;
 }
 
 interface StoredImage {
@@ -162,6 +172,10 @@ const anonymousDailyUploadLimit = Math.max(
 );
 const supportedThemes = new Set<ThemeId>(["default", "smartisan-dark"]);
 const maxImageSizeBytes = 20 * 1024 * 1024;
+const maxAiMarkdownLength = 100_000;
+const maxAiInstructionLength = 2_000;
+const aiRequestWindowMs = 10 * 60 * 1_000;
+const maxAiRequestsPerWindow = 10;
 const exportDeviceScaleFactor = 3;
 const maxSafeScreenshotDimension = 30_000;
 const maxScreenshotChunkHeight = Math.min(
@@ -176,10 +190,12 @@ const imageUpload = multer({
 });
 
 let browserPromise: Promise<Browser> | undefined;
+const activeAiUsers = new Set<string>();
+const aiRequestHistory = new Map<string, number[]>();
 const notesDataStore = new NotesDataStore(dataDirectory);
 const execFileAsync = promisify(execFile);
 const defaultWechatFooterHammerUrl =
-  "https://notes.fangyuanxiaozhan.com/images/d5a157fccd36ca63fc5fb53afd0223d45448263fd349a9e2f17d54fb94fe3e4d.png";
+  "https://notes.fangyuanxiaozhan.com/images/b5d3bd9587fa9a1226b25a0709ff61a450df29d96ca2f127c6afc0b8e193a60e.png";
 const archiveFonts: ArchiveFont[] = [
   {
     sourceName: "OPPOSans-R.ttf",
@@ -428,6 +444,43 @@ async function requireNoteServiceUser(
   }
 
   return user;
+}
+
+function isSameOriginRequest(request: Request): boolean {
+  const origin = request.get("origin");
+
+  if (!origin) {
+    return true;
+  }
+
+  try {
+    const originUrl = new URL(origin);
+    const requestHost =
+      request.get("x-forwarded-host") || request.get("host") || "";
+    return originUrl.host === requestHost;
+  } catch {
+    return false;
+  }
+}
+
+function consumeAiRateLimit(userId: string): number | null {
+  const now = Date.now();
+  const earliestAllowed = now - aiRequestWindowMs;
+  const history = (aiRequestHistory.get(userId) || []).filter(
+    (timestamp) => timestamp > earliestAllowed,
+  );
+
+  if (history.length >= maxAiRequestsPerWindow) {
+    aiRequestHistory.set(userId, history);
+    return Math.max(
+      1,
+      Math.ceil((history[0] + aiRequestWindowMs - now) / 1_000),
+    );
+  }
+
+  history.push(now);
+  aiRequestHistory.set(userId, history);
+  return null;
 }
 
 function normalizeRenderableImageUrls(
@@ -1048,7 +1101,10 @@ ${fontFaceCss}
 
       .note-copy blockquote {
         position: relative;
-        margin: 0 0 calc(8px * var(--note-scale));
+        margin:
+          calc(8px * var(--note-scale))
+          0
+          calc(8px * var(--note-scale));
         padding-left: calc(0.92rem * var(--note-scale));
         color: var(--note-quote);
         font-size: calc(0.88rem * var(--note-scale));
@@ -2271,6 +2327,48 @@ app.use((request: Request, response: Response, next: NextFunction) => {
   next();
 });
 
+app.use(
+  "/api/ai",
+  async (request: Request, response: Response, next: NextFunction) => {
+    if (request.method === "GET" && request.path === "/status") {
+      next();
+      return;
+    }
+
+    const user = await requireNoteServiceUser(request, response);
+
+    if (!user) {
+      return;
+    }
+
+    response.locals.aiUser = user;
+    next();
+  },
+);
+app.use("/api/ai", express.json({ limit: "128kb" }));
+app.use(
+  "/api/ai",
+  (
+    error: unknown,
+    _request: Request,
+    response: Response,
+    next: NextFunction,
+  ) => {
+    const parsedError = error as { status?: unknown; type?: unknown };
+
+    if (parsedError?.type === "entity.too.large" || parsedError?.status === 413) {
+      response.status(413).json({ error: "便签内容过长，无法提交 AI 审阅。" });
+      return;
+    }
+
+    if (error) {
+      response.status(400).json({ error: "AI 审阅请求格式不正确。" });
+      return;
+    }
+
+    next();
+  },
+);
 app.use(express.json({ limit: "10mb" }));
 app.use("/images", express.static(imagesDir, { fallthrough: false, immutable: true, maxAge: "1y" }));
 
@@ -2514,6 +2612,101 @@ app.get("/api/workspace", async (request: Request, response: Response) => {
   );
 });
 
+app.get("/api/ai/status", (_request: Request, response: Response) => {
+  response.setHeader("Cache-Control", "no-store");
+  response.json({ available: isAiAvailable() });
+});
+
+app.post(
+  "/api/ai/suggestions",
+  async (
+    request: Request<Record<string, never>, unknown, AiSuggestionsRequestBody>,
+    response: Response,
+  ) => {
+    const user = response.locals.aiUser as AuthSession | undefined;
+
+    if (!user) {
+      response.status(401).json({ error: "请先登录账号。" });
+      return;
+    }
+
+    if (!isSameOriginRequest(request)) {
+      response.status(403).json({ error: "请从当前便签页面发起 AI 审阅。" });
+      return;
+    }
+
+    if (!isAiAvailable()) {
+      response.status(503).json({ error: "AI 服务当前不可用，请稍后重试。" });
+      return;
+    }
+
+    const markdown = request.body?.markdown;
+    const instruction =
+      typeof request.body?.instruction === "string"
+        ? request.body.instruction.trim()
+        : "";
+
+    if (
+      typeof markdown !== "string" ||
+      !markdown ||
+      markdown.length > maxAiMarkdownLength
+    ) {
+      response.status(400).json({
+        error: `便签正文须为 1-${maxAiMarkdownLength} 个字符。`,
+      });
+      return;
+    }
+
+    if (
+      !instruction ||
+      instruction.length > maxAiInstructionLength
+    ) {
+      response.status(400).json({
+        error: `审阅要求须为 1-${maxAiInstructionLength} 个字符。`,
+      });
+      return;
+    }
+
+    if (activeAiUsers.has(user.id)) {
+      response.status(429).json({ error: "已有 AI 审阅正在进行，请稍候。" });
+      return;
+    }
+
+    const retryAfter = consumeAiRateLimit(user.id);
+
+    if (retryAfter !== null) {
+      response.setHeader("Retry-After", retryAfter.toString());
+      response.status(429).json({ error: "AI 审阅请求过于频繁，请稍后再试。" });
+      return;
+    }
+
+    activeAiUsers.add(user.id);
+
+    try {
+      response.setHeader("Cache-Control", "no-store");
+      response.json(await createAiSuggestions(markdown, instruction));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "AI_UPSTREAM_ERROR";
+      const status =
+        code === "AI_TIMEOUT"
+          ? 504
+          : code === "AI_UNAVAILABLE"
+            ? 503
+            : 502;
+      response.status(status).json({
+        error:
+          status === 504
+            ? "AI 审阅超时，请稍后重试。"
+            : status === 503
+              ? "AI 服务当前不可用，请稍后重试。"
+              : "AI 暂时无法生成有效建议，请稍后重试。",
+      });
+    } finally {
+      activeAiUsers.delete(user.id);
+    }
+  },
+);
+
 app.put(
   "/api/workspace",
   async (
@@ -2734,6 +2927,8 @@ if (await hasDistIndex()) {
     response.sendFile(path.join(distDir, "index.html"));
   });
 }
+
+await checkAiAvailability();
 
 const server = app.listen(port, () => {
   console.log(`Backend listening on http://127.0.0.1:${port}`);

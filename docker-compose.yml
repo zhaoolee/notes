@@ -27,6 +27,9 @@ services:
       SUPERADMINPASSWORD: ${SUPERADMINPASSWORD:-}
       SESSION_SECRET: ${SESSION_SECRET:-}
       ANONYMOUS_DAILY_UPLOAD_LIMIT: ${ANONYMOUS_DAILY_UPLOAD_LIMIT:-500}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
     volumes:
       - ./storage/images:/app/storage/images
       - ./storage/data:/app/storage/data

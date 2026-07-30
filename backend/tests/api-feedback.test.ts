@@ -228,7 +228,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     const qiniuImageUrl =
       `https://cdn.example.test/${temporaryPrefix}/${imported.hash}.png`;
     const footerHammerUrl =
-      "https://notes.fangyuanxiaozhan.com/images/d5a157fccd36ca63fc5fb53afd0223d45448263fd349a9e2f17d54fb94fe3e4d.png";
+      "https://notes.fangyuanxiaozhan.com/images/b5d3bd9587fa9a1226b25a0709ff61a450df29d96ca2f127c6afc0b8e193a60e.png";
 
     assert.equal(wechat.imageCount, 2);
     assert.equal(wechat.uploadedImageCount, 1);
@@ -265,12 +265,16 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.equal(uploadPolicy.deleteAfterDays, 1);
     assert.match(wechat.html, /data-tool="锤子便签Skill"/);
     assert.match(wechat.html, /data-smartisan-theme="warm-paper"/);
+    assert.match(
+      wechat.html,
+      /data-smartisan-theme="warm-paper" style="[^"]*padding:0[^"]*background-color:transparent/,
+    );
     assert.match(wechat.html, /data-smartisan-paper="true"/);
     assert.match(
       wechat.html,
       /data-smartisan-paper="true" style="[^"]*padding-bottom:12%[^"]*border:0[^"]*background-color:#fffcf7/,
     );
-    assert.match(
+    assert.doesNotMatch(
       wechat.html,
       /background-color:rgba\(239,230,216,0\.95\)/,
     );

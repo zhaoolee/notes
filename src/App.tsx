@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CategorySidebar } from "./components/CategorySidebar";
+import { AiReviewDialog } from "./components/AiReviewDialog";
 import { ChangePasswordDialog } from "./components/ChangePasswordDialog";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { EditorPanel, type EditorPanelHandle } from "./components/EditorPanel";
@@ -10,16 +11,19 @@ import { PreviewPanel } from "./components/PreviewPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { SharePanel } from "./components/SharePanel";
 import {
+  getInitialAiEnabled,
   getInitialFooterBrand,
   getInitialFooterLogoUrl,
   getInitialFooterVia,
   getInitialNoteWorkspace,
   getRenderMode,
+  persistAiEnabled,
   persistFooterLogoUrl,
   persistFooterText,
   persistNoteWorkspace,
   THEME_STORAGE_KEY,
 } from "./lib/app-state";
+import { getAiStatus } from "./lib/ai";
 import {
   canUseCloudWorkspace,
   changeUserPassword,
@@ -133,6 +137,9 @@ export default function App() {
   const [footerBrand, setFooterBrand] = useState(getInitialFooterBrand);
   const [footerLogoUrl, setFooterLogoUrl] = useState(getInitialFooterLogoUrl);
   const [footerVia, setFooterVia] = useState(getInitialFooterVia);
+  const [aiEnabled, setAiEnabled] = useState(getInitialAiEnabled);
+  const [aiAvailable, setAiAvailable] = useState(false);
+  const [isAiReviewOpen, setIsAiReviewOpen] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [isImportingImage, setIsImportingImage] = useState(false);
   const [isRefreshingNotes, setIsRefreshingNotes] = useState(false);
@@ -172,6 +179,7 @@ export default function App() {
   const accountContainerRef = useRef<HTMLDivElement | null>(null);
   const desktopViewMenuRef = useRef<HTMLDivElement | null>(null);
   const desktopViewBeforeShareRef = useRef<DesktopWorkspaceView>("editor");
+  const aiReviewNoteIdRef = useRef<string | null>(null);
   const cloudSaveTimeoutRef = useRef<number | null>(null);
   const cloudRevisionRef = useRef(0);
   const cloudHydratedUserIdRef = useRef<string | null>(null);
@@ -338,6 +346,44 @@ export default function App() {
   }, [replaceWorkspace]);
 
   useEffect(() => {
+    if (isPlaywrightRender) {
+      return;
+    }
+
+    let cancelled = false;
+    let retryTimeoutId: number | null = null;
+    let attempts = 0;
+
+    const checkStatus = async () => {
+      attempts += 1;
+
+      try {
+        const available = await getAiStatus();
+
+        if (!cancelled) {
+          setAiAvailable(available);
+        }
+      } catch {
+        if (!cancelled && attempts < 10) {
+          retryTimeoutId = window.setTimeout(() => {
+            void checkStatus();
+          }, 800);
+        }
+      }
+    };
+
+    void checkStatus();
+
+    return () => {
+      cancelled = true;
+
+      if (retryTimeoutId !== null) {
+        window.clearTimeout(retryTimeoutId);
+      }
+    };
+  }, [isPlaywrightRender]);
+
+  useEffect(() => {
     if (authStatus !== "ready") {
       return;
     }
@@ -466,6 +512,20 @@ export default function App() {
   useEffect(() => {
     persistFooterLogoUrl(footerLogoUrl);
   }, [footerLogoUrl]);
+
+  useEffect(() => {
+    persistAiEnabled(aiEnabled);
+  }, [aiEnabled]);
+
+  useEffect(() => {
+    if (
+      isAiReviewOpen &&
+      aiReviewNoteIdRef.current !== activeNoteId
+    ) {
+      setIsAiReviewOpen(false);
+      aiReviewNoteIdRef.current = null;
+    }
+  }, [activeNoteId, isAiReviewOpen]);
 
   useEffect(() => {
     if (copyState === "idle") {
@@ -729,6 +789,8 @@ export default function App() {
     cloudHydratedUserIdRef.current = null;
     cloudRevisionRef.current = 0;
     setAuthUser(null);
+    setIsAiReviewOpen(false);
+    aiReviewNoteIdRef.current = null;
     setCloudSyncState("local");
     setIsAccountMenuOpen(false);
     replaceWorkspace(getInitialNoteWorkspace());
@@ -816,6 +878,8 @@ export default function App() {
     setIsShareOpen(false);
     setIsNoteSidebarOpen(false);
     setIsCategorySidebarOpen(false);
+    setIsAiReviewOpen(false);
+    aiReviewNoteIdRef.current = null;
     const folderId = getFolderIdFromCategory(activeCategoryId);
     const shouldStar = activeCategoryId === "starred";
 
@@ -842,6 +906,8 @@ export default function App() {
   }
 
   function handleSelectNote(noteId: string) {
+    setIsAiReviewOpen(false);
+    aiReviewNoteIdRef.current = null;
     selectNote(noteId);
     setIsShareOpen(false);
     setIsNoteSidebarOpen(false);
@@ -853,6 +919,8 @@ export default function App() {
   }
 
   function handleSelectCategory(categoryId: NoteCategoryId) {
+    setIsAiReviewOpen(false);
+    aiReviewNoteIdRef.current = null;
     setActiveCategoryId(categoryId);
     setIsCategorySidebarOpen(false);
     setIsNoteSidebarOpen(false);
@@ -1029,6 +1097,8 @@ export default function App() {
 
   const settingsPanel = isSettingsOpen ? (
     <SettingsPanel
+      aiAvailable={aiAvailable}
+      aiEnabled={aiEnabled}
       authUsername={authUser?.username}
       canChangePassword={authUser?.role === "user"}
       cloudStatusLabel={
@@ -1046,6 +1116,7 @@ export default function App() {
       footerLogoUrl={footerLogoUrl}
       footerVia={footerVia}
       selectedTheme={selectedTheme}
+      onAiEnabledChange={setAiEnabled}
       onChangePassword={() => {
         setIsSettingsOpen(false);
         setIsChangePasswordOpen(true);
@@ -1176,6 +1247,26 @@ export default function App() {
               </button>
 
               <div className="mobile-detail-actions">
+                {aiAvailable &&
+                aiEnabled &&
+                authUser &&
+                activeCategoryNote &&
+                activeCategoryId !== "trash" ? (
+                  <button
+                    type="button"
+                    className="ai-review-trigger"
+                    aria-label="使用 AI 审阅当前便签"
+                    title="AI 辅助审阅"
+                    onClick={() => {
+                      setIsSettingsOpen(false);
+                      setIsShareOpen(false);
+                      aiReviewNoteIdRef.current = activeNoteId;
+                      setIsAiReviewOpen(true);
+                    }}
+                  >
+                    AI
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="mobile-detail-action mobile-insert-image"
@@ -1536,6 +1627,19 @@ export default function App() {
         <div className="settings-panel-host" ref={settingsPanelHostRef}>
           {settingsPanel}
         </div>
+
+        {isAiReviewOpen && activeNote ? (
+          <AiReviewDialog
+            key={activeNoteId}
+            currentMarkdown={markdown}
+            currentNoteId={activeNoteId}
+            onClose={() => {
+              setIsAiReviewOpen(false);
+              aiReviewNoteIdRef.current = null;
+            }}
+            onMarkdownChange={setMarkdown}
+          />
+        ) : null}
       </div>
 
       {isLoginOpen ? (

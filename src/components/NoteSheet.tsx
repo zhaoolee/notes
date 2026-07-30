@@ -16,6 +16,8 @@ export function NoteSheet({
   footerLogoUrl = DEFAULT_FOOTER_LOGO_URL,
   footerVia,
 }: NoteSheetProps) {
+  const isDefaultFooterLogo = footerLogoUrl === DEFAULT_FOOTER_LOGO_URL;
+
   return (
     <div className="note-sheet">
       <div className="sheet-frame sheet-frame-outer" />
@@ -58,7 +60,10 @@ export function NoteSheet({
       </div>
 
       <div className="sheet-footer">
-        <span className="sheet-footer-icon" aria-hidden="true">
+        <span
+          className={`sheet-footer-icon${isDefaultFooterLogo ? " is-default-footer-logo" : ""}`}
+          aria-hidden="true"
+        >
           <img
             src={footerLogoUrl}
             alt=""

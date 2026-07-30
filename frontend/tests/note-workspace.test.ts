@@ -677,11 +677,27 @@ test("桌面工作区使用锤子便签网页版的纸面、细线和栏宽比�
   );
   assert.match(
     styles,
-    /@media \(min-width:\s*641px\)[\s\S]*\.app-layout\[data-theme="smartisan-dark"\] \.desktop-toolbar-button,\s*\.app-layout\[data-theme="smartisan-dark"\] \.mobile-insert-image,\s*\.app-layout\[data-theme="smartisan-dark"\] \.desktop-move-note,\s*\.app-layout\[data-theme="smartisan-dark"\] \.share-trigger,\s*\.app-layout\[data-theme="smartisan-dark"\] \.mobile-delete-note\s*\{[^}]*border-color:\s*#4a464a;[^}]*background:\s*linear-gradient\(#3a363a,\s*#2b282b\);[^}]*0 1px 1px rgba\(0,\s*0,\s*0,\s*0\.3\);/s,
+    /@media \(min-width:\s*641px\)[\s\S]*\.app-layout\[data-theme="smartisan-dark"\] \.desktop-toolbar-button,\s*\.app-layout\[data-theme="smartisan-dark"\] \.mobile-insert-image,\s*\.app-layout\[data-theme="smartisan-dark"\] \.desktop-move-note,\s*\.app-layout\[data-theme="smartisan-dark"\] \.ai-review-trigger,\s*\.app-layout\[data-theme="smartisan-dark"\] \.share-trigger,\s*\.app-layout\[data-theme="smartisan-dark"\] \.mobile-delete-note,\s*\.app-layout\[data-theme="smartisan-dark"\] \.desktop-share-preview-actions button\s*\{[^}]*border-color:\s*#4a464a;[^}]*background:\s*linear-gradient\(#3a363a,\s*#2b282b\);[^}]*color:\s*#dedcde;[^}]*0 1px 1px rgba\(0,\s*0,\s*0,\s*0\.3\);/s,
   );
   assert.match(
     styles,
-    /\.app-layout\[data-theme="smartisan-dark"\] \.share-trigger\[aria-expanded="true"\],[\s\S]*\.app-layout\[data-theme="smartisan-dark"\] \.mobile-delete-note:hover\s*\{[^}]*border-color:\s*#5c575c;[^}]*background:\s*linear-gradient\(#454045,\s*#343034\);/s,
+    /\.app-layout\[data-theme="smartisan-dark"\] \.share-trigger\[aria-expanded="true"\],[\s\S]*\.app-layout\[data-theme="smartisan-dark"\] \.mobile-delete-note:hover,[\s\S]*\.app-layout\[data-theme="smartisan-dark"\] \.desktop-share-preview-actions button:hover:not\(:disabled\),[\s\S]*\.app-layout\[data-theme="smartisan-dark"\] \.desktop-share-preview-actions button:focus-visible\s*\{[^}]*border-color:\s*#5c575c;[^}]*background:\s*linear-gradient\(#454045,\s*#343034\);/s,
+  );
+  assert.match(
+    styles,
+    /\.app-layout\[data-theme="smartisan-dark"\] \.desktop-share-preview-actions button:focus-visible\s*\{[^}]*outline:\s*2px solid rgba\(201,\s*154,\s*30,\s*0\.35\);[^}]*outline-offset:\s*2px;/s,
+  );
+  assert.match(
+    styles,
+    /\.app-layout\[data-theme="smartisan-dark"\] \.desktop-share-preview-actions button:active:not\(:disabled\)\s*\{[^}]*transform:\s*translateY\(1px\);[^}]*inset 0 2px 3px rgba\(0,\s*0,\s*0,\s*0\.42\),/s,
+  );
+  assert.match(
+    styles,
+    /\.app-layout\[data-theme="smartisan-dark"\] \.desktop-share-preview-actions button:disabled\s*\{[^}]*color:\s*#777477;[^}]*opacity:\s*0\.48;/s,
+  );
+  assert.match(
+    styles,
+    /\.app-layout\[data-theme="smartisan-dark"\] \.category-row-icon\s*\{[^}]*filter:\s*grayscale\(1\) brightness\(3\);[^}]*opacity:\s*0\.78;/s,
   );
   assert.match(
     styles,
