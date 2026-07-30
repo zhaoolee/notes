@@ -125,7 +125,7 @@ async function postJson(
   });
 }
 
-test("管理员创建用户且普通用户云工作区严格隔离", async (context) => {
+test("管理员可使用便签服务、创建用户且各账号云工作区严格隔离", async (context) => {
   const port = await getUnusedPort();
   const dataDir = await mkdtemp(path.join(tmpdir(), "notes-auth-data-"));
   const imageDir = await mkdtemp(path.join(tmpdir(), "notes-auth-images-"));
@@ -188,6 +188,55 @@ test("管理员创建用户且普通用户云工作区严格隔离", async (cont
     assert.match(adminSetCookie, /SameSite=Lax/i);
     assert.match(adminSetCookie, /Max-Age=2592000/i);
     const adminCookie = getCookie(adminLogin);
+
+    const adminInitialWorkspace = await fetch(`${baseUrl}/api/workspace`, {
+      headers: { Cookie: adminCookie },
+    });
+    assert.equal(adminInitialWorkspace.status, 200);
+    assert.deepEqual(await adminInitialWorkspace.json(), {
+      updatedAt: null,
+      workspace: null,
+    });
+
+    const adminWorkspace = createWorkspace("admin-private", 500);
+    const adminSave = await fetch(`${baseUrl}/api/workspace`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: adminCookie,
+      },
+      body: JSON.stringify({ workspace: adminWorkspace }),
+    });
+    assert.equal(adminSave.status, 200);
+
+    const adminNotesLogin = await postJson(baseUrl, "/api/auth/login", {
+      password: "feedback-admin-password",
+      remember: false,
+      username: "FEEDBACK-ADMIN",
+    });
+    assert.equal(adminNotesLogin.status, 200);
+    assert.deepEqual(
+      ((await adminNotesLogin.clone().json()) as {
+        user: { id: string; role: string; username: string };
+      }).user,
+      {
+        id: "superadmin",
+        role: "superadmin",
+        username: "feedback-admin",
+      },
+    );
+    const adminNotesCookie = getCookie(adminNotesLogin);
+    const adminWorkspaceRead = await fetch(`${baseUrl}/api/workspace`, {
+      headers: { Cookie: adminNotesCookie },
+    });
+    assert.equal(adminWorkspaceRead.status, 200);
+    const storedAdminWorkspace = (await adminWorkspaceRead.json()) as {
+      workspace: NoteWorkspace;
+    };
+    assert.equal(
+      storedAdminWorkspace.workspace.notes[0].markdown,
+      "# admin-private",
+    );
 
     const aliceResponse = await postJson(
       baseUrl,
@@ -433,6 +482,7 @@ test("管理员创建用户且普通用户云工作区严格隔离", async (cont
     assert.doesNotMatch(databaseText, /feedback-admin-password/);
     assert.match(databaseText, /alice-private/);
     assert.match(databaseText, /bob-private/);
+    assert.match(databaseText, /admin-private/);
   } catch (error) {
     throw new Error(
       [

@@ -5,6 +5,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ChangePasswordDialog } from "../../src/components/ChangePasswordDialog.js";
 import { LoginDialog } from "../../src/components/LoginDialog.js";
+import { canUseCloudWorkspace } from "../../src/lib/auth.js";
 
 test("首页账号密码弹窗支持浏览器密码管理与记住登录", () => {
   const html = renderToStaticMarkup(
@@ -66,6 +67,26 @@ test("普通用户修改密码表单使用当前密码与新密码语义", () =>
   assert.match(html, /其他设备需要使用新密码重新登录/);
 });
 
+test("普通用户和 superadmin 都拥有云便签能力", () => {
+  assert.equal(canUseCloudWorkspace(null), false);
+  assert.equal(
+    canUseCloudWorkspace({
+      id: "feedback-user",
+      role: "user",
+      username: "feedback",
+    }),
+    true,
+  );
+  assert.equal(
+    canUseCloudWorkspace({
+      id: "superadmin",
+      role: "superadmin",
+      username: "admin",
+    }),
+    true,
+  );
+});
+
 test("superadmin 路由、用户管理和首页云同步入口保持连通", () => {
   const mainSource = readFileSync("src/main.tsx", "utf8");
   const appSource = readFileSync("src/App.tsx", "utf8");
@@ -98,6 +119,11 @@ test("superadmin 路由、用户管理和首页云同步入口保持连通", () 
   assert.match(appSource, /saveCloudWorkspace\(workspace\)/);
   assert.match(appSource, /CLOUD_POLL_INTERVAL_MS = 15_000/);
   assert.match(appSource, /persistNoteWorkspace\(workspace\)/);
+  assert.match(appSource, /canUseCloudWorkspace\(session\)/);
+  assert.doesNotMatch(
+    appSource,
+    /user\.role === "superadmin"\)\s*\{\s*window\.location\.assign\("\/superadmin"\)/,
+  );
   assert.match(adminSource, /创建用户并生成密码/);
   assert.match(adminSource, /支持用户名或邮箱/);
   assert.match(adminSource, /maxLength=\{254\}/);

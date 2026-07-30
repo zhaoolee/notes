@@ -18,6 +18,7 @@ import {
   THEME_STORAGE_KEY,
 } from "./lib/app-state";
 import {
+  canUseCloudWorkspace,
   changeUserPassword,
   getAuthSession,
   getCloudWorkspace,
@@ -226,7 +227,7 @@ export default function App() {
           return;
         }
 
-        if (session?.role === "user") {
+        if (canUseCloudWorkspace(session)) {
           setCloudSyncState("syncing");
           const cloud = await getCloudWorkspace();
 
@@ -285,7 +286,7 @@ export default function App() {
       version: 1,
     };
 
-    if (authUser?.role !== "user") {
+    if (!canUseCloudWorkspace(authUser)) {
       persistNoteWorkspace(workspace);
       setCloudSyncState("local");
       return;
@@ -329,7 +330,7 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    if (authUser?.role !== "user") {
+    if (!canUseCloudWorkspace(authUser)) {
       return;
     }
 
@@ -593,11 +594,6 @@ export default function App() {
   }, [isCategorySidebarOpen]);
 
   async function handleUserAuthenticated(user: AuthUser) {
-    if (user.role === "superadmin") {
-      window.location.assign("/superadmin");
-      return;
-    }
-
     setCloudSyncState("syncing");
     setCloudSyncError("");
     const anonymousWorkspace = getCurrentWorkspace();
@@ -633,7 +629,7 @@ export default function App() {
 
   async function handleLogout() {
     if (
-      authUser?.role === "user" &&
+      canUseCloudWorkspace(authUser) &&
       cloudHydratedUserIdRef.current === authUser.id
     ) {
       if (cloudSaveTimeoutRef.current !== null) {
@@ -871,13 +867,12 @@ export default function App() {
           <div className="account-menu-summary">
             <strong title={authUser.username}>{authUser.username}</strong>
             <span>
-              {authUser.role === "superadmin"
-                ? "管理员会话"
-                : cloudSyncState === "syncing"
-                  ? "正在同步云端..."
-                  : cloudSyncState === "failed"
-                    ? "云端同步异常"
-                    : "云端已同步"}
+              {authUser.role === "superadmin" ? "管理员 · " : ""}
+              {cloudSyncState === "syncing"
+                ? "正在同步云端..."
+                : cloudSyncState === "failed"
+                  ? "云端同步异常"
+                  : "云端已同步"}
             </span>
           </div>
           {cloudSyncError ? <p role="alert">{cloudSyncError}</p> : null}
@@ -1180,14 +1175,14 @@ export default function App() {
                     authUsername={authUser?.username}
                     canChangePassword={authUser?.role === "user"}
                     cloudStatusLabel={
-                      authUser?.role === "user"
+                      canUseCloudWorkspace(authUser)
                         ? cloudSyncState === "syncing"
                           ? "正在同步云端"
                           : cloudSyncState === "failed"
                             ? "云端同步异常"
-                            : "便签已保存到云端"
-                        : authUser?.role === "superadmin"
-                          ? "管理员会话"
+                            : authUser.role === "superadmin"
+                              ? "管理员便签已保存到云端"
+                              : "便签已保存到云端"
                           : "数据仅保存在当前浏览器"
                     }
                     selectedTheme={selectedTheme}

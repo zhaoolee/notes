@@ -402,6 +402,23 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
       adminLoginResponse.headers.get("set-cookie")?.split(";")[0] || "";
     assert.ok(adminCookie);
 
+    const adminWechatResponse = await fetch(`${baseUrl}/api/wechat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: adminCookie,
+      },
+      body: JSON.stringify({
+        markdown: `![管理员图片](${baseUrl}${imported.path})`,
+      }),
+    });
+    assert.equal(adminWechatResponse.status, 200);
+    const adminWechat =
+      (await adminWechatResponse.json()) as WechatPreparation;
+    assert.equal(adminWechat.anonymousQuota, null);
+    assert.equal(qiniuUploadCount, 2);
+    assert.doesNotMatch(qiniuUploadBodies[1], /temporary/);
+
     const accountResponse = await fetch(`${baseUrl}/api/superadmin/users`, {
       method: "POST",
       headers: {
@@ -442,16 +459,16 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     const registeredWechat =
       (await registeredWechatResponse.json()) as WechatPreparation;
     assert.equal(registeredWechat.anonymousQuota, null);
-    assert.equal(qiniuUploadCount, 2);
+    assert.equal(qiniuUploadCount, 3);
     assert.match(
       registeredWechat.markdown,
       new RegExp(
         `https://cdn\\.example\\.test/wechat-test/${imported.hash}\\.png`,
       ),
     );
-    assert.doesNotMatch(qiniuUploadBodies[1], /temporary/);
+    assert.doesNotMatch(qiniuUploadBodies[2], /temporary/);
     const registeredTokenMatch =
-      /name="token"\r\n\r\n([^\r\n]+)/.exec(qiniuUploadBodies[1]);
+      /name="token"\r\n\r\n([^\r\n]+)/.exec(qiniuUploadBodies[2]);
     assert.ok(registeredTokenMatch);
     const registeredPolicy = JSON.parse(
       Buffer.from(

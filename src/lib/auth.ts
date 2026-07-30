@@ -8,6 +8,12 @@ export interface AuthUser {
   username: string;
 }
 
+export function canUseCloudWorkspace(
+  user: AuthUser | null,
+): user is AuthUser {
+  return user !== null;
+}
+
 export interface AccountSummary {
   createdAt: number;
   id: string;

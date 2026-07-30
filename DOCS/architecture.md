@@ -44,10 +44,10 @@ MEMORY/                  经测试确认的长期事实
 `notes.markdownDraft` 单草稿并迁移，已有 `notes.workspace.v1` 也会自动补齐新增
 字段。侧栏只显示更新时间和从 Markdown 自动提取的标题或第一句话。
 
-匿名状态继续以 `notes.workspace.v1` 写入浏览器 `localStorage`。普通用户登录后，
-服务端以账号 ID 为边界保存独立工作区，前端在变更后延迟 650ms 保存，并每 15 秒
-检查一次较新的服务端版本以支持跨端同步。账号、会话、管理员后台、登录后首次
-迁移和冲突边界详见 `DOCS/auth-and-sync.md`。
+匿名状态继续以 `notes.workspace.v1` 写入浏览器 `localStorage`。普通用户或超级
+管理员登录后，服务端以账号 ID 为边界保存独立工作区，前端在变更后延迟 650ms
+保存，并每 15 秒检查一次较新的服务端版本以支持跨端同步。账号、会话、管理员
+后台、登录后首次迁移和冲突边界详见 `DOCS/auth-and-sync.md`。
 
 官方网页版前 20 条便签作为隔离测试工作区保存在 `src/fixtures/smartisan-web-test-workspace.ts`。访问 `?testData=smartisan-web-20` 使用独立的 `notes.workspace.smartisan-web-20.v1` 存储键；再加 `&resetTestData=1` 可强制恢复测试夹具，不会覆盖用户的正常工作区。重置参数是一次性指令：首次恢复夹具后会立即从地址栏移除，后续点击刷新或浏览器重载会读取已持久化的测试工作区，不会再次覆盖新建便签。桌面网页版像素和交互基线见 `DOCS/desktop-web-parity.md`。
 
@@ -68,7 +68,7 @@ Vite，普通编辑仍可使用，但 `/api/export`、`/api/archive` 和图片�
 
 - `GET /api/health`：健康检查
 - `GET /api/auth/session`：读取当前签名会话
-- `POST /api/auth/login`：普通用户账号密码登录
+- `POST /api/auth/login`：普通用户或超级管理员从便签首页登录
 - `POST /api/auth/password`：普通用户校验当前密码后修改自己的密码
 - `POST /api/auth/logout`：清除当前会话
 - `POST /api/superadmin/login`：使用服务端环境变量登录管理员后台
@@ -76,8 +76,8 @@ Vite，普通编辑仍可使用，但 `/api/export`、`/api/archive` 和图片�
 - `POST /api/superadmin/users`：管理员创建普通用户并生成一次性显示的初始密码
 - `POST /api/superadmin/users/:userId/reset-password`：管理员重置普通用户密码
   并一次性取得新临时密码
-- `GET /api/workspace`：读取当前普通用户的云端工作区
-- `PUT /api/workspace`：保存当前普通用户的云端工作区
+- `GET /api/workspace`：读取当前登录账号的云端工作区
+- `PUT /api/workspace`：保存当前登录账号的云端工作区
 - `POST /api/images/import`：上传图片或从 URL 下载图片
 - `POST /api/export`：将 Markdown 导出为 PNG
 - `POST /api/archive`：生成包含 Markdown、HTML、图片和字体的 ZIP
@@ -172,9 +172,9 @@ PNG 导出、离线归档和公众号复制共同复用。顶层图片装裱容�
 图片地址时按源 URL 长度降序处理，避免带查询参数的地址被较短基础地址提前部分
 替换。
 
-普通用户登录后调用 `/api/wechat` 不受匿名额度限制，七牛对象沿用长期存储前缀。
-匿名用户共享每天 500 张的上传额度，服务端按北京时间日期在 `storage/data` 中
-原子计数，并在北京时间 0 点切换日期键；匿名对象使用
+普通用户或超级管理员登录后调用 `/api/wechat` 不受匿名额度限制，七牛对象沿用
+长期存储前缀。匿名用户共享每天 500 张的上传额度，服务端按北京时间日期在
+`storage/data` 中原子计数，并在北京时间 0 点切换日期键；匿名对象使用
 `<QINIU_PREFIX>/temporary/<北京时间日期>/` 前缀，上传凭证写入
 `deleteAfterDays: 1`。超额返回 HTTP 429，并提示联系
 `zhaoolee@gmail.com` 注册。额度可用 `ANONYMOUS_DAILY_UPLOAD_LIMIT` 调整。

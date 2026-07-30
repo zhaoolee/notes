@@ -341,7 +341,7 @@ async function requireAuthenticatedUser(
       error:
         role === "superadmin"
           ? "当前账号没有管理员权限。"
-          : "管理员账号不用于普通便签云同步。",
+          : "管理员密码由服务端环境变量维护，不能在便签页面修改。",
     });
     return null;
   }
@@ -374,6 +374,44 @@ function resolveLoginCredentials(body: LoginRequestBody | undefined): {
     remember: body?.remember === true,
     username,
   };
+}
+
+function authenticateSuperAdmin(
+  credentials: ReturnType<typeof resolveLoginCredentials>,
+): AuthUser | null {
+  const configured = getSuperAdminCredentials();
+
+  if (
+    !credentials ||
+    !configured ||
+    !safeStringEqual(
+      normalizeUsername(credentials.username),
+      normalizeUsername(configured.username),
+    ) ||
+    !safeStringEqual(credentials.password, configured.password)
+  ) {
+    return null;
+  }
+
+  return {
+    id: "superadmin",
+    role: "superadmin",
+    username: configured.username,
+  };
+}
+
+async function requireNoteServiceUser(
+  request: Request,
+  response: Response,
+): Promise<AuthSession | null> {
+  const user = await getAuthenticatedUser(request);
+
+  if (!user) {
+    response.status(401).json({ error: "请先登录账号。" });
+    return null;
+  }
+
+  return user;
 }
 
 function normalizeRenderableImageUrls(
@@ -2156,27 +2194,32 @@ app.post(
       return;
     }
 
-    const account = await notesDataStore.authenticateUser(
-      credentials.username,
-      credentials.password,
-    );
+    const superAdmin = authenticateSuperAdmin(credentials);
+    const account = superAdmin
+      ? null
+      : await notesDataStore.authenticateUser(
+          credentials.username,
+          credentials.password,
+        );
 
-    if (!account) {
+    if (!superAdmin && !account) {
       response.status(401).json({ error: "用户名、邮箱或密码错误。" });
       return;
     }
 
-    const user: AuthUser = {
-      id: account.id,
-      role: "user",
-      username: account.username,
-    };
+    const user: AuthUser =
+      superAdmin ??
+      ({
+        id: account!.id,
+        role: "user",
+        username: account!.username,
+      } satisfies AuthUser);
     setAuthenticatedSession(
       request,
       response,
       user,
       credentials.remember,
-      account.passwordVersion,
+      account?.passwordVersion,
     );
     response.json({ user });
   },
@@ -2253,31 +2296,20 @@ app.post(
     }
 
     const credentials = resolveLoginCredentials(request.body);
-    const authenticated =
-      credentials &&
-      safeStringEqual(
-        normalizeUsername(credentials.username),
-        normalizeUsername(configured.username),
-      ) &&
-      safeStringEqual(credentials.password, configured.password);
+    const user = authenticateSuperAdmin(credentials);
 
-    if (!authenticated) {
+    if (!user) {
       response.status(credentials ? 401 : 400).json({
         error: credentials ? "管理员用户名或密码错误。" : "请输入用户名和密码。",
       });
       return;
     }
 
-    const user: AuthUser = {
-      id: "superadmin",
-      role: "superadmin",
-      username: configured.username,
-    };
     setAuthenticatedSession(
       request,
       response,
       user,
-      credentials.remember,
+      credentials?.remember === true,
     );
     response.json({ user });
   },
@@ -2369,7 +2401,7 @@ app.post(
 );
 
 app.get("/api/workspace", async (request: Request, response: Response) => {
-  const user = await requireAuthenticatedUser(request, response, "user");
+  const user = await requireNoteServiceUser(request, response);
 
   if (!user) {
     return;
@@ -2390,7 +2422,7 @@ app.put(
     request: Request<Record<string, never>, unknown, WorkspaceRequestBody>,
     response: Response,
   ) => {
-    const user = await requireAuthenticatedUser(request, response, "user");
+    const user = await requireNoteServiceUser(request, response);
 
     if (!user) {
       return;
