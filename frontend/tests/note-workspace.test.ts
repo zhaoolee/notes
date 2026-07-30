@@ -376,6 +376,10 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   const editorSource = readFileSync("src/components/EditorPanel.tsx", "utf8");
   const styles = readFileSync("src/styles.css", "utf8");
 
+  assert.match(
+    appSource,
+    /useLayoutEffect\(\(\) => \{[\s\S]*window\.visualViewport;[\s\S]*--mobile-visual-viewport-top[\s\S]*--mobile-visual-viewport-left[\s\S]*--mobile-visual-viewport-width[\s\S]*--mobile-visual-viewport-height[\s\S]*viewport\?\.addEventListener\("resize", syncVisualViewport\);[\s\S]*viewport\?\.addEventListener\("scroll", syncVisualViewport\);[\s\S]*window\.addEventListener\("pageshow", syncVisualViewport\);/s,
+  );
   assert.match(appSource, /type MobileWorkspaceView = "notes" \| "editor" \| "preview";/);
   assert.match(appSource, /data-mobile-view=\{mobileWorkspaceView\}/);
   assert.match(appSource, /className="mobile-workspace-tabs"/);
@@ -385,6 +389,10 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   assert.match(
     styles,
     /@media \(max-width: 640px\)[\s\S]*--topbar-height:\s*48px;/,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 640px\)[\s\S]*\.app-layout\s*\{[^}]*position:\s*fixed;[^}]*top:\s*var\(--mobile-visual-viewport-top,\s*0px\);[^}]*left:\s*var\(--mobile-visual-viewport-left,\s*0px\);[^}]*width:\s*var\(--mobile-visual-viewport-width,\s*100vw\);[^}]*max-width:\s*var\(--mobile-visual-viewport-width,\s*100vw\);[^}]*height:\s*var\(--mobile-visual-viewport-height,\s*100dvh\);[^}]*max-height:\s*var\(--mobile-visual-viewport-height,\s*100dvh\);[^}]*overflow:\s*hidden;/s,
   );
   assert.match(
     styles,

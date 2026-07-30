@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CategorySidebar } from "./components/CategorySidebar";
 import { ChangePasswordDialog } from "./components/ChangePasswordDialog";
 import { ConfirmDialog } from "./components/ConfirmDialog";
@@ -221,6 +221,63 @@ export default function App() {
   const mobileNoteCharacterCount = activeCategoryNote
     ? markdown.replace(/\s/g, "").length
     : 0;
+
+  useLayoutEffect(() => {
+    const rootStyle = document.documentElement.style;
+    const mobileQuery = window.matchMedia("(max-width: 640px)");
+    const viewport = window.visualViewport;
+    const propertyNames = [
+      "--mobile-visual-viewport-top",
+      "--mobile-visual-viewport-left",
+      "--mobile-visual-viewport-width",
+      "--mobile-visual-viewport-height",
+    ] as const;
+
+    const clearViewportProperties = () => {
+      for (const propertyName of propertyNames) {
+        rootStyle.removeProperty(propertyName);
+      }
+    };
+
+    const syncVisualViewport = () => {
+      if (!mobileQuery.matches) {
+        clearViewportProperties();
+        return;
+      }
+
+      const offsetTop = Math.max(0, viewport?.offsetTop ?? 0);
+      const offsetLeft = Math.max(0, viewport?.offsetLeft ?? 0);
+      const width = Math.max(1, viewport?.width ?? window.innerWidth);
+      const height = Math.max(1, viewport?.height ?? window.innerHeight);
+
+      rootStyle.setProperty("--mobile-visual-viewport-top", `${offsetTop}px`);
+      rootStyle.setProperty("--mobile-visual-viewport-left", `${offsetLeft}px`);
+      rootStyle.setProperty("--mobile-visual-viewport-width", `${width}px`);
+      rootStyle.setProperty("--mobile-visual-viewport-height", `${height}px`);
+
+      if (window.scrollX !== 0 || window.scrollY !== 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+
+    syncVisualViewport();
+    mobileQuery.addEventListener("change", syncVisualViewport);
+    viewport?.addEventListener("resize", syncVisualViewport);
+    viewport?.addEventListener("scroll", syncVisualViewport);
+    window.addEventListener("orientationchange", syncVisualViewport);
+    window.addEventListener("pageshow", syncVisualViewport);
+    window.addEventListener("resize", syncVisualViewport);
+
+    return () => {
+      mobileQuery.removeEventListener("change", syncVisualViewport);
+      viewport?.removeEventListener("resize", syncVisualViewport);
+      viewport?.removeEventListener("scroll", syncVisualViewport);
+      window.removeEventListener("orientationchange", syncVisualViewport);
+      window.removeEventListener("pageshow", syncVisualViewport);
+      window.removeEventListener("resize", syncVisualViewport);
+      clearViewportProperties();
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
