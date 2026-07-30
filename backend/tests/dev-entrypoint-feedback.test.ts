@@ -45,13 +45,22 @@ test("生产反向代理保留外层 HTTPS 协议", async () => {
   );
 });
 
-test("生产后端镜像包含归档 HTML 背景资源", async () => {
-  const backendDockerfile = await readFile("Dockerfile.backend", "utf8");
+test("生产镜像包含归档 HTML 的背景和默认页脚 Logo", async () => {
+  const [backendDockerfile, appDockerfile] = await Promise.all([
+    readFile("Dockerfile.backend", "utf8"),
+    readFile("Dockerfile.app", "utf8"),
+  ]);
 
-  assert.match(
-    backendDockerfile,
-    /COPY public\/bg\.jpg \.\/public\/bg\.jpg/,
-  );
+  for (const dockerfile of [backendDockerfile, appDockerfile]) {
+    assert.match(
+      dockerfile,
+      /COPY public\/bg\.jpg \.\/public\/bg\.jpg/,
+    );
+    assert.match(
+      dockerfile,
+      /COPY public\/smartisan\/web\/smartisan_hammer_footer\.png \.\/public\/smartisan\/web\/smartisan_hammer_footer\.png/,
+    );
+  }
 });
 
 test("生产站点通过 HTTPS 路径代理七牛图片", async () => {

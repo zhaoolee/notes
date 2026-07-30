@@ -45,6 +45,8 @@ RUN npm ci --omit=dev
 COPY --from=frontend-build /app/dist ./dist
 COPY --from=server-build /app/dist-server ./dist-server
 COPY --from=server-build /app/src/assets/fonts ./src/assets/fonts
+COPY public/bg.jpg ./public/bg.jpg
+COPY public/smartisan/web/smartisan_hammer_footer.png ./public/smartisan/web/smartisan_hammer_footer.png
 
 ENV NODE_ENV=production
 ENV PORT=3001
