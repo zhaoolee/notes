@@ -18,6 +18,13 @@ import {
   type EditorTextBlock,
 } from "../lib/editor-images";
 import {
+  EDITOR_EMPTY_LINE_MARKER,
+  editorOffsetToSourceOffset,
+  sourceOffsetToEditorOffset,
+  stripEditorDisplayMarkers,
+  toEditorDisplayText,
+} from "../lib/editor-text";
+import {
   applyMarkdownShortcut,
   continueMarkdownBlock,
   type MarkdownEditResult,
@@ -290,9 +297,17 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
       return;
     }
 
+    const displayText = active.textarea.value;
+    const displayStart = active.textarea.selectionStart ?? 0;
+    const displayEnd = active.textarea.selectionEnd ?? displayStart;
+
     selectionRef.current = {
-      start: active.block.start + (active.textarea.selectionStart ?? 0),
-      end: active.block.start + (active.textarea.selectionEnd ?? 0),
+      start:
+        active.block.start +
+        editorOffsetToSourceOffset(displayText, displayStart),
+      end:
+        active.block.start +
+        editorOffsetToSourceOffset(displayText, displayEnd),
     };
   }
 
@@ -348,9 +363,22 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     window.requestAnimationFrame(() => {
       const textarea = textareaRefs.current.get(targetBlockIndex);
 
-      textarea?.focus();
-      textarea?.setSelectionRange(localStart, localEnd);
-      textarea?.scrollIntoView({ block: "nearest" });
+      if (!textarea) {
+        return;
+      }
+
+      const displayStart = sourceOffsetToEditorOffset(
+        targetBlock.text,
+        localStart,
+      );
+      const displayEnd = sourceOffsetToEditorOffset(
+        targetBlock.text,
+        localEnd,
+      );
+
+      textarea.focus();
+      textarea.setSelectionRange(displayStart, displayEnd);
+      textarea.scrollIntoView({ block: "nearest" });
     });
   }
 
@@ -408,8 +436,17 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     block: EditorTextBlock,
     blockIndex: number,
   ): void {
-    const selectionStart = event.currentTarget.selectionStart;
-    const selectionEnd = event.currentTarget.selectionEnd;
+    const displayText = event.currentTarget.value;
+    const displaySelectionStart = event.currentTarget.selectionStart;
+    const displaySelectionEnd = event.currentTarget.selectionEnd;
+    const selectionStart = editorOffsetToSourceOffset(
+      displayText,
+      displaySelectionStart,
+    );
+    const selectionEnd = editorOffsetToSourceOffset(
+      displayText,
+      displaySelectionEnd,
+    );
     const previousBlock = editorContent[blockIndex - 1];
     const nextBlock = editorContent[blockIndex + 1];
 
@@ -432,6 +469,57 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     ) {
       event.preventDefault();
       removeAdjacentImage(nextBlock.markerStart, nextBlock.markerEnd);
+      return;
+    }
+
+    if (
+      selectionStart === selectionEnd &&
+      event.key === "Backspace" &&
+      displayText[displaySelectionStart - 1] === EDITOR_EMPTY_LINE_MARKER
+    ) {
+      event.preventDefault();
+
+      if (selectionStart > 0) {
+        const nextMarkdown = `${markdown.slice(
+          0,
+          block.start + selectionStart - 1,
+        )}${markdown.slice(block.start + selectionStart)}`;
+
+        onMarkdownChange(nextMarkdown);
+        selectionRef.current = {
+          start: block.start + selectionStart - 1,
+          end: block.start + selectionStart - 1,
+        };
+        focusGlobalSelection(
+          nextMarkdown,
+          block.start + selectionStart - 1,
+        );
+      }
+
+      return;
+    }
+
+    if (
+      selectionStart === selectionEnd &&
+      event.key === "Delete" &&
+      displayText[displaySelectionStart] === EDITOR_EMPTY_LINE_MARKER
+    ) {
+      event.preventDefault();
+
+      if (selectionStart < block.text.length) {
+        const nextMarkdown = `${markdown.slice(
+          0,
+          block.start + selectionStart,
+        )}${markdown.slice(block.start + selectionStart + 1)}`;
+
+        onMarkdownChange(nextMarkdown);
+        selectionRef.current = {
+          start: block.start + selectionStart,
+          end: block.start + selectionStart,
+        };
+        focusGlobalSelection(nextMarkdown, block.start + selectionStart);
+      }
+
       return;
     }
 
@@ -543,20 +631,95 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     event: ChangeEvent<HTMLTextAreaElement>,
     block: EditorTextBlock,
   ): void {
-    const nextValue = event.target.value;
+    const displayValue = event.target.value;
+    const displaySelectionStart =
+      event.target.selectionStart ?? displayValue.length;
+    const displaySelectionEnd =
+      event.target.selectionEnd ?? displaySelectionStart;
+    const nextValue = stripEditorDisplayMarkers(displayValue);
     const nextMarkdown = `${markdown.slice(0, block.start)}${nextValue}${markdown.slice(
       block.end,
     )}`;
     const selectionStart =
-      block.start + (event.target.selectionStart ?? nextValue.length);
+      block.start +
+      editorOffsetToSourceOffset(displayValue, displaySelectionStart);
     const selectionEnd =
-      block.start + (event.target.selectionEnd ?? nextValue.length);
+      block.start +
+      editorOffsetToSourceOffset(displayValue, displaySelectionEnd);
 
     selectionRef.current = {
       end: selectionEnd,
       start: selectionStart,
     };
     onMarkdownChange(nextMarkdown);
+
+    if (
+      nextMarkdown === markdown &&
+      displayValue !== toEditorDisplayText(block.text)
+    ) {
+      event.target.value = toEditorDisplayText(block.text);
+      event.target.setSelectionRange(
+        sourceOffsetToEditorOffset(block.text, selectionStart - block.start),
+        sourceOffsetToEditorOffset(block.text, selectionEnd - block.start),
+      );
+    }
+  }
+
+  function handleTextBlockCopy(
+    event: ClipboardEvent<HTMLTextAreaElement>,
+  ): void {
+    const selectedDisplayText = event.currentTarget.value.slice(
+      event.currentTarget.selectionStart,
+      event.currentTarget.selectionEnd,
+    );
+
+    if (!selectedDisplayText.includes(EDITOR_EMPTY_LINE_MARKER)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.clipboardData.setData(
+      "text/plain",
+      stripEditorDisplayMarkers(selectedDisplayText),
+    );
+  }
+
+  function handleTextBlockCut(
+    event: ClipboardEvent<HTMLTextAreaElement>,
+    block: EditorTextBlock,
+  ): void {
+    const displayText = event.currentTarget.value;
+    const displayStart = event.currentTarget.selectionStart;
+    const displayEnd = event.currentTarget.selectionEnd;
+    const selectedDisplayText = displayText.slice(displayStart, displayEnd);
+
+    if (!selectedDisplayText.includes(EDITOR_EMPTY_LINE_MARKER)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.clipboardData.setData(
+      "text/plain",
+      stripEditorDisplayMarkers(selectedDisplayText),
+    );
+
+    const localStart = editorOffsetToSourceOffset(displayText, displayStart);
+    const localEnd = editorOffsetToSourceOffset(displayText, displayEnd);
+
+    if (localStart === localEnd) {
+      return;
+    }
+
+    const nextMarkdown = `${markdown.slice(0, block.start + localStart)}${markdown.slice(
+      block.start + localEnd,
+    )}`;
+
+    onMarkdownChange(nextMarkdown);
+    selectionRef.current = {
+      start: block.start + localStart,
+      end: block.start + localStart,
+    };
+    focusGlobalSelection(nextMarkdown, block.start + localStart);
   }
 
   async function importFromDrop(event: DragEvent<HTMLElement>): Promise<void> {
@@ -668,7 +831,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
                 autoCapitalize="sentences"
                 inputMode="text"
                 enterKeyHint="enter"
-                value={block.text}
+                value={toEditorDisplayText(block.text)}
                 onChange={(event) => handleTextBlockChange(event, block)}
                 onSelect={syncSelection}
                 onClick={syncSelection}
@@ -694,6 +857,8 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
                 onPaste={(event) => {
                   void importFromClipboard(event);
                 }}
+                onCopy={handleTextBlockCopy}
+                onCut={(event) => handleTextBlockCut(event, block)}
                 spellCheck={false}
               />
             ) : (

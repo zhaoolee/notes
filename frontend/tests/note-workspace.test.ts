@@ -546,7 +546,11 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     editorSource,
-    /start:\s*active\.block\.start \+ \(active\.textarea\.selectionStart[\s\S]*end:\s*active\.block\.start \+ \(active\.textarea\.selectionEnd/s,
+    /start:[\s\S]*active\.block\.start \+[\s\S]*editorOffsetToSourceOffset\(displayText, displayStart\)[\s\S]*end:[\s\S]*active\.block\.start \+[\s\S]*editorOffsetToSourceOffset\(displayText, displayEnd\)/s,
+  );
+  assert.match(
+    editorSource,
+    /value=\{toEditorDisplayText\(block\.text\)\}[\s\S]*onCopy=\{handleTextBlockCopy\}[\s\S]*onCut=\{\(event\) => handleTextBlockCut\(event, block\)\}/s,
   );
   assert.match(
     styles,
