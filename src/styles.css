@@ -2687,6 +2687,23 @@ body,
   box-shadow: none;
 }
 
+.markdown-editor-caret-mirror,
+.markdown-editor-fixed-caret {
+  display: none;
+}
+
+@keyframes mobile-editor-caret-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
 .editor-image-block {
   position: relative;
   z-index: 1;
@@ -4940,6 +4957,43 @@ body,
     color: #5c3c2ad1;
     caret-color: var(--editor-caret-color);
     font-weight: 400;
+  }
+
+  .markdown-editor.uses-fixed-mobile-caret {
+    caret-color: transparent;
+  }
+
+  .markdown-editor-caret-mirror {
+    position: absolute;
+    z-index: -1;
+    display: block;
+    box-sizing: border-box;
+    overflow: hidden;
+    border: 0;
+    background: transparent;
+    color: transparent;
+    overflow-wrap: break-word;
+    pointer-events: none;
+    visibility: hidden;
+    white-space: pre-wrap;
+  }
+
+  .markdown-editor-fixed-caret {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 3;
+    width: 2px;
+    height: 22px;
+    border-radius: 1px;
+    background: var(--editor-caret-color);
+    pointer-events: none;
+    transform: translate3d(-9999px, -9999px, 0);
+  }
+
+  .markdown-editor-fixed-caret.is-visible {
+    display: block;
+    animation: mobile-editor-caret-blink 1s steps(1, end) infinite;
   }
 
   .editor-text-segment:last-child {

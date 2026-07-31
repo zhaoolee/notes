@@ -524,18 +524,23 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
     styles,
     /\.mobile-workspace-tabs\s*\{[^}]*height:\s*50px;/s,
   );
+  assert.match(
+    editorSource,
+    /caretMirrorTextRef[\s\S]*caretMirrorAnchorRef[\s\S]*mobileCaretRef[\s\S]*scheduleMobileCaretSync/,
+  );
+  assert.match(
+    editorSource,
+    /textarea\.selectionStart !== textarea\.selectionEnd[\s\S]*hideMobileCaret\(\);[\s\S]*uses-fixed-mobile-caret/,
+  );
+  assert.match(
+    editorSource,
+    /onCompositionStart=\{\(\) => \{[\s\S]*isComposingRef\.current = true;[\s\S]*hideMobileCaret\(\);[\s\S]*onCompositionEnd=\{\(\) => \{[\s\S]*isComposingRef\.current = false;[\s\S]*scheduleMobileCaretSync\(\);/,
+  );
   assert.doesNotMatch(
     editorSource,
-    /markdown-editor-caret|markdown-editor-selection-handle|scheduleCustomCaretSync|updateCustomCaret|hideEditorIndicators/,
+    /markdown-editor-selection-handle|selectionStartHandleRef|selectionEndHandleRef|EDITOR_EMPTY_LINE_MARKER|toEditorDisplayText/,
   );
-  assert.doesNotMatch(
-    styles,
-    /\.markdown-editor-caret|\.markdown-editor-selection-handle|caret-color:\s*transparent|mobile-editor-caret-blink/,
-  );
-  assert.doesNotMatch(
-    editorSource,
-    /caretMirrorTextRef|caretMirrorAnchorRef|customCaretRef|selectionStartHandleRef|selectionEndHandleRef/,
-  );
+  assert.doesNotMatch(styles, /\.markdown-editor-selection-handle/);
   assert.match(
     editorSource,
     /document\.addEventListener\("selectionchange", syncNativeSelectionChange\);[\s\S]*document\.removeEventListener\("selectionchange", syncNativeSelectionChange\);/s,
@@ -546,11 +551,11 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     editorSource,
-    /start:[\s\S]*active\.block\.start \+[\s\S]*editorOffsetToSourceOffset\(displayText, displayStart\)[\s\S]*end:[\s\S]*active\.block\.start \+[\s\S]*editorOffsetToSourceOffset\(displayText, displayEnd\)/s,
+    /start:\s*active\.block\.start \+ localStart,[\s\S]*end:\s*active\.block\.start \+ localEnd,/s,
   );
   assert.match(
     editorSource,
-    /value=\{toEditorDisplayText\(block\.text\)\}[\s\S]*onCopy=\{handleTextBlockCopy\}[\s\S]*onCut=\{\(event\) => handleTextBlockCut\(event, block\)\}/s,
+    /value=\{block\.text\}[\s\S]*className="markdown-editor-caret-mirror"[\s\S]*className="markdown-editor-fixed-caret"/s,
   );
   assert.match(
     styles,
@@ -558,7 +563,11 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     styles,
-    /@media \(max-width: 640px\)[\s\S]*--editor-line-height:\s*42px;[\s\S]*\.markdown-editor\s*\{[^}]*caret-color:\s*var\(--editor-caret-color\);/s,
+    /@media \(max-width: 640px\)[\s\S]*--editor-line-height:\s*42px;[\s\S]*\.markdown-editor\.uses-fixed-mobile-caret\s*\{[^}]*caret-color:\s*transparent;[^}]*\}[\s\S]*\.markdown-editor-fixed-caret\s*\{[^}]*height:\s*22px;[^}]*background:\s*var\(--editor-caret-color\);/s,
+  );
+  assert.match(
+    styles,
+    /\.markdown-editor-caret-mirror,\s*\.markdown-editor-fixed-caret\s*\{[^}]*display:\s*none;[^}]*\}[\s\S]*@media \(max-width: 640px\)[\s\S]*\.markdown-editor-caret-mirror\s*\{[^}]*visibility:\s*hidden;[^}]*white-space:\s*pre-wrap;/s,
   );
   assert.match(
     styles,

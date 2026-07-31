@@ -67,7 +67,7 @@ test("图片标记被拆成正文流内的独立块，并保留图片前后的�
   );
 });
 
-test("编辑器以内联图片块复刻锤子便签，并继续使用原生 textarea 光标", () => {
+test("编辑器以内联图片块复刻锤子便签，并保留原生 textarea 输入控件", () => {
   const editorSource = readFileSync("src/components/EditorPanel.tsx", "utf8");
   const styles = readFileSync("src/styles.css", "utf8");
 
