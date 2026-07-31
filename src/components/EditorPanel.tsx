@@ -320,6 +320,29 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     scheduleCustomCaretSync();
   }
 
+  useEffect(() => {
+    const syncNativeSelectionChange = (): void => {
+      const textarea = textareaRef.current;
+
+      if (!textarea || document.activeElement !== textarea) {
+        return;
+      }
+
+      selectionRef.current = {
+        start: textarea.selectionStart ?? textarea.value.length,
+        end: textarea.selectionEnd ?? textarea.value.length,
+      };
+      hideEditorIndicators();
+      scheduleCustomCaretSync();
+    };
+
+    document.addEventListener("selectionchange", syncNativeSelectionChange);
+
+    return () => {
+      document.removeEventListener("selectionchange", syncNativeSelectionChange);
+    };
+  }, [hideEditorIndicators, scheduleCustomCaretSync]);
+
   function commitMarkdownEdit(edit: MarkdownEditResult): void {
     const textarea = textareaRef.current;
 

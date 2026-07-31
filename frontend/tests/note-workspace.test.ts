@@ -525,6 +525,14 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
     /textarea\.selectionStart !== textarea\.selectionEnd[\s\S]*positionSelectionHandle\(\s*selectionStartHandle,[\s\S]*positionSelectionHandle\(\s*selectionEndHandle,/s,
   );
   assert.match(
+    editorSource,
+    /document\.addEventListener\("selectionchange", syncNativeSelectionChange\);[\s\S]*document\.removeEventListener\("selectionchange", syncNativeSelectionChange\);/s,
+  );
+  assert.match(
+    editorSource,
+    /const syncNativeSelectionChange = \(\): void => \{[\s\S]*document\.activeElement !== textarea[\s\S]*selectionRef\.current = \{[\s\S]*start:\s*textarea\.selectionStart[\s\S]*end:\s*textarea\.selectionEnd[\s\S]*hideEditorIndicators\(\);[\s\S]*scheduleCustomCaretSync\(\);/s,
+  );
+  assert.match(
     styles,
     /--editor-selection-bg:\s*rgba\(166,\s*139,\s*117,\s*0\.2\);[\s\S]*--editor-selection-handle:\s*#a68b75;/s,
   );
