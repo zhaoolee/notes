@@ -2569,6 +2569,8 @@ body,
   position: relative;
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   border: 0;
   border-radius: 0;
@@ -2584,7 +2586,8 @@ body,
   width: var(--editor-gutter-width);
   border-right: 1px solid #e8e2d7;
   background: url("/smartisan/web/edge_004e88bdf2.png") repeat;
-  background-position: 0 var(--editor-paper-scroll-y);
+  background-position:
+    0 calc(var(--editor-paper-scroll-y) + var(--editor-rule-offset-y));
   background-size: 5px var(--editor-line-height);
   pointer-events: none;
 }
@@ -2623,8 +2626,9 @@ body,
 .markdown-editor {
   position: relative;
   width: 100%;
-  height: 100%;
+  height: auto;
   min-height: 0;
+  flex: 1 1 auto;
   resize: none;
   font-family: var(--ui-font);
   font-weight: 400;
@@ -2657,6 +2661,57 @@ body,
 
 .markdown-editor:focus {
   box-shadow: none;
+}
+
+.editor-image-previews {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  height: 124px;
+  min-height: 124px;
+  padding: 10px 14px 10px calc(var(--editor-gutter-width) + 14px);
+  display: flex;
+  flex: 0 0 124px;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-top: 1px solid var(--note-list-divider);
+  background: var(--editor-paper-base);
+  scrollbar-width: thin;
+}
+
+.editor-image-preview {
+  position: relative;
+  width: 168px;
+  min-width: 168px;
+  height: 103px;
+  padding: 4px;
+  overflow: hidden;
+  border: 1px solid var(--note-image-frame);
+  border-radius: 5px;
+  background: var(--note-image-mat);
+  color: var(--muted);
+  box-shadow: 0 1px 4px var(--note-image-shadow);
+}
+
+.editor-image-preview img {
+  display: block;
+  width: 100%;
+  height: 76px;
+  border-radius: 2px;
+  object-fit: cover;
+}
+
+.editor-image-preview span {
+  display: block;
+  height: 20px;
+  padding: 2px 4px 0;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .markdown-quick-input {
@@ -3524,7 +3579,7 @@ body,
     --mobile-safe-area-left: env(safe-area-inset-left, 0px);
     --editor-line-height: 42px;
     --editor-font-size: 16px;
-    --editor-rule-offset-y: 0px;
+    --editor-rule-offset-y: -10px;
     --editor-rule-thickness: 0.6667px;
     --editor-paper-base: #fbf7ed;
     --editor-rule-line: #f4ebde;
@@ -4730,7 +4785,8 @@ body,
   }
 
   .markdown-editor-frame::before {
-    background-position: 0 var(--editor-paper-scroll-y);
+    background-position:
+      0 calc(var(--editor-paper-scroll-y) + var(--editor-rule-offset-y));
     background-size: 5px var(--editor-line-height);
   }
 
@@ -4777,7 +4833,7 @@ body,
             calc(var(--editor-line-height) - var(--editor-rule-thickness)),
           var(--editor-rule-line) var(--editor-line-height)
         )
-        0 0 / 100% var(--editor-line-height) repeat-y,
+        0 var(--editor-rule-offset-y) / 100% var(--editor-line-height) repeat-y,
       var(--editor-paper-base);
     background-attachment: local;
     color: #5c3c2ad1;
@@ -6181,7 +6237,8 @@ body,
             calc(var(--editor-line-height) - var(--editor-rule-thickness)),
           #282828 var(--editor-line-height)
         )
-        0 var(--editor-paper-scroll-y) / 100% var(--editor-line-height) repeat-y,
+        0 calc(var(--editor-paper-scroll-y) + var(--editor-rule-offset-y)) /
+          100% var(--editor-line-height) repeat-y,
       #161416;
   }
 
@@ -6196,7 +6253,7 @@ body,
             calc(var(--editor-line-height) - var(--editor-rule-thickness)),
           #282828 var(--editor-line-height)
         )
-        0 0 / 100% var(--editor-line-height) repeat-y,
+        0 var(--editor-rule-offset-y) / 100% var(--editor-line-height) repeat-y,
       #1c1a1c;
     background-attachment: local;
     color: #cecece;
@@ -6531,7 +6588,8 @@ body,
           #282828 calc(var(--editor-line-height) - 1px),
           #282828 var(--editor-line-height)
         )
-        0 var(--editor-paper-scroll-y) / 100% var(--editor-line-height) repeat-y,
+        0 calc(var(--editor-paper-scroll-y) + var(--editor-rule-offset-y)) /
+          100% var(--editor-line-height) repeat-y,
       #161416;
   }
 
@@ -6544,7 +6602,7 @@ body,
           #282828 calc(var(--editor-line-height) - 1px),
           #282828 var(--editor-line-height)
         )
-        0 0 / 100% var(--editor-line-height) repeat-y,
+        0 var(--editor-rule-offset-y) / 100% var(--editor-line-height) repeat-y,
       #1c1a1c;
     background-attachment: local;
     color: #cecece;

@@ -732,7 +732,10 @@ async function readRelativeArchiveImage(source: string): Promise<ImageSource | n
   };
 }
 
-async function resolveArchiveImage(source: string): Promise<ImageSource | null> {
+async function resolveArchiveImage(
+  source: string,
+  publicBaseUrl?: string,
+): Promise<ImageSource | null> {
   const dataImage = getDataUrlImage(source);
 
   if (dataImage) {
@@ -740,6 +743,24 @@ async function resolveArchiveImage(source: string): Promise<ImageSource | null> 
   }
 
   if (/^https?:\/\//i.test(source)) {
+    if (publicBaseUrl) {
+      try {
+        const sourceUrl = new URL(source);
+        const publicUrl = new URL(publicBaseUrl);
+
+        if (
+          sourceUrl.host.toLowerCase() === publicUrl.host.toLowerCase() &&
+          sourceUrl.pathname.startsWith("/images/")
+        ) {
+          return readRootRelativeArchiveImage(
+            `${sourceUrl.pathname}${sourceUrl.search}`,
+          );
+        }
+      } catch {
+        // Invalid URLs fall through to the existing remote-image path.
+      }
+    }
+
     return downloadImageFromUrl(source);
   }
 
@@ -2162,6 +2183,7 @@ async function prepareWechatArticle(
   markdown: string,
   options: {
     footer: FooterConfig;
+    publicBaseUrl: string;
     temporaryUploads: boolean;
   },
 ): Promise<{
@@ -2207,7 +2229,7 @@ async function prepareWechatArticle(
         continue;
       }
 
-      const image = await resolveArchiveImage(source);
+      const image = await resolveArchiveImage(source, options.publicBaseUrl);
 
       if (!image?.buffer.length) {
         throw new Error(`无法读取公众号图片：${source}`);
@@ -2833,6 +2855,7 @@ app.post(
       response.json(
         await prepareWechatArticle(markdown, {
           footer: resolveFooterConfig(request.body || {}),
+          publicBaseUrl: getPublicBaseUrl(request),
           temporaryUploads: !authenticatedUser,
         }),
       );

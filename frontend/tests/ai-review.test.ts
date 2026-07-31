@@ -113,6 +113,27 @@ test("AI 审阅界面只提供逐条确认和忽略，不提供批量自动改�
   );
 });
 
+test("移动端 AI 触摸在视口重排前打开，并通过 body portal 避免被编辑器裁剪", () => {
+  const source = readFileSync("src/components/AiReviewDialog.tsx", "utf8");
+  const appSource = readFileSync("src/App.tsx", "utf8");
+
+  assert.match(source, /import \{ createPortal \} from "react-dom"/);
+  assert.match(source, /return createPortal\([\s\S]*document\.body/);
+  assert.match(
+    appSource,
+    /const \[aiReviewNoteId, setAiReviewNoteId\] = useState<string \| null>\(null\)/,
+  );
+  assert.match(
+    appSource,
+    /function handleAiReviewPointerDown\([\s\S]*event\.pointerType !== "touch"[\s\S]*event\.preventDefault\(\);[\s\S]*handleOpenAiReview\(\);/,
+  );
+  assert.match(
+    appSource,
+    /onClick=\{handleOpenAiReview\}[\s\S]*onPointerDown=\{handleAiReviewPointerDown\}/,
+  );
+  assert.doesNotMatch(appSource, /aiReviewNoteIdRef|isAiReviewOpen/);
+});
+
 test("AI 主要操作复用主题按钮色，不出现大面积荧光绿", () => {
   const styles = readFileSync("src/styles.css", "utf8");
 

@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { CategorySidebar } from "./components/CategorySidebar";
 import { AiReviewDialog } from "./components/AiReviewDialog";
 import { ChangePasswordDialog } from "./components/ChangePasswordDialog";
@@ -140,7 +147,7 @@ export default function App() {
   const [footerVia, setFooterVia] = useState(getInitialFooterVia);
   const [aiEnabled, setAiEnabled] = useState(getInitialAiEnabled);
   const [aiAvailable, setAiAvailable] = useState(false);
-  const [isAiReviewOpen, setIsAiReviewOpen] = useState(false);
+  const [aiReviewNoteId, setAiReviewNoteId] = useState<string | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
   const [isImportingImage, setIsImportingImage] = useState(false);
   const [isRefreshingNotes, setIsRefreshingNotes] = useState(false);
@@ -180,7 +187,6 @@ export default function App() {
   const accountContainerRef = useRef<HTMLDivElement | null>(null);
   const desktopViewMenuRef = useRef<HTMLDivElement | null>(null);
   const desktopViewBeforeShareRef = useRef<DesktopWorkspaceView>("editor");
-  const aiReviewNoteIdRef = useRef<string | null>(null);
   const mobileDraftNoteIdRef = useRef<string | null>(null);
   const cloudSaveTimeoutRef = useRef<number | null>(null);
   const cloudRevisionRef = useRef(0);
@@ -515,14 +521,10 @@ export default function App() {
   }, [aiEnabled]);
 
   useEffect(() => {
-    if (
-      isAiReviewOpen &&
-      aiReviewNoteIdRef.current !== activeNoteId
-    ) {
-      setIsAiReviewOpen(false);
-      aiReviewNoteIdRef.current = null;
+    if (aiReviewNoteId && aiReviewNoteId !== activeNoteId) {
+      setAiReviewNoteId(null);
     }
-  }, [activeNoteId, isAiReviewOpen]);
+  }, [activeNoteId, aiReviewNoteId]);
 
   useEffect(() => {
     if (copyState === "idle") {
@@ -786,8 +788,7 @@ export default function App() {
     cloudHydratedUserIdRef.current = null;
     cloudRevisionRef.current = 0;
     setAuthUser(null);
-    setIsAiReviewOpen(false);
-    aiReviewNoteIdRef.current = null;
+    setAiReviewNoteId(null);
     setCloudSyncState("local");
     setIsAccountMenuOpen(false);
     replaceWorkspace(getInitialNoteWorkspace());
@@ -875,8 +876,7 @@ export default function App() {
     setIsShareOpen(false);
     setIsNoteSidebarOpen(false);
     setIsCategorySidebarOpen(false);
-    setIsAiReviewOpen(false);
-    aiReviewNoteIdRef.current = null;
+    setAiReviewNoteId(null);
     const folderId = getFolderIdFromCategory(activeCategoryId);
     const shouldStar = activeCategoryId === "starred";
 
@@ -908,6 +908,31 @@ export default function App() {
     setMobileWorkspaceView("notes");
   }
 
+  function handleOpenAiReview() {
+    if (!activeNoteId) {
+      return;
+    }
+
+    if (document.activeElement instanceof HTMLTextAreaElement) {
+      document.activeElement.blur();
+    }
+
+    setIsSettingsOpen(false);
+    setIsShareOpen(false);
+    setAiReviewNoteId(activeNoteId);
+  }
+
+  function handleAiReviewPointerDown(
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) {
+    if (event.pointerType !== "touch") {
+      return;
+    }
+
+    event.preventDefault();
+    handleOpenAiReview();
+  }
+
   function handleRefreshNotes() {
     if (refreshTimeoutRef.current !== null) {
       return;
@@ -920,8 +945,7 @@ export default function App() {
   }
 
   function handleSelectNote(noteId: string) {
-    setIsAiReviewOpen(false);
-    aiReviewNoteIdRef.current = null;
+    setAiReviewNoteId(null);
     selectNote(noteId);
     setIsShareOpen(false);
     setIsNoteSidebarOpen(false);
@@ -933,8 +957,7 @@ export default function App() {
   }
 
   function handleSelectCategory(categoryId: NoteCategoryId) {
-    setIsAiReviewOpen(false);
-    aiReviewNoteIdRef.current = null;
+    setAiReviewNoteId(null);
     setActiveCategoryId(categoryId);
     setIsCategorySidebarOpen(false);
     setIsNoteSidebarOpen(false);
@@ -1267,12 +1290,8 @@ export default function App() {
                     className="ai-review-trigger"
                     aria-label="使用 AI 审阅当前便签"
                     title="AI 辅助审阅"
-                    onClick={() => {
-                      setIsSettingsOpen(false);
-                      setIsShareOpen(false);
-                      aiReviewNoteIdRef.current = activeNoteId;
-                      setIsAiReviewOpen(true);
-                    }}
+                    onClick={handleOpenAiReview}
+                    onPointerDown={handleAiReviewPointerDown}
                   >
                     AI
                   </button>
@@ -1638,15 +1657,12 @@ export default function App() {
           {settingsPanel}
         </div>
 
-        {isAiReviewOpen && activeNote ? (
+        {aiReviewNoteId === activeNoteId && activeNote ? (
           <AiReviewDialog
-            key={activeNoteId}
+            key={aiReviewNoteId}
             currentMarkdown={markdown}
-            currentNoteId={activeNoteId}
-            onClose={() => {
-              setIsAiReviewOpen(false);
-              aiReviewNoteIdRef.current = null;
-            }}
+            currentNoteId={aiReviewNoteId}
+            onClose={() => setAiReviewNoteId(null)}
             onMarkdownChange={setMarkdown}
           />
         ) : null}

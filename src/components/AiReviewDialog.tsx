@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { reviewMarkdownWithAi } from "../lib/ai";
 import {
   buildMarkdownFromAcceptedSuggestions,
@@ -146,7 +147,7 @@ export function AiReviewDialog({
     setSession({ ...session, ignoredIds });
   }
 
-  return (
+  return createPortal(
     <div className="ai-review-backdrop" role="presentation">
       <section
         className="ai-review-dialog"
@@ -274,6 +275,7 @@ export function AiReviewDialog({
           ) : null}
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

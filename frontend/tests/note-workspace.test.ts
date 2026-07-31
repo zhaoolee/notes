@@ -558,7 +558,7 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     styles,
-    /@media \(max-width: 640px\)[\s\S]*--editor-rule-thickness:\s*0\.6667px;[\s\S]*--editor-rule-line:\s*#f4ebde;[\s\S]*\.markdown-editor\s*\{[^}]*transparent\s*calc\(var\(--editor-line-height\) - var\(--editor-rule-thickness\)\)[^}]*var\(--editor-rule-line\) var\(--editor-line-height\)[^}]*0 0 \/ 100% var\(--editor-line-height\) repeat-y,[^}]*var\(--editor-paper-base\);[^}]*background-attachment:\s*local;/s,
+    /@media \(max-width: 640px\)[\s\S]*--editor-rule-offset-y:\s*-10px;[\s\S]*--editor-rule-thickness:\s*0\.6667px;[\s\S]*--editor-rule-line:\s*#f4ebde;[\s\S]*\.markdown-editor\s*\{[^}]*transparent\s*calc\(var\(--editor-line-height\) - var\(--editor-rule-thickness\)\)[^}]*var\(--editor-rule-line\) var\(--editor-line-height\)[^}]*0 var\(--editor-rule-offset-y\) \/ 100% var\(--editor-line-height\) repeat-y,[^}]*var\(--editor-paper-base\);[^}]*background-attachment:\s*local;/s,
   );
   assert.match(
     styles,
@@ -574,7 +574,7 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     styles,
-    /@media \(max-width: 640px\)[\s\S]*\.markdown-editor-frame\s*\{[^}]*--editor-paper-scroll-y:\s*0px;[^}]*\}[\s\S]*\.markdown-editor-frame::before\s*\{[^}]*background-position:\s*0 var\(--editor-paper-scroll-y\);[^}]*background-size:\s*5px var\(--editor-line-height\);/s,
+    /@media \(max-width: 640px\)[\s\S]*\.markdown-editor-frame\s*\{[^}]*--editor-paper-scroll-y:\s*0px;[^}]*\}[\s\S]*\.markdown-editor-frame::before\s*\{[^}]*background-position:\s*0 calc\(var\(--editor-paper-scroll-y\) \+ var\(--editor-rule-offset-y\)\);[^}]*background-size:\s*5px var\(--editor-line-height\);/s,
   );
   assert.match(
     editorSource,
@@ -718,7 +718,7 @@ test("桌面工作区使用锤子便签网页版的纸面、细线和栏宽比�
   );
   assert.match(
     styles,
-    /\.markdown-editor-frame::before\s*\{[^}]*edge_004e88bdf2\.png[^}]*background-position:\s*0 var\(--editor-paper-scroll-y\);[^}]*background-size:\s*5px var\(--editor-line-height\);/s,
+    /\.markdown-editor-frame::before\s*\{[^}]*edge_004e88bdf2\.png[^}]*background-position:\s*0 calc\(var\(--editor-paper-scroll-y\) \+ var\(--editor-rule-offset-y\)\);[^}]*background-size:\s*5px var\(--editor-line-height\);/s,
   );
   assert.match(
     styles,
@@ -779,11 +779,11 @@ test("桌面工作区使用锤子便签网页版的纸面、细线和栏宽比�
   );
   assert.match(
     styles,
-    /\.app-layout\[data-theme="smartisan-dark"\] \.markdown-editor-frame::before\s*\{[^}]*border-right-color:\s*#282828;[^}]*#282828 var\(--editor-line-height\)[^}]*0 var\(--editor-paper-scroll-y\) \/ 100% var\(--editor-line-height\) repeat-y,[^}]*#161416;/s,
+    /\.app-layout\[data-theme="smartisan-dark"\] \.markdown-editor-frame::before\s*\{[^}]*border-right-color:\s*#282828;[^}]*#282828 var\(--editor-line-height\)[^}]*0 calc\(var\(--editor-paper-scroll-y\) \+ var\(--editor-rule-offset-y\)\) \/\s*100% var\(--editor-line-height\) repeat-y,[^}]*#161416;/s,
   );
   assert.match(
     styles,
-    /\.app-layout\[data-theme="smartisan-dark"\] \.markdown-editor\s*\{[^}]*#282828 var\(--editor-line-height\)[^}]*#1c1a1c;[^}]*background-attachment:\s*local;[^}]*color:\s*#cecece;/s,
+    /\.app-layout\[data-theme="smartisan-dark"\] \.markdown-editor\s*\{[^}]*#282828 var\(--editor-line-height\)[^}]*0 var\(--editor-rule-offset-y\) \/ 100% var\(--editor-line-height\) repeat-y,[^}]*#1c1a1c;[^}]*background-attachment:\s*local;[^}]*color:\s*#cecece;/s,
   );
   const darkEditorRuleBodies = Array.from(
     styles.matchAll(

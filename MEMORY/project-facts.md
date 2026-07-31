@@ -709,6 +709,17 @@
 - AI 审阅弹层的“生成修改建议”和逐条“确认修改”必须复用
   `--export-button-*` 主题按钮 Token：暖白主题为暖棕，暗黑主题为中性灰黑。
   黄绿色仅适合作为小面积状态提示，不能用于弹层中的大面积主按钮。
+- iOS Chrome 在正文聚焦时触摸顶栏，会先触发 textarea 失焦、软键盘收起和
+  `visualViewport` 重排；如果 AI 只监听 `click`，按钮可能在 touchstart 与 click
+  之间移动，导致 WebKit 取消第一次点击。AI 按钮对 touch pointer 在
+  `pointerdown` 阶段打开，鼠标和键盘仍使用标准 `click`。
+- AI 打开状态使用单一的 `aiReviewNoteId`，不再混用布尔 state 与可变 ref。
+  审阅层由 `createPortal(..., document.body)` 脱离移动端
+  `.app-layout { position: fixed; overflow: hidden; }`，避免 iOS WebKit 在键盘
+  视口切换时裁掉固定弹层。
+- 本轮移动端 AI 弹层与纸张横线相位修复完成后，58 项前端 feedback、9 项后端
+  feedback、完整 TypeScript 检查和生产构建均通过；移动端浏览器实测弹层父节点为
+  `BODY`，边界为完整 `440 × 956` 视口。
 
 ## 2026-07-31：移动端固定一倍视口
 
@@ -738,3 +749,30 @@
   `--editor-line-height: 42px` 让 WebKit 光标行框与两条横线的周期一致。
 - `document.selectionchange` 只负责保存最新 `selectionStart / selectionEnd`，
   供 Markdown 快捷栏和插图操作读取，不再参与任何视觉绘制。
+- iPhone 真机 `1320px` 截图中正文横线物理纵坐标为
+  `791/792、917/918、1043/1044……`，周期 `126px = 42 CSS px`；系统光标上下边界
+  比对应背景行框提前约 `29–30px ≈ 10 CSS px`，导致横线穿过光标上段。移动端
+  `--editor-rule-offset-y` 因此固定为 `-10px`。
+- 正文渐变横线使用 `0 var(--editor-rule-offset-y)`；左纸轨使用
+  `calc(-scrollTop + var(--editor-rule-offset-y))`。不能只移动其中一层，也不能
+  通过移动文字或改变 `42px` 周期补偿，否则会破坏字体基线或滚动后的相位。
+
+## 2026-07-31：公众号同源图片与编辑态图片预览
+
+- 旧便签和自定义页脚 Logo 可能保存完整的生产站点
+  `https://notes.../images/...` 地址。`POST /api/wechat` 不能用 Node `fetch`
+  绕公网抓取自己的持久化图片；生产容器的 DNS、证书或回环路径不可用时只会返回
+  `fetch failed`。
+- `prepareWechatArticle` 接收由请求协议与 Host 计算的 `publicBaseUrl`。图片 URL
+  与它 Host 相同且路径以 `/images/` 开头时，`resolveArchiveImage` 直接从
+  `IMAGE_STORAGE_DIR` 读取；外站 HTTP(S) 图片才走下载。feedback 使用不可解析的
+  `notes.example.invalid` 同源 URL，确保测试不会因本机网络恰好可用而假通过。
+- 为继续保留已经验证的 iOS 原生 textarea 光标，编辑态图片使用独立的实时预览条，
+  不替换成 `contenteditable`，也不绘制第二套文字层。解析器同时识别 Markdown
+  图片和 HTML `<img>`，保存每个标记的起止索引；点击缩略图会聚焦 textarea 并
+  选中对应源码。
+- `440 × 956` 实测单图预览条为 `440 × 124px`；模拟键盘后的 `440 × 600`
+  视口中，正文止于 `y=433.34`、图片条为 `y=433.34..557.34`、Markdown 快捷栏
+  为 `y=557.34..600`，三者没有遮挡或重叠。
+- 最终 58 项前端 feedback、9 项后端 feedback、完整 TypeScript 检查与生产构建
+  通过；构建只保留既有的单 chunk 超过 `500kB` 提示。

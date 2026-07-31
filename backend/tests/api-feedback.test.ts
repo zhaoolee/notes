@@ -198,10 +198,13 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.equal(imageResponse.status, 200);
     assert.deepEqual(Buffer.from(await imageResponse.arrayBuffer()), png);
 
+    const publicImageBaseUrl = "https://notes.example.invalid";
     const wechatResponse = await fetch(`${baseUrl}/api/wechat`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Forwarded-Host": "notes.example.invalid",
+        "X-Forwarded-Proto": "https",
       },
       body: JSON.stringify({
         footerBrand: "由 API 自定义发送",
@@ -213,11 +216,11 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
           "这是 **加粗正文**。",
           "",
           "9. **鼓励**vibe coding",
-          `![像素图](${baseUrl}${imported.path})`,
+          `![像素图](${publicImageBaseUrl}${imported.path})`,
           "10. 图片后的编号仍可见",
           "",
           "相同内容的第二个地址：",
-          `![相同内容的第二个地址](${baseUrl}${imported.path}?duplicate=1)`,
+          `![相同内容的第二个地址](${publicImageBaseUrl}${imported.path}?duplicate=1)`,
         ].join("\n"),
       }),
     });

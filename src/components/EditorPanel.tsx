@@ -3,6 +3,7 @@ import {
   useEffect,
   forwardRef,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -11,6 +12,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { importImageFile, importImageUrl } from "../lib/images";
+import { collectEditorImagePreviews } from "../lib/editor-images";
 import {
   applyMarkdownShortcut,
   continueMarkdownBlock,
@@ -95,6 +97,10 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
   const [imageImportError, setImageImportError] = useState("");
   const [isDropTargetActive, setIsDropTargetActive] = useState(false);
   const [isQuickInputVisible, setIsQuickInputVisible] = useState(false);
+  const editorImagePreviews = useMemo(
+    () => collectEditorImagePreviews(markdown),
+    [markdown],
+  );
 
   useImperativeHandle(
     ref,
@@ -233,6 +239,21 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     commitMarkdownEdit(
       applyMarkdownShortcut(markdown, selectionStart, selectionEnd, shortcut),
     );
+  }
+
+  function focusImageMarker(markerStart: number, markerEnd: number): void {
+    const textarea = textareaRef.current;
+
+    if (!textarea) {
+      return;
+    }
+
+    selectionRef.current = {
+      start: markerStart,
+      end: markerEnd,
+    };
+    textarea.focus();
+    textarea.setSelectionRange(markerStart, markerEnd);
   }
 
   function handleEditorKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
@@ -405,7 +426,9 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
       {imageImportError ? <p className="image-import-status error">{imageImportError}</p> : null}
       {isImportingImage ? <p className="image-import-status">正在导入图片...</p> : null}
       <div
-        className={`markdown-editor-frame${isDropTargetActive ? " drag-active" : ""}`}
+        className={`markdown-editor-frame${
+          isDropTargetActive ? " drag-active" : ""
+        }${editorImagePreviews.length > 0 ? " has-image-previews" : ""}`}
       >
         {isDropTargetActive ? (
           <div className="markdown-drop-indicator">松手即可导入图片</div>
@@ -467,6 +490,34 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
           }}
           spellCheck={false}
         />
+        {editorImagePreviews.length > 0 ? (
+          <div
+            className="editor-image-previews"
+            aria-label="正文图片实时预览"
+          >
+            {editorImagePreviews.map((image, index) => (
+              <button
+                key={`${image.markerStart}-${image.source}`}
+                type="button"
+                className="editor-image-preview"
+                aria-label={`定位正文图片：${image.alt || `图片 ${index + 1}`}`}
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                }}
+                onClick={() =>
+                  focusImageMarker(image.markerStart, image.markerEnd)
+                }
+              >
+                <img
+                  src={image.source}
+                  alt={image.alt || `图片 ${index + 1}`}
+                  loading="lazy"
+                />
+                <span>{image.alt || `图片 ${index + 1}`}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
       {isQuickInputVisible ? (
         <div
