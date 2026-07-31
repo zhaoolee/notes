@@ -672,15 +672,19 @@
 ## 2026-07-31：iOS 便签正文自动填充语义
 
 - iOS Safari 的钥匙、银行卡和地址按钮属于系统 AutoFill 输入附件，不是项目的
-  Markdown 快捷栏。Apple 文档说明 Safari 会结合字段的 `autocomplete`、标签、
-  类型和页面结构推断用途，并可能忽略 `autocomplete="off"`；网页无法通过 CSS
-  强制隐藏系统附件栏。
-- 正文 textarea 显式声明 `name="note-content"`、`aria-label="便签正文"`、
-  `aria-multiline="true"`、`autocomplete="off"` 和普通文本输入模式，避免无语义
-  字段被同域登录流程误判为账号、密码、验证码或支付字段。
+  Markdown 快捷栏。Apple 官方文档明确说明 Safari 会忽略
+  `autocomplete="off"`，用户真机也确认普通 textarea 即使声明该值仍会显示
+  AutoFill 附件栏；网页 CSS 无法覆盖键盘上方的系统界面。
+- iPhone / iPad 的正文不再使用表单控件，改用
+  `contenteditable="plaintext-only"`、`role="textbox"` 和
+  `aria-multiline="true"` 的无表单纯文本编辑面，不携带 `name` 或
+  `autocomplete`。安卓和桌面仍使用 textarea，保持已有输入法与拖放行为。
+- 两种编辑面共用 Markdown 字符串、选区索引、回车续行、粘贴、插图和快捷栏逻辑。
+  iPhone UA 与 `390 × 844` 视口浏览器回归中，正文 DOM 为无 `name` /
+  `autocomplete` 的 `DIV`；中文输入、列表续行、快捷按钮和点击后保留焦点均通过。
 - 登录与修改密码弹窗继续保留 `username`、`current-password` 和 `new-password`
   的标准语义，正文修复不能以牺牲正常密码管理器体验为代价。
-- 回归测试锁定正文不能声明为账号、密码或验证码字段；最终前端 53 项、后端
+- 回归测试锁定 iOS 正文不能回退为表单 AutoFill 字段；最终前端 54 项、后端
   9 项全部通过，TypeScript 检查与生产构建通过。
 
 ## 2026-07-30：AI 逐条审阅基线

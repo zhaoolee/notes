@@ -118,12 +118,18 @@ textarea 光标、选区和软键盘。
 前缀，回车自动续行，在空项目上再次回车退出；加粗只包裹非空选区，并在包裹后
 继续选中原文字，连续点击允许继续嵌套星号。桌面端不显示该工具栏。
 
-正文 textarea 必须显式使用普通便签语义：`name="note-content"`、
+非 iOS 的正文 textarea 必须显式使用普通便签语义：`name="note-content"`、
 `aria-label="便签正文"`、`autocomplete="off"` 和文本输入模式，不能携带
 `username`、`current-password`、`new-password` 或 `one-time-code` 等自动填充
-用途。真正的登录和修改密码弹窗继续使用标准密码自动填充字段。这样可避免浏览器
-把正文与同域登录表单错误关联；iOS Safari 自己提供的系统自动填充附件栏仍由用户
-的 Safari/键盘设置控制，网页不能通过 CSS 强制移除。
+用途。真正的登录和修改密码弹窗继续使用标准密码自动填充字段。
+
+Apple 官方文档明确说明 Safari 会忽略 `autocomplete="off"`，把是否显示密码、
+银行卡和联系人 AutoFill 入口交给用户的 Safari 设置。iPhone / iPad 因此不再让
+便签正文使用表单控件，而改用 `contenteditable="plaintext-only"`、
+`role="textbox"`、`aria-multiline="true"` 的无表单纯文本编辑面；它不携带
+`name` 或 `autocomplete`，不会进入账号、密码、银行卡或联系人字段的表单启发式。
+Markdown 原文、选区索引、回车续行、粘贴、插图和快捷栏仍与 textarea 走同一套
+编辑逻辑。安卓与桌面继续使用原 textarea，避免改变已经稳定的输入法行为。
 
 文本选区沿用原版的暖棕纸感。参考图中未选纸面约为 `#faf7ee`，选区约为
 `#e8e0d5`，拖拽手柄约为 `#a68b75`；因此网页使用

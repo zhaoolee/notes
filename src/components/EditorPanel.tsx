@@ -3,6 +3,7 @@ import {
   useEffect,
   forwardRef,
   useImperativeHandle,
+  useLayoutEffect,
   useRef,
   useState,
   type ChangeEvent,
@@ -17,6 +18,7 @@ import {
   type MarkdownEditResult,
   type MarkdownShortcut,
 } from "../lib/markdown-shortcuts";
+import { shouldUseIosFormlessEditor } from "../lib/mobile-editor";
 
 interface EditorPanelProps {
   markdown: string;
@@ -27,6 +29,8 @@ interface EditorPanelProps {
 export interface EditorPanelHandle {
   openImagePicker: () => void;
 }
+
+type EditorElement = HTMLTextAreaElement | HTMLDivElement;
 
 const MARKDOWN_SHORTCUTS: Array<{
   action: MarkdownShortcut;
@@ -72,6 +76,105 @@ function extractImageFile(files: FileList | File[]): File | null {
   return null;
 }
 
+function isTextarea(editor: EditorElement): editor is HTMLTextAreaElement {
+  return editor.tagName === "TEXTAREA";
+}
+
+function readContentEditableText(editor: HTMLDivElement): string {
+  return editor.innerText.replace(/\r\n?/g, "\n");
+}
+
+function getContentEditableSelection(
+  editor: HTMLDivElement,
+  fallback: { start: number; end: number },
+): { start: number; end: number } {
+  const selection = window.getSelection();
+
+  if (
+    !selection ||
+    selection.rangeCount === 0 ||
+    !editor.contains(selection.anchorNode) ||
+    !editor.contains(selection.focusNode)
+  ) {
+    return fallback;
+  }
+
+  const range = selection.getRangeAt(0);
+  const startRange = range.cloneRange();
+  const endRange = range.cloneRange();
+  startRange.selectNodeContents(editor);
+  startRange.setEnd(range.startContainer, range.startOffset);
+  endRange.selectNodeContents(editor);
+  endRange.setEnd(range.endContainer, range.endOffset);
+
+  return {
+    start: startRange.toString().length,
+    end: endRange.toString().length,
+  };
+}
+
+function getEditorSelection(
+  editor: EditorElement,
+  fallback: { start: number; end: number },
+): { start: number; end: number } {
+  if (isTextarea(editor)) {
+    return {
+      start: editor.selectionStart ?? fallback.start,
+      end: editor.selectionEnd ?? fallback.end,
+    };
+  }
+
+  return getContentEditableSelection(editor, fallback);
+}
+
+function findTextPosition(
+  editor: HTMLDivElement,
+  requestedOffset: number,
+): { node: Node; offset: number } {
+  const offset = Math.max(0, requestedOffset);
+  const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+  let remaining = offset;
+  let node = walker.nextNode();
+
+  while (node) {
+    const length = node.textContent?.length ?? 0;
+
+    if (remaining <= length) {
+      return { node, offset: remaining };
+    }
+
+    remaining -= length;
+    node = walker.nextNode();
+  }
+
+  return { node: editor, offset: editor.childNodes.length };
+}
+
+function setEditorSelection(
+  editor: EditorElement,
+  start: number,
+  end: number,
+): void {
+  if (isTextarea(editor)) {
+    editor.setSelectionRange(start, end);
+    return;
+  }
+
+  const selection = window.getSelection();
+
+  if (!selection) {
+    return;
+  }
+
+  const startPosition = findTextPosition(editor, start);
+  const endPosition = findTextPosition(editor, end);
+  const range = document.createRange();
+  range.setStart(startPosition.node, startPosition.offset);
+  range.setEnd(endPosition.node, endPosition.offset);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
 export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(function EditorPanel(
   {
     markdown,
@@ -81,6 +184,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
   ref,
 ) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const contentEditableRef = useRef<HTMLDivElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const caretMirrorTextRef = useRef<HTMLSpanElement | null>(null);
   const caretMirrorAnchorRef = useRef<HTMLSpanElement | null>(null);
@@ -97,6 +201,13 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
   const [imageImportError, setImageImportError] = useState("");
   const [isDropTargetActive, setIsDropTargetActive] = useState(false);
   const [isQuickInputVisible, setIsQuickInputVisible] = useState(false);
+  const [useFormlessEditor] = useState(shouldUseIosFormlessEditor);
+
+  const getEditor = useCallback(
+    (): EditorElement | null =>
+      useFormlessEditor ? contentEditableRef.current : textareaRef.current,
+    [useFormlessEditor],
+  );
 
   useImperativeHandle(
     ref,
@@ -107,6 +218,22 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     }),
     [],
   );
+
+  useLayoutEffect(() => {
+    const editor = contentEditableRef.current;
+
+    if (!editor || readContentEditableText(editor) === markdown) {
+      return;
+    }
+
+    const selection = getContentEditableSelection(editor, selectionRef.current);
+    editor.textContent = markdown;
+    setEditorSelection(
+      editor,
+      Math.min(selection.start, markdown.length),
+      Math.min(selection.end, markdown.length),
+    );
+  }, [markdown]);
 
   const hideCustomCaret = useCallback((): void => {
     customCaretRef.current?.classList.remove("is-visible");
@@ -125,17 +252,18 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
   const updateCustomCaret = useCallback((): void => {
     caretSyncFrameRef.current = null;
 
-    const textarea = textareaRef.current;
+    const editor = getEditor();
+    const textarea = editor && isTextarea(editor) ? editor : null;
     const mirrorText = caretMirrorTextRef.current;
     const mirrorAnchor = caretMirrorAnchorRef.current;
     const customCaret = customCaretRef.current;
     const selectionStartHandle = selectionStartHandleRef.current;
     const selectionEndHandle = selectionEndHandleRef.current;
 
-    if (textarea) {
-      textarea.parentElement?.style.setProperty(
+    if (editor) {
+      editor.parentElement?.style.setProperty(
         "--editor-paper-scroll-y",
-        `${-textarea.scrollTop}px`,
+        `${-editor.scrollTop}px`,
       );
     }
 
@@ -224,7 +352,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     customCaret.classList.add("is-visible");
     customCaret.style.transform =
       `translate3d(${caretAnchor.left}px, ${top}px, 0)`;
-  }, [hideCustomCaret, hideEditorIndicators, hideSelectionHandles]);
+  }, [getEditor, hideCustomCaret, hideEditorIndicators, hideSelectionHandles]);
 
   const scheduleCustomCaretSync = useCallback((): void => {
     if (caretSyncFrameRef.current !== null) {
@@ -264,9 +392,9 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
         return;
       }
 
-      const textarea = textareaRef.current;
+      const editor = getEditor();
       const viewportHeight = getViewportHeight();
-      const isEditorFocused = document.activeElement === textarea;
+      const isEditorFocused = document.activeElement === editor;
 
       if (!isEditorFocused) {
         keyboardBaselineHeightRef.current = viewportHeight;
@@ -300,27 +428,31 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
       window.removeEventListener("resize", syncQuickInputVisibility);
       window.removeEventListener("orientationchange", syncQuickInputVisibility);
     };
-  }, []);
+  }, [getEditor]);
 
   function syncSelection(): void {
-    const textarea = textareaRef.current;
+    const editor = getEditor();
 
-    if (!textarea) {
+    if (!editor) {
       return;
     }
 
-    selectionRef.current = {
-      start: textarea.selectionStart ?? markdown.length,
-      end: textarea.selectionEnd ?? markdown.length,
-    };
+    selectionRef.current = getEditorSelection(editor, {
+      start: markdown.length,
+      end: markdown.length,
+    });
     scheduleCustomCaretSync();
   }
 
   function commitMarkdownEdit(edit: MarkdownEditResult): void {
-    const textarea = textareaRef.current;
+    const editor = getEditor();
 
     if (edit.markdown !== markdown) {
       onMarkdownChange(edit.markdown);
+    }
+
+    if (editor && !isTextarea(editor)) {
+      editor.textContent = edit.markdown;
     }
 
     selectionRef.current = {
@@ -329,23 +461,28 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     };
 
     window.requestAnimationFrame(() => {
-      textarea?.focus();
-      textarea?.setSelectionRange(edit.selectionStart, edit.selectionEnd);
+      editor?.focus();
+
+      if (editor) {
+        setEditorSelection(editor, edit.selectionStart, edit.selectionEnd);
+      }
+
       scheduleCustomCaretSync();
     });
   }
 
   function handleMarkdownShortcut(shortcut: MarkdownShortcut): void {
-    const textarea = textareaRef.current;
-    const selectionStart = textarea?.selectionStart ?? selectionRef.current.start;
-    const selectionEnd = textarea?.selectionEnd ?? selectionRef.current.end;
+    const editor = getEditor();
+    const selection = editor
+      ? getEditorSelection(editor, selectionRef.current)
+      : selectionRef.current;
 
     commitMarkdownEdit(
-      applyMarkdownShortcut(markdown, selectionStart, selectionEnd, shortcut),
+      applyMarkdownShortcut(markdown, selection.start, selection.end, shortcut),
     );
   }
 
-  function handleEditorKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+  function handleEditorKeyDown(event: KeyboardEvent<EditorElement>): void {
     if (
       event.key !== "Enter" ||
       event.shiftKey ||
@@ -357,29 +494,40 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
       return;
     }
 
+    const selection = getEditorSelection(event.currentTarget, selectionRef.current);
     const edit = continueMarkdownBlock(
       markdown,
-      event.currentTarget.selectionStart,
-      event.currentTarget.selectionEnd,
+      selection.start,
+      selection.end,
     );
 
-    if (!edit) {
+    if (!edit && isTextarea(event.currentTarget)) {
       return;
     }
 
     event.preventDefault();
-    commitMarkdownEdit(edit);
+    commitMarkdownEdit(
+      edit ?? {
+        markdown:
+          markdown.slice(0, selection.start) +
+          "\n" +
+          markdown.slice(selection.end),
+        selectionStart: selection.start + 1,
+        selectionEnd: selection.start + 1,
+      },
+    );
   }
 
   function insertImageMarkdown(imageUrl: string): void {
-    const textarea = textareaRef.current;
-    const hasFocus = typeof document !== "undefined" && document.activeElement === textarea;
-    const selectionStart = hasFocus
-      ? (textarea?.selectionStart ?? markdown.length)
-      : selectionRef.current.start;
-    const selectionEnd = hasFocus
-      ? (textarea?.selectionEnd ?? markdown.length)
-      : selectionRef.current.end;
+    const editor = getEditor();
+    const hasFocus =
+      typeof document !== "undefined" && document.activeElement === editor;
+    const selection =
+      hasFocus && editor
+        ? getEditorSelection(editor, selectionRef.current)
+        : selectionRef.current;
+    const selectionStart = selection.start;
+    const selectionEnd = selection.end;
     const before = markdown.slice(0, selectionStart);
     const after = markdown.slice(selectionEnd);
     const imageMarkdown = `![图片](${imageUrl})`;
@@ -397,8 +545,11 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     };
 
     window.requestAnimationFrame(() => {
-      textarea?.focus();
-      textarea?.setSelectionRange(nextCursorPosition, nextCursorPosition);
+      editor?.focus();
+
+      if (editor) {
+        setEditorSelection(editor, nextCursorPosition, nextCursorPosition);
+      }
     });
   }
 
@@ -434,7 +585,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     return isHttpUrl(trimmedText) ? trimmedText : null;
   }
 
-  async function importFromClipboard(event: ClipboardEvent<HTMLTextAreaElement>): Promise<void> {
+  function handleEditorPaste(event: ClipboardEvent<EditorElement>): void {
     const fileFromItems = Array.from(event.clipboardData.items)
       .filter((item) => item.kind === "file")
       .map((item) => item.getAsFile())
@@ -442,7 +593,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
 
     if (fileFromItems) {
       event.preventDefault();
-      await handleImportedSource(fileFromItems);
+      void handleImportedSource(fileFromItems);
       return;
     }
 
@@ -452,14 +603,31 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     );
 
     if (!clipboardUrl) {
+      if (!isTextarea(event.currentTarget)) {
+        event.preventDefault();
+        const selection = getEditorSelection(
+          event.currentTarget,
+          selectionRef.current,
+        );
+        const pastedText = event.clipboardData.getData("text/plain");
+        commitMarkdownEdit({
+          markdown:
+            markdown.slice(0, selection.start) +
+            pastedText +
+            markdown.slice(selection.end),
+          selectionStart: selection.start + pastedText.length,
+          selectionEnd: selection.start + pastedText.length,
+        });
+      }
+
       return;
     }
 
     event.preventDefault();
-    await handleImportedSource(clipboardUrl);
+    void handleImportedSource(clipboardUrl);
   }
 
-  async function importFromDrop(event: DragEvent<HTMLTextAreaElement>): Promise<void> {
+  async function importFromDrop(event: DragEvent<EditorElement>): Promise<void> {
     const imageFile = extractImageFile(event.dataTransfer.files);
 
     if (imageFile) {
@@ -489,18 +657,18 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     await handleImportedSource(file);
   }
 
-  function handleDragEnter(event: DragEvent<HTMLTextAreaElement>): void {
+  function handleDragEnter(event: DragEvent<EditorElement>): void {
     event.preventDefault();
     setIsDropTargetActive(true);
   }
 
-  function handleDragOver(event: DragEvent<HTMLTextAreaElement>): void {
+  function handleDragOver(event: DragEvent<EditorElement>): void {
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
     setIsDropTargetActive(true);
   }
 
-  function handleDragLeave(event: DragEvent<HTMLTextAreaElement>): void {
+  function handleDragLeave(event: DragEvent<EditorElement>): void {
     event.preventDefault();
 
     if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
@@ -529,57 +697,120 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
             void handleImageInputChange(event);
           }}
         />
-        <textarea
-          id="markdown-editor"
-          name="note-content"
-          ref={textareaRef}
-          className="markdown-editor"
-          aria-label="便签正文"
-          aria-multiline="true"
-          autoComplete="off"
-          autoCapitalize="sentences"
-          inputMode="text"
-          enterKeyHint="enter"
-          value={markdown}
-          onChange={(event) => {
-            onMarkdownChange(event.target.value);
-            scheduleCustomCaretSync();
-          }}
-          onSelect={syncSelection}
-          onClick={syncSelection}
-          onKeyDown={handleEditorKeyDown}
-          onKeyUp={syncSelection}
-          onFocus={() => {
-            if (window.matchMedia("(max-width: 640px)").matches) {
-              keyboardBaselineHeightRef.current = Math.max(
-                keyboardBaselineHeightRef.current ??
-                  window.visualViewport?.height ??
-                  window.innerHeight,
-                window.visualViewport?.height ?? window.innerHeight,
+        {useFormlessEditor ? (
+          <div
+            id="markdown-editor"
+            ref={contentEditableRef}
+            className="markdown-editor"
+            role="textbox"
+            aria-label="便签正文"
+            aria-multiline="true"
+            contentEditable="plaintext-only"
+            suppressContentEditableWarning
+            autoCapitalize="sentences"
+            inputMode="text"
+            enterKeyHint="enter"
+            onInput={(event) => {
+              const editor = event.currentTarget;
+              const nextMarkdown = readContentEditableText(editor);
+              const selection = getContentEditableSelection(
+                editor,
+                selectionRef.current,
               );
-            }
 
-            syncSelection();
-          }}
-          onBlur={() => {
-            setIsQuickInputVisible(false);
-            hideEditorIndicators();
-          }}
-          onScroll={scheduleCustomCaretSync}
-          onCompositionUpdate={scheduleCustomCaretSync}
-          onPaste={(event) => {
-            void importFromClipboard(event);
-          }}
-          onDragEnter={handleDragEnter}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={(event) => {
-            event.preventDefault();
-            setIsDropTargetActive(false);
-            void importFromDrop(event);
-          }}
-          spellCheck={false}
-        />
+              if (editor.textContent !== nextMarkdown) {
+                editor.textContent = nextMarkdown;
+                setEditorSelection(editor, selection.start, selection.end);
+              }
+
+              selectionRef.current = selection;
+              onMarkdownChange(nextMarkdown);
+              scheduleCustomCaretSync();
+            }}
+            onSelect={syncSelection}
+            onClick={syncSelection}
+            onKeyDown={handleEditorKeyDown}
+            onKeyUp={syncSelection}
+            onFocus={() => {
+              if (window.matchMedia("(max-width: 640px)").matches) {
+                keyboardBaselineHeightRef.current = Math.max(
+                  keyboardBaselineHeightRef.current ??
+                    window.visualViewport?.height ??
+                    window.innerHeight,
+                  window.visualViewport?.height ?? window.innerHeight,
+                );
+              }
+
+              syncSelection();
+            }}
+            onBlur={() => {
+              setIsQuickInputVisible(false);
+              hideEditorIndicators();
+            }}
+            onScroll={scheduleCustomCaretSync}
+            onCompositionUpdate={scheduleCustomCaretSync}
+            onPaste={handleEditorPaste}
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={(event) => {
+              event.preventDefault();
+              setIsDropTargetActive(false);
+              void importFromDrop(event);
+            }}
+            spellCheck={false}
+          />
+        ) : (
+          <textarea
+            id="markdown-editor"
+            name="note-content"
+            ref={textareaRef}
+            className="markdown-editor"
+            aria-label="便签正文"
+            aria-multiline="true"
+            autoComplete="off"
+            autoCapitalize="sentences"
+            inputMode="text"
+            enterKeyHint="enter"
+            value={markdown}
+            onChange={(event) => {
+              onMarkdownChange(event.target.value);
+              scheduleCustomCaretSync();
+            }}
+            onSelect={syncSelection}
+            onClick={syncSelection}
+            onKeyDown={handleEditorKeyDown}
+            onKeyUp={syncSelection}
+            onFocus={() => {
+              if (window.matchMedia("(max-width: 640px)").matches) {
+                keyboardBaselineHeightRef.current = Math.max(
+                  keyboardBaselineHeightRef.current ??
+                    window.visualViewport?.height ??
+                    window.innerHeight,
+                  window.visualViewport?.height ?? window.innerHeight,
+                );
+              }
+
+              syncSelection();
+            }}
+            onBlur={() => {
+              setIsQuickInputVisible(false);
+              hideEditorIndicators();
+            }}
+            onScroll={scheduleCustomCaretSync}
+            onCompositionUpdate={scheduleCustomCaretSync}
+            onPaste={handleEditorPaste}
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={(event) => {
+              event.preventDefault();
+              setIsDropTargetActive(false);
+              void importFromDrop(event);
+            }}
+            spellCheck={false}
+          />
+        )}
         <div className="markdown-editor-caret-mirror" aria-hidden="true">
           <span ref={caretMirrorTextRef} />
           <span ref={caretMirrorAnchorRef}>{"\u200b"}</span>

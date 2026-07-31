@@ -5,6 +5,7 @@ import {
   applyMarkdownShortcut,
   continueMarkdownBlock,
 } from "../../src/lib/markdown-shortcuts.js";
+import { shouldUseIosFormlessEditor } from "../../src/lib/mobile-editor.js";
 
 test("标题按钮按一级、二级、三级循环并保持光标在前缀后", () => {
   const title = applyMarkdownShortcut("", 0, 0, "title");
@@ -166,7 +167,7 @@ test("移动端快速输入栏保持原版五等分、尺寸和键盘联动结�
   );
 });
 
-test("便签正文声明为普通多行文本而不是账号或密码字段", () => {
+test("非 iOS 便签正文声明为普通多行文本而不是账号或密码字段", () => {
   const editorSource = readFileSync("src/components/EditorPanel.tsx", "utf8");
 
   assert.match(
@@ -176,5 +177,55 @@ test("便签正文声明为普通多行文本而不是账号或密码字段", ()
   assert.doesNotMatch(
     editorSource,
     /<textarea[\s\S]*id="markdown-editor"[\s\S]*autoComplete="(?:username|current-password|new-password|one-time-code)"/s,
+  );
+});
+
+test("iOS 使用无表单纯文本编辑面，避免进入 Safari 表单 AutoFill", () => {
+  const editorSource = readFileSync("src/components/EditorPanel.tsx", "utf8");
+
+  assert.equal(
+    shouldUseIosFormlessEditor({
+      userAgent:
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15",
+      platform: "iPhone",
+      maxTouchPoints: 5,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldUseIosFormlessEditor({
+      userAgent:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15",
+      platform: "MacIntel",
+      maxTouchPoints: 5,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldUseIosFormlessEditor({
+      userAgent:
+        "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/138 Mobile Safari/537.36",
+      platform: "Linux armv8l",
+      maxTouchPoints: 5,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldUseIosFormlessEditor({
+      userAgent:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15",
+      platform: "MacIntel",
+      maxTouchPoints: 0,
+    }),
+    false,
+  );
+
+  assert.match(
+    editorSource,
+    /useState\(shouldUseIosFormlessEditor\)[\s\S]*<div[^>]*role="textbox"[^>]*aria-label="便签正文"[^>]*aria-multiline="true"[^>]*contentEditable="plaintext-only"/s,
+  );
+  assert.doesNotMatch(
+    editorSource,
+    /<div[^>]*contentEditable="plaintext-only"[^>]*autoComplete=/s,
   );
 });

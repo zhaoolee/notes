@@ -516,7 +516,7 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     editorSource,
-    /style\.setProperty\(\s*"--editor-paper-scroll-y",\s*`\$\{-textarea\.scrollTop\}px`,\s*\);/,
+    /style\.setProperty\(\s*"--editor-paper-scroll-y",\s*`\$\{-editor\.scrollTop\}px`,\s*\);/,
   );
   assert.match(
     styles,

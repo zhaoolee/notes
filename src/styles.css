@@ -2643,6 +2643,13 @@ body,
   box-shadow: none;
 }
 
+.markdown-editor[contenteditable] {
+  overflow: auto;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  -webkit-user-modify: read-write-plaintext-only;
+}
+
 .markdown-editor::selection {
   background-color: var(--editor-selection-bg);
 }
@@ -4774,6 +4781,10 @@ body,
     color: #5c3c2ad1;
     caret-color: transparent;
     font-weight: 400;
+  }
+
+  .markdown-editor[contenteditable] {
+    caret-color: var(--editor-selection-handle);
   }
 
   .markdown-quick-input {
