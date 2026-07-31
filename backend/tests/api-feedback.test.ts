@@ -101,9 +101,17 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
   const storageDir = await mkdtemp(path.join(tmpdir(), "notes-feedback-images-"));
   const dataDir = await mkdtemp(path.join(tmpdir(), "notes-feedback-data-"));
   const baseUrl = `http://127.0.0.1:${port}`;
+  let qiniuUploadAttemptCount = 0;
   let qiniuUploadCount = 0;
   const qiniuUploadBodies: string[] = [];
   const qiniuUploadServer = createHttpServer((request, response) => {
+    qiniuUploadAttemptCount += 1;
+
+    if (qiniuUploadAttemptCount <= 2) {
+      request.socket.destroy();
+      return;
+    }
+
     const chunks: Buffer[] = [];
     request.on("data", (chunk) => {
       chunks.push(Buffer.from(chunk));
@@ -239,6 +247,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.equal(wechat.anonymousQuota?.limit, 500);
     assert.equal(wechat.anonymousQuota?.used, 1);
     assert.equal(wechat.anonymousQuota?.remaining, 499);
+    assert.equal(qiniuUploadAttemptCount, 3);
     assert.equal(qiniuUploadCount, 1);
     assert.equal(
       (

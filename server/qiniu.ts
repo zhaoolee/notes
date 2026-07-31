@@ -1,6 +1,7 @@
 import { createHash, createHmac } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 
 interface LegacyQiniuConfig {
   AK?: string;
@@ -49,6 +50,8 @@ export class QiniuUploadError extends Error {
 }
 
 const resolvedUploadUrls = new Map<string, string>();
+const QINIU_NETWORK_UPLOAD_ATTEMPTS = 3;
+const QINIU_NETWORK_RETRY_DELAY_MS = 150;
 
 function normalizeDomain(value: string): string {
   const trimmed = value.trim().replace(/\/+$/, "");
@@ -277,28 +280,48 @@ export async function uploadImageBufferToQiniu(
   const publicUrl = `${config.domain}/${encodeObjectKey(key)}`;
 
   async function upload(uploadUrl: string): Promise<Response> {
-    const form = new FormData();
+    let lastError: unknown;
 
-    form.append(
-      "token",
-      createQiniuUploadToken(
-        config,
-        key,
-        Date.now(),
-        options.deleteAfterDays,
-      ),
-    );
-    form.append("key", key);
-    form.append(
-      "file",
-      new Blob([new Uint8Array(buffer)], { type: getMimeType(normalizedExtension) }),
-      filename,
-    );
+    for (let attempt = 1; attempt <= QINIU_NETWORK_UPLOAD_ATTEMPTS; attempt += 1) {
+      const form = new FormData();
 
-    return fetch(uploadUrl, {
-      method: "POST",
-      body: form,
-    });
+      form.append(
+        "token",
+        createQiniuUploadToken(
+          config,
+          key,
+          Date.now(),
+          options.deleteAfterDays,
+        ),
+      );
+      form.append("key", key);
+      form.append(
+        "file",
+        new Blob([new Uint8Array(buffer)], {
+          type: getMimeType(normalizedExtension),
+        }),
+        filename,
+      );
+
+      try {
+        return await fetch(uploadUrl, {
+          method: "POST",
+          body: form,
+        });
+      } catch (error) {
+        lastError = error;
+
+        if (attempt < QINIU_NETWORK_UPLOAD_ATTEMPTS) {
+          await delay(QINIU_NETWORK_RETRY_DELAY_MS * attempt);
+        }
+      }
+    }
+
+    throw new QiniuUploadError(
+      `七牛图片上传网络失败（已重试 ${QINIU_NETWORK_UPLOAD_ATTEMPTS} 次）：${
+        lastError instanceof Error ? lastError.message : "未知网络错误"
+      }`,
+    );
   }
 
   let uploadUrl = resolvedUploadUrls.get(config.bucket) || config.uploadUrl;

@@ -137,6 +137,8 @@ Markdown 便签、文件夹分类、加星、置顶以及生成公众号 HTML。
 后端把它与正文图片一起按内容哈希去重并上传。按当前产品约定，公众号正文和
 自定义 Logo 的七牛对象直接使用 `QINIU_DOMAIN` 返回的公开地址；生产配置明确为
 `http://tmp-blog.fangyuanxiaozhan.com`，不再改写成本站 `/qiniu/` HTTPS 代理。
+七牛上传连接若在收到 HTTP 响应前发生临时网络错误，同一上传请求最多重试三次；
+返回给公众号的公开 HTTP 地址和对象键保持不变。
 内置页脚锤子图和编辑器、预览、同步使用的普通图片仍保留
 `https://notes.fangyuanxiaozhan.com/images/...`。复制结果不包含微信会拒绝的
 Data URL。
