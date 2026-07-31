@@ -36,7 +36,11 @@ const MARKDOWN_SHORTCUTS: Array<{
   { action: "title", label: "# Title", accessibleLabel: "切换当前行标题级别" },
   { action: "center", label: "[Center]", accessibleLabel: "居中当前行" },
   { action: "list", label: "- List", accessibleLabel: "将当前行设为列表" },
-  { action: "bold", label: "**Bold**", accessibleLabel: "加粗所选文字" },
+  {
+    action: "bold",
+    label: "**Bold**",
+    accessibleLabel: "插入加粗标记或加粗所选文字",
+  },
   { action: "quote", label: "> Quote", accessibleLabel: "将当前行设为引用" },
 ];
 

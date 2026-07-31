@@ -95,11 +95,21 @@ test("列表和引用只添加一次当前行前缀", () => {
   });
 });
 
-test("加粗仅包裹非空选区并继续选中原文字", () => {
+test("加粗在插入点添加双星号并包裹非空选区", () => {
+  assert.deepEqual(applyMarkdownShortcut("", 0, 0, "bold"), {
+    markdown: "**",
+    selectionStart: 2,
+    selectionEnd: 2,
+  });
   assert.deepEqual(applyMarkdownShortcut("B", 1, 1, "bold"), {
-    markdown: "B",
-    selectionStart: 1,
-    selectionEnd: 1,
+    markdown: "B**",
+    selectionStart: 3,
+    selectionEnd: 3,
+  });
+  assert.deepEqual(applyMarkdownShortcut("AB", 1, 1, "bold"), {
+    markdown: "A**B",
+    selectionStart: 3,
+    selectionEnd: 3,
   });
 
   const firstBold = applyMarkdownShortcut("B", 0, 1, "bold");

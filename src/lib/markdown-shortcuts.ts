@@ -148,9 +148,11 @@ function boldSelection(
 
   if (selection.start === selection.end) {
     return {
-      markdown,
-      selectionStart: selection.start,
-      selectionEnd: selection.end,
+      markdown:
+        `${markdown.slice(0, selection.start)}**` +
+        markdown.slice(selection.end),
+      selectionStart: selection.start + 2,
+      selectionEnd: selection.end + 2,
     };
   }
 
