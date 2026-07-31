@@ -13,6 +13,7 @@ import {
 import {
   createNoteFolder,
   createNoteDocument,
+  discardEmptyNoteDraft,
   getCategoryNoteDocuments,
   getFolderCategoryId,
   getNoteListTitle,
@@ -84,6 +85,49 @@ test("持久化工作区校验便签集合并修复失效的当前 ID", () => {
     null,
   );
   assert.equal(parseNoteWorkspace("not-json"), null);
+});
+
+test("空白新建便签返回列表时丢弃草稿并选中真实下一条", () => {
+  const firstNote = createNoteDocument("# 第一条", 1_000, 0);
+  const secondNote = createNoteDocument("# 第二条", 2_000, 1);
+  const emptyDraft = createNoteDocument(" \n\t", 3_000, -1);
+
+  assert.deepEqual(
+    discardEmptyNoteDraft(
+      [emptyDraft, firstNote, secondNote],
+      emptyDraft.id,
+      secondNote.id,
+    ),
+    {
+      activeNote: secondNote,
+      notes: [firstNote, secondNote],
+    },
+  );
+  assert.equal(
+    discardEmptyNoteDraft([firstNote, secondNote], firstNote.id),
+    null,
+  );
+  assert.equal(discardEmptyNoteDraft([emptyDraft], emptyDraft.id), null);
+
+  const appSource = readFileSync("src/App.tsx", "utf8");
+  const storeSource = readFileSync("src/store/useAppStore.ts", "utf8");
+
+  assert.match(
+    appSource,
+    /mobileDraftNoteIdRef\.current = createNote\("", folderId, shouldStar\);/,
+  );
+  assert.match(
+    appSource,
+    /function handleReturnToNoteList\(\)[\s\S]*discardEmptyDraft\(draftNoteId, preferredNextNoteId\);[\s\S]*setMobileWorkspaceView\("notes"\);/,
+  );
+  assert.match(
+    appSource,
+    /aria-label="返回便签列表"[\s\S]*onClick=\{handleReturnToNoteList\}/,
+  );
+  assert.match(
+    storeSource,
+    /discardEmptyDraft:[\s\S]*discardEmptyNoteDraft\([\s\S]*activeNoteId:\s*discarded\.activeNote\.id,[\s\S]*markdown:\s*discarded\.activeNote\.markdown,/,
+  );
 });
 
 test("官方网页版前 20 条便签可作为隔离且可重复的测试工作区", () => {

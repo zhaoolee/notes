@@ -3,6 +3,7 @@ import { getInitialNoteWorkspace, getInitialTheme } from "../lib/app-state";
 import {
   createNoteFolder,
   createNoteDocument,
+  discardEmptyNoteDraft,
   moveNoteToFolder,
   moveNoteToTrash,
   reorderNormalNoteDocuments,
@@ -33,7 +34,8 @@ interface AppStoreState {
     markdown?: string,
     folderId?: string | null,
     isStarred?: boolean,
-  ) => void;
+  ) => string;
+  discardEmptyDraft: (noteId: string, preferredNextNoteId?: string) => void;
   createFolder: (name: string) => string | null;
   deleteFolder: (folderId: string) => void;
   selectNote: (noteId: string) => void;
@@ -74,7 +76,9 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   exportError: "",
   copyState: "idle",
   pendingAction: null,
-  createNote: (markdown = "", folderId = null, isStarred = false) =>
+  createNote: (markdown = "", folderId = null, isStarred = false) => {
+    let createdNoteId = "";
+
     set((state) => {
       const firstNormalOrder = state.notes.reduce(
         (smallest, note) => Math.min(smallest, note.normalOrder),
@@ -87,12 +91,42 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
         folderId,
         isStarred,
       );
+      createdNoteId = note.id;
 
       return {
         activeNoteId: note.id,
         exportError: "",
         markdown: note.markdown,
         notes: [note, ...state.notes],
+        pendingAction: null,
+      };
+    });
+
+    return createdNoteId;
+  },
+  discardEmptyDraft: (noteId, preferredNextNoteId) =>
+    set((state) => {
+      const discarded = discardEmptyNoteDraft(
+        state.notes,
+        noteId,
+        preferredNextNoteId,
+      );
+
+      if (!discarded) {
+        return {};
+      }
+
+      if (state.activeNoteId !== noteId) {
+        return {
+          notes: discarded.notes,
+        };
+      }
+
+      return {
+        activeNoteId: discarded.activeNote.id,
+        exportError: "",
+        markdown: discarded.activeNote.markdown,
+        notes: discarded.notes,
         pendingAction: null,
       };
     }),

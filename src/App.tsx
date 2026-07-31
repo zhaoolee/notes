@@ -40,6 +40,7 @@ import { splitSections } from "./lib/markdown";
 import {
   getCategoryNoteDocuments,
   getFolderIdFromCategory,
+  orderNoteDocuments,
 } from "./lib/notes";
 import { copyMarkdownForWechat } from "./lib/wechat";
 import { useAppStore } from "./store/useAppStore";
@@ -180,6 +181,7 @@ export default function App() {
   const desktopViewMenuRef = useRef<HTMLDivElement | null>(null);
   const desktopViewBeforeShareRef = useRef<DesktopWorkspaceView>("editor");
   const aiReviewNoteIdRef = useRef<string | null>(null);
+  const mobileDraftNoteIdRef = useRef<string | null>(null);
   const cloudSaveTimeoutRef = useRef<number | null>(null);
   const cloudRevisionRef = useRef(0);
   const cloudHydratedUserIdRef = useRef<string | null>(null);
@@ -194,6 +196,7 @@ export default function App() {
   const copyState = useAppStore((state) => state.copyState);
   const pendingAction = useAppStore((state) => state.pendingAction);
   const createNote = useAppStore((state) => state.createNote);
+  const discardEmptyDraft = useAppStore((state) => state.discardEmptyDraft);
   const createFolder = useAppStore((state) => state.createFolder);
   const deleteFolder = useAppStore((state) => state.deleteFolder);
   const reorderNotes = useAppStore((state) => state.reorderNotes);
@@ -881,11 +884,28 @@ export default function App() {
       setActiveCategoryId("all");
     }
 
-    createNote("", folderId, shouldStar);
+    mobileDraftNoteIdRef.current = createNote("", folderId, shouldStar);
     setDesktopWorkspaceView("editor");
     setMobileWorkspaceView("editor");
     setIsDesktopViewMenuOpen(false);
     setIsDesktopSharePreview(false);
+  }
+
+  function handleReturnToNoteList() {
+    setIsSettingsOpen(false);
+    setIsShareOpen(false);
+
+    const draftNoteId = mobileDraftNoteIdRef.current;
+    mobileDraftNoteIdRef.current = null;
+
+    if (draftNoteId) {
+      const preferredNextNoteId = orderNoteDocuments(
+        categoryNoteDocuments.filter((note) => note.id !== draftNoteId),
+      )[0]?.id;
+      discardEmptyDraft(draftNoteId, preferredNextNoteId);
+    }
+
+    setMobileWorkspaceView("notes");
   }
 
   function handleRefreshNotes() {
@@ -1153,11 +1173,7 @@ export default function App() {
               type="button"
               className="mobile-notes-back"
               aria-label="返回便签列表"
-              onClick={() => {
-                setIsSettingsOpen(false);
-                setIsShareOpen(false);
-                setMobileWorkspaceView("notes");
-              }}
+              onClick={handleReturnToNoteList}
             >
               <span className="mobile-back-icon" aria-hidden="true" />
             </button>

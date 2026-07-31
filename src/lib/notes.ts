@@ -269,6 +269,36 @@ export function orderNoteDocuments(notes: NoteDocument[]): NoteDocument[] {
     .map(({ note }) => note);
 }
 
+export function discardEmptyNoteDraft(
+  notes: NoteDocument[],
+  noteId: string,
+  preferredNextNoteId?: string,
+): { activeNote: NoteDocument; notes: NoteDocument[] } | null {
+  const draft = notes.find((note) => note.id === noteId);
+
+  if (!draft || isNoteDeleted(draft) || draft.markdown.trim()) {
+    return null;
+  }
+
+  const remainingNotes = notes.filter((note) => note.id !== noteId);
+  const remainingLiveNotes = orderNoteDocuments(
+    remainingNotes.filter((note) => !isNoteDeleted(note)),
+  );
+
+  if (remainingLiveNotes.length === 0) {
+    return null;
+  }
+
+  const activeNote =
+    remainingLiveNotes.find((note) => note.id === preferredNextNoteId) ??
+    remainingLiveNotes[0];
+
+  return {
+    activeNote,
+    notes: remainingNotes,
+  };
+}
+
 export function toggleNotePinned(
   notes: NoteDocument[],
   noteId: string,
