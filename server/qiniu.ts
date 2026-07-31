@@ -52,6 +52,7 @@ export class QiniuUploadError extends Error {
 const resolvedUploadUrls = new Map<string, string>();
 const QINIU_NETWORK_UPLOAD_ATTEMPTS = 3;
 const QINIU_NETWORK_RETRY_DELAY_MS = 150;
+const QINIU_UPLOAD_TIMEOUT_MS = 6_000;
 
 function normalizeDomain(value: string): string {
   const trimmed = value.trim().replace(/\/+$/, "");
@@ -307,6 +308,7 @@ export async function uploadImageBufferToQiniu(
         return await fetch(uploadUrl, {
           method: "POST",
           body: form,
+          signal: AbortSignal.timeout(QINIU_UPLOAD_TIMEOUT_MS),
         });
       } catch (error) {
         lastError = error;

@@ -97,6 +97,11 @@ async function stopChild(child: ChildProcess): Promise<void> {
 }
 
 test("Express 提供健康检查和内容寻址图片存储", async (context) => {
+  assert.match(
+    await readFile("server/qiniu.ts", "utf8"),
+    /signal:\s*AbortSignal\.timeout\(QINIU_UPLOAD_TIMEOUT_MS\)/,
+  );
+
   const port = await getUnusedPort();
   const storageDir = await mkdtemp(path.join(tmpdir(), "notes-feedback-images-"));
   const dataDir = await mkdtemp(path.join(tmpdir(), "notes-feedback-data-"));

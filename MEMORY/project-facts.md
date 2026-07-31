@@ -334,7 +334,8 @@
   `*.qiniup.com` 入口并在进程内缓存。
 - 生产日志曾出现 `upload.qiniup.com:443` 在 TLS 建连前瞬时
   `ECONNRESET`；七牛表单上传仅在没有收到任何 HTTP 响应的网络异常时原请求最多
-  重试三次。公开图片仍返回既定的七牛 HTTP 域名，不切换代理或改写 Markdown。
+  重试三次，每次等待响应不超过 6 秒。公开图片仍返回既定的七牛 HTTP 域名，
+  不切换代理或改写 Markdown。
 - 真实图床验收上传了现有测试图片，接口返回 `imageCount = 1`、
   `uploadedImageCount = 1`，公开 URL 返回 `200 image/jpeg`；现有图床域名配置
   是 HTTP；这是当前公众号正文图片的明确产品约定，不能自行替换为本站 HTTPS
