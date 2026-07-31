@@ -715,3 +715,13 @@
 - AI 审阅弹层的“生成修改建议”和逐条“确认修改”必须复用
   `--export-button-*` 主题按钮 Token：暖白主题为暖棕，暗黑主题为中性灰黑。
   黄绿色仅适合作为小面积状态提示，不能用于弹层中的大面积主按钮。
+
+## 2026-07-31：移动端固定一倍视口
+
+- 手机网页按应用式固定画布处理，不允许双指缩放。`index.html` 的 viewport 同时
+  锁定 `initial/minimum/maximum-scale=1` 并声明 `user-scalable=no`。
+- iOS Safari 与 iOS Chrome 共用 WebKit，可能不执行 viewport 的缩放上限；手机
+  断点因此还在 `html / body / #root` 使用 `touch-action: pan-x pan-y`。该值保留
+  横纵拖动而排除 `pinch-zoom`；不可替换成仍包含缩放能力的 `manipulation`。
+- iPhone 会在聚焦小于 `16px` 的表单控件时自动放大页面。移动端所有文本类 input、
+  textarea 和 select 统一至少为 `16px`，正文原有 `16px/42px` 节奏不变。

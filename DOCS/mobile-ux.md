@@ -65,6 +65,14 @@ Web 手机断点因此使用根 `.app-layout` 的单张
 页面高度由纵向 flex 剩余空间承载，同时通过 `viewport-fit=cover` 和四周安全区变量
 适配 iPhone 刘海、圆角与底部 Home Indicator。
 
+手机版是固定一倍比例的应用式工作区，不允许浏览器双指缩放。入口 viewport 同时
+声明 `initial/minimum/maximum-scale=1` 和 `user-scalable=no`；由于 iOS 的
+WebKit 可能忽略 viewport 的缩放上限，手机断点还必须在 `html / body / #root`
+使用显式 `touch-action: pan-x pan-y`，保留页面横纵拖动能力但不包含
+`pinch-zoom`。不能改成 `touch-action: manipulation`，该值仍允许双指缩放。
+移动端文本输入框、textarea 和 select 的字号不得小于 `16px`，避免 iPhone 聚焦
+小字号表单时自动把页面放大。
+
 iOS Safari 展开顶部地址栏、恢复页面或显示软键盘时，`visualViewport` 的纵向
 原点与高度会变化，只使用 `100dvh` 可能让顶栏落到浏览器工具栏后方。移动端应用壳
 保持固定定位，并实时使用 `visualViewport.offsetTop / height` 更新纵向几何；
@@ -216,6 +224,8 @@ JavaScript 或替换编辑控件可靠隐藏。Chrome iOS 仍可能忽略
 - 手机普通便签向右横滑最多 `66px` 后露出左侧原版删除图标；向左回滑、滚动或点击其他便签会收起。
 - 手机列表为 `75.3333px` APK 纸片，装订夹为 `28.6667 × 75.3333px`，不是网页版 `50px` 平面行。
 - 手机木纹由根布局的一张背景铺满，列表层透明；不得按 `160 × 273px` 重复平铺。
+- 手机页面固定为一倍比例，双指不能缩放；聚焦任何文本输入控件也不能触发 iPhone
+  的表单自动放大。
 - 普通便签拖拽只移动便签本体，不带额外透明容器或装饰阴影。
 - 手机 Markdown 快捷栏只随软键盘显示，固定 `42.6667px` 高、五等分，点按后不得让编辑器失焦或收起键盘。
 - iOS Chrome 正文继续使用 textarea；不得用 `contenteditable` 规避浏览器原生 AutoFill 附件。

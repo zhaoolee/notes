@@ -371,6 +371,24 @@ test("便签侧栏保持锤子网页版的紧凑视觉参数", () => {
   );
 });
 
+test("移动端锁定一倍视口并禁止双指缩放与输入框自动放大", () => {
+  const indexSource = readFileSync("index.html", "utf8");
+  const styles = readFileSync("src/styles.css", "utf8");
+
+  assert.match(
+    indexSource,
+    /width=device-width,\s*initial-scale=1\.0,\s*minimum-scale=1\.0,\s*maximum-scale=1\.0,\s*user-scalable=no,\s*viewport-fit=cover/,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 640px\)[\s\S]*html,\s*body,\s*#root\s*\{[^}]*height:\s*100%;[^}]*overflow:\s*hidden;[^}]*touch-action:\s*pan-x pan-y;/s,
+  );
+  assert.match(
+    styles,
+    /input:not\(\[type\]\),[\s\S]*input\[type="password"\],[\s\S]*textarea,\s*select\s*\{[^}]*font-size:\s*16px !important;/s,
+  );
+});
+
 test("移动端采用便签列表、编辑和预览三态工作区", () => {
   const appSource = readFileSync("src/App.tsx", "utf8");
   const editorSource = readFileSync("src/components/EditorPanel.tsx", "utf8");
