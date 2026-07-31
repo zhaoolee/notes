@@ -540,13 +540,19 @@
 
 ## 2026-07-30：iOS Safari 可视视口基线
 
-- iOS Safari 展开顶部地址栏或从页面缓存恢复时，`visualViewport.offsetTop` 和
-  `offsetLeft` 可能非零；即使应用使用 `100dvh`，布局视口原点仍可能藏在浏览器
-  工具栏后方，表现为首次打开看不到 `48px` Header，左右纸边也被裁切。
+- iOS Safari 展开顶部地址栏、从页面缓存恢复或显示软键盘时，
+  `visualViewport.offsetTop / height` 会变化；即使应用使用 `100dvh`，布局视口
+  原点仍可能藏在浏览器工具栏后方，表现为首次打开看不到 `48px` Header。
 - 移动端应用壳必须使用固定定位，并通过 `useLayoutEffect` 在首次渲染、
   `pageshow`、窗口/可视视口 resize、可视视口 scroll 和横竖屏切换时，把
-  `visualViewport` 的 offset、width、height 同步到 CSS 变量。根页面禁止滚动，
+  `visualViewport` 的纵向 offset 与 height 同步到 CSS 变量。根页面禁止滚动，
   内部列表、编辑器和预览区保持自己的滚动职责。
+- iOS 26 Safari 真机录屏中，应用壳右边界从 `1320px` 移到 `1232px`，按设备
+  `3×` 比例恰好对应 `440px → 410.7px`，并在右侧露出约 `29.3px` 空带。旧实现
+  唯一的横向动态输入正是 `visualViewport.width`，注入同一异常值可稳定复现；
+  移除后浏览器几何回归保持 `left/right/width = 0/440/440px`。水平方向必须固定
+  `left: 0; right: 0; width: auto`，只用 safe-area 环境变量留出刘海边缘；
+  不得再同步 `visualViewport.offsetLeft / width`。
 - `500 × 1061` 浏览器移动视口实测：列表页应用壳与 Header 为
   `0,0 → 500,1061` / `0,0 → 500,48`，进入编辑页后 Header、`50px` 状态栏和
   编辑器依次位于 `0–48 / 48–98 / 98–1061px`，`window.scrollX/Y` 均为 `0`，

@@ -378,7 +378,11 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
 
   assert.match(
     appSource,
-    /useLayoutEffect\(\(\) => \{[\s\S]*window\.visualViewport;[\s\S]*--mobile-visual-viewport-top[\s\S]*--mobile-visual-viewport-left[\s\S]*--mobile-visual-viewport-width[\s\S]*--mobile-visual-viewport-height[\s\S]*viewport\?\.addEventListener\("resize", syncVisualViewport\);[\s\S]*viewport\?\.addEventListener\("scroll", syncVisualViewport\);[\s\S]*window\.addEventListener\("pageshow", syncVisualViewport\);/s,
+    /useLayoutEffect\(\(\) => \{[\s\S]*window\.visualViewport;[\s\S]*--mobile-visual-viewport-top[\s\S]*--mobile-visual-viewport-height[\s\S]*viewport\?\.addEventListener\("resize", syncVisualViewport\);[\s\S]*viewport\?\.addEventListener\("scroll", syncVisualViewport\);[\s\S]*window\.addEventListener\("pageshow", syncVisualViewport\);/s,
+  );
+  assert.doesNotMatch(
+    appSource,
+    /--mobile-visual-viewport-left|--mobile-visual-viewport-width|viewport\?\.offsetLeft|viewport\?\.width/,
   );
   assert.match(appSource, /type MobileWorkspaceView = "notes" \| "editor" \| "preview";/);
   assert.match(appSource, /data-mobile-view=\{mobileWorkspaceView\}/);
@@ -392,7 +396,7 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     styles,
-    /@media \(max-width: 640px\)[\s\S]*\.app-layout\s*\{[^}]*position:\s*fixed;[^}]*top:\s*var\(--mobile-visual-viewport-top,\s*0px\);[^}]*left:\s*var\(--mobile-visual-viewport-left,\s*0px\);[^}]*width:\s*var\(--mobile-visual-viewport-width,\s*100vw\);[^}]*max-width:\s*var\(--mobile-visual-viewport-width,\s*100vw\);[^}]*height:\s*var\(--mobile-visual-viewport-height,\s*100dvh\);[^}]*max-height:\s*var\(--mobile-visual-viewport-height,\s*100dvh\);[^}]*overflow:\s*hidden;/s,
+    /@media \(max-width: 640px\)[\s\S]*\.app-layout\s*\{[^}]*position:\s*fixed;[^}]*top:\s*var\(--mobile-visual-viewport-top,\s*0px\);[^}]*right:\s*0;[^}]*left:\s*0;[^}]*width:\s*auto;[^}]*max-width:\s*none;[^}]*height:\s*var\(--mobile-visual-viewport-height,\s*100dvh\);[^}]*max-height:\s*var\(--mobile-visual-viewport-height,\s*100dvh\);[^}]*overflow:\s*hidden;/s,
   );
   assert.match(
     styles,

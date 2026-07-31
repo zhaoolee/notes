@@ -236,8 +236,6 @@ export default function App() {
     const viewport = window.visualViewport;
     const propertyNames = [
       "--mobile-visual-viewport-top",
-      "--mobile-visual-viewport-left",
-      "--mobile-visual-viewport-width",
       "--mobile-visual-viewport-height",
     ] as const;
 
@@ -254,13 +252,9 @@ export default function App() {
       }
 
       const offsetTop = Math.max(0, viewport?.offsetTop ?? 0);
-      const offsetLeft = Math.max(0, viewport?.offsetLeft ?? 0);
-      const width = Math.max(1, viewport?.width ?? window.innerWidth);
       const height = Math.max(1, viewport?.height ?? window.innerHeight);
 
       rootStyle.setProperty("--mobile-visual-viewport-top", `${offsetTop}px`);
-      rootStyle.setProperty("--mobile-visual-viewport-left", `${offsetLeft}px`);
-      rootStyle.setProperty("--mobile-visual-viewport-width", `${width}px`);
       rootStyle.setProperty("--mobile-visual-viewport-height", `${height}px`);
 
       if (window.scrollX !== 0 || window.scrollY !== 0) {

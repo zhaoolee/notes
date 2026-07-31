@@ -65,13 +65,17 @@ Web 手机断点因此使用根 `.app-layout` 的单张
 页面高度由纵向 flex 剩余空间承载，同时通过 `viewport-fit=cover` 和四周安全区变量
 适配 iPhone 刘海、圆角与底部 Home Indicator。
 
-iOS Safari 展开顶部地址栏或恢复页面时，`visualViewport` 可能相对布局视口同时
-产生非零 `offsetTop / offsetLeft`，只使用 `100dvh` 会让顶栏和左右纸边落到浏览器
-工具栏后方。移动端应用壳必须固定定位，并实时使用 `visualViewport` 的
-`offsetTop`、`offsetLeft`、`width` 与 `height` 更新自己的几何尺寸；在
-`pageshow`、横竖屏切换以及可视视口滚动/缩放时重新同步。页面根节点继续禁止滚动，
-只有便签列表、编辑器和预览区允许各自滚动，首次打开时必须完整显示 `48px` 顶栏
-和左右边缘。
+iOS Safari 展开顶部地址栏、恢复页面或显示软键盘时，`visualViewport` 的纵向
+原点与高度会变化，只使用 `100dvh` 可能让顶栏落到浏览器工具栏后方。移动端应用壳
+保持固定定位，并实时使用 `visualViewport.offsetTop / height` 更新纵向几何；
+在 `pageshow`、横竖屏切换以及可视视口滚动/缩放时重新同步。
+
+水平方向必须始终以布局视口的 `left: 0; right: 0` 铺满，安全区交给
+`env(safe-area-inset-left/right)`。不得把 `visualViewport.offsetLeft / width`
+直接写入应用壳：iOS 26 Safari 的浮动浏览器控件和边缘回弹会瞬时报告较窄的可视
+宽度。真机录屏中应用壳右边界从 `1320px` 移到 `1232px`；按设备 `3×` 比例，
+等价于整页从 `440px` 缩到约 `410.7px`，右侧露出约 `29.3px` 空带。页面根节点
+继续禁止滚动，只有便签列表、编辑器和预览区允许各自滚动。
 
 普通便签支持安卓版的横滑删除操作：手指向右滑动纸片时，纸片最多移动
 `66px`，从左侧露出距列表边缘 `22px`、尺寸

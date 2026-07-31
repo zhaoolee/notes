@@ -3561,9 +3561,10 @@ body,
   .app-layout {
     position: fixed;
     top: var(--mobile-visual-viewport-top, 0px);
-    left: var(--mobile-visual-viewport-left, 0px);
-    width: var(--mobile-visual-viewport-width, 100vw);
-    max-width: var(--mobile-visual-viewport-width, 100vw);
+    right: 0;
+    left: 0;
+    width: auto;
+    max-width: none;
     height: var(--mobile-visual-viewport-height, 100dvh);
     max-height: var(--mobile-visual-viewport-height, 100dvh);
     min-height: 0;
