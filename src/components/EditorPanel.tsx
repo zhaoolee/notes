@@ -3,6 +3,7 @@ import {
   useEffect,
   forwardRef,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -12,7 +13,10 @@ import {
   type KeyboardEvent,
 } from "react";
 import { importImageFile, importImageUrl } from "../lib/images";
-import { collectEditorImagePreviews } from "../lib/editor-images";
+import {
+  splitEditorContent,
+  type EditorTextBlock,
+} from "../lib/editor-images";
 import {
   applyMarkdownShortcut,
   continueMarkdownBlock,
@@ -86,7 +90,8 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
   },
   ref,
 ) {
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const editorScrollRef = useRef<HTMLDivElement | null>(null);
+  const textareaRefs = useRef(new Map<number, HTMLTextAreaElement>());
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const keyboardBaselineHeightRef = useRef<number | null>(null);
   const selectionRef = useRef({
@@ -97,8 +102,8 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
   const [imageImportError, setImageImportError] = useState("");
   const [isDropTargetActive, setIsDropTargetActive] = useState(false);
   const [isQuickInputVisible, setIsQuickInputVisible] = useState(false);
-  const editorImagePreviews = useMemo(
-    () => collectEditorImagePreviews(markdown),
+  const editorContent = useMemo(
+    () => splitEditorContent(markdown),
     [markdown],
   );
 
@@ -113,12 +118,12 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
   );
 
   const syncEditorPaperScroll = useCallback((): void => {
-    const textarea = textareaRef.current;
+    const scroller = editorScrollRef.current;
 
-    if (textarea) {
-      textarea.parentElement?.style.setProperty(
+    if (scroller) {
+      scroller.style.setProperty(
         "--editor-paper-scroll-y",
-        `${-textarea.scrollTop}px`,
+        `${-scroller.scrollTop}px`,
       );
     }
   }, []);
@@ -141,9 +146,10 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
         return;
       }
 
-      const textarea = textareaRef.current;
       const viewportHeight = getViewportHeight();
-      const isEditorFocused = document.activeElement === textarea;
+      const isEditorFocused = Array.from(textareaRefs.current.values()).includes(
+        document.activeElement as HTMLTextAreaElement,
+      );
 
       if (!isEditorFocused) {
         keyboardBaselineHeightRef.current = viewportHeight;
@@ -179,31 +185,120 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     };
   }, []);
 
-  function syncSelection(): void {
-    const textarea = textareaRef.current;
+  useLayoutEffect(() => {
+    const resizeTextareas = (): void => {
+      for (const [blockIndex, textarea] of textareaRefs.current) {
+        const block = editorContent[blockIndex];
 
-    if (!textarea) {
+        if (!block || block.kind !== "text") {
+          continue;
+        }
+
+        textarea.style.height = "0px";
+        textarea.style.height = `${Math.max(
+          textarea.scrollHeight,
+          Number.parseFloat(
+            getComputedStyle(textarea).getPropertyValue("--editor-line-height"),
+          ) || 42,
+        )}px`;
+      }
+
+      for (const imageBlock of editorScrollRef.current?.querySelectorAll<HTMLElement>(
+        ".editor-image-block",
+      ) ?? []) {
+        snapImageBlockToLineGrid(imageBlock);
+      }
+    };
+
+    resizeTextareas();
+    const animationFrame = window.requestAnimationFrame(resizeTextareas);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+    };
+  }, [editorContent]);
+
+  useEffect(() => {
+    const syncImageGrid = (): void => {
+      for (const imageBlock of editorScrollRef.current?.querySelectorAll<HTMLElement>(
+        ".editor-image-block",
+      ) ?? []) {
+        snapImageBlockToLineGrid(imageBlock);
+      }
+    };
+
+    window.addEventListener("resize", syncImageGrid);
+
+    return () => {
+      window.removeEventListener("resize", syncImageGrid);
+    };
+  }, [editorContent]);
+
+  function snapImageBlockToLineGrid(imageBlock: HTMLElement | null): void {
+    if (!imageBlock) {
+      return;
+    }
+
+    imageBlock.style.setProperty("--editor-image-grid-spacer", "0px");
+    const computedStyle = getComputedStyle(imageBlock);
+    const lineHeight =
+      Number.parseFloat(
+        computedStyle.getPropertyValue("--editor-line-height"),
+      ) || 42;
+    const occupiedHeight =
+      imageBlock.getBoundingClientRect().height +
+      Number.parseFloat(computedStyle.marginTop) +
+      Number.parseFloat(computedStyle.marginBottom);
+    const remainder = occupiedHeight % lineHeight;
+    const spacer =
+      remainder < 0.25 || lineHeight - remainder < 0.25
+        ? 0
+        : lineHeight - remainder;
+
+    imageBlock.style.setProperty(
+      "--editor-image-grid-spacer",
+      `${spacer}px`,
+    );
+  }
+
+  function getActiveTextBlock(): {
+    block: EditorTextBlock;
+    blockIndex: number;
+    textarea: HTMLTextAreaElement;
+  } | null {
+    const activeElement = document.activeElement;
+
+    for (const [blockIndex, textarea] of textareaRefs.current) {
+      const block = editorContent[blockIndex];
+
+      if (
+        activeElement === textarea &&
+        block &&
+        block.kind === "text"
+      ) {
+        return { block, blockIndex, textarea };
+      }
+    }
+
+    return null;
+  }
+
+  function syncSelection(): void {
+    const active = getActiveTextBlock();
+
+    if (!active) {
       return;
     }
 
     selectionRef.current = {
-      start: textarea.selectionStart ?? markdown.length,
-      end: textarea.selectionEnd ?? markdown.length,
+      start: active.block.start + (active.textarea.selectionStart ?? 0),
+      end: active.block.start + (active.textarea.selectionEnd ?? 0),
     };
   }
 
   useEffect(() => {
     const syncNativeSelectionChange = (): void => {
-      const textarea = textareaRef.current;
-
-      if (!textarea || document.activeElement !== textarea) {
-        return;
-      }
-
-      selectionRef.current = {
-        start: textarea.selectionStart ?? textarea.value.length,
-        end: textarea.selectionEnd ?? textarea.value.length,
-      };
+      syncSelection();
     };
 
     document.addEventListener("selectionchange", syncNativeSelectionChange);
@@ -211,11 +306,55 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     return () => {
       document.removeEventListener("selectionchange", syncNativeSelectionChange);
     };
-  }, []);
+  }, [editorContent]);
+
+  function focusGlobalSelection(
+    nextMarkdown: string,
+    selectionStart: number,
+    selectionEnd = selectionStart,
+  ): void {
+    const nextContent = splitEditorContent(nextMarkdown);
+    let targetBlockIndex = nextContent.findIndex(
+      (block) =>
+        block.kind === "text" &&
+        selectionStart >= block.start &&
+        selectionStart <= block.end,
+    );
+
+    if (targetBlockIndex < 0) {
+      for (let index = nextContent.length - 1; index >= 0; index -= 1) {
+        if (nextContent[index]?.kind === "text") {
+          targetBlockIndex = index;
+          break;
+        }
+      }
+    }
+
+    const targetBlock = nextContent[targetBlockIndex];
+
+    if (!targetBlock || targetBlock.kind !== "text") {
+      return;
+    }
+
+    const localStart = Math.max(
+      0,
+      Math.min(targetBlock.text.length, selectionStart - targetBlock.start),
+    );
+    const localEnd = Math.max(
+      localStart,
+      Math.min(targetBlock.text.length, selectionEnd - targetBlock.start),
+    );
+
+    window.requestAnimationFrame(() => {
+      const textarea = textareaRefs.current.get(targetBlockIndex);
+
+      textarea?.focus();
+      textarea?.setSelectionRange(localStart, localEnd);
+      textarea?.scrollIntoView({ block: "nearest" });
+    });
+  }
 
   function commitMarkdownEdit(edit: MarkdownEditResult): void {
-    const textarea = textareaRef.current;
-
     if (edit.markdown !== markdown) {
       onMarkdownChange(edit.markdown);
     }
@@ -224,39 +363,78 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
       start: edit.selectionStart,
       end: edit.selectionEnd,
     };
-
-    window.requestAnimationFrame(() => {
-      textarea?.focus();
-      textarea?.setSelectionRange(edit.selectionStart, edit.selectionEnd);
-    });
+    focusGlobalSelection(
+      edit.markdown,
+      edit.selectionStart,
+      edit.selectionEnd,
+    );
   }
 
   function handleMarkdownShortcut(shortcut: MarkdownShortcut): void {
-    const textarea = textareaRef.current;
-    const selectionStart = textarea?.selectionStart ?? selectionRef.current.start;
-    const selectionEnd = textarea?.selectionEnd ?? selectionRef.current.end;
+    syncSelection();
+    const { start: selectionStart, end: selectionEnd } = selectionRef.current;
 
     commitMarkdownEdit(
       applyMarkdownShortcut(markdown, selectionStart, selectionEnd, shortcut),
     );
   }
 
-  function focusImageMarker(markerStart: number, markerEnd: number): void {
-    const textarea = textareaRef.current;
+  function focusAfterImage(markerEnd: number): void {
+    selectionRef.current = {
+      end: markerEnd,
+      start: markerEnd,
+    };
+    focusGlobalSelection(markdown, markerEnd);
+  }
 
-    if (!textarea) {
+  function removeAdjacentImage(
+    markerStart: number,
+    markerEnd: number,
+  ): void {
+    const nextMarkdown = `${markdown.slice(0, markerStart)}${markdown.slice(
+      markerEnd,
+    )}`;
+
+    onMarkdownChange(nextMarkdown);
+    selectionRef.current = {
+      end: markerStart,
+      start: markerStart,
+    };
+    focusGlobalSelection(nextMarkdown, markerStart);
+  }
+
+  function handleEditorKeyDown(
+    event: KeyboardEvent<HTMLTextAreaElement>,
+    block: EditorTextBlock,
+    blockIndex: number,
+  ): void {
+    const selectionStart = event.currentTarget.selectionStart;
+    const selectionEnd = event.currentTarget.selectionEnd;
+    const previousBlock = editorContent[blockIndex - 1];
+    const nextBlock = editorContent[blockIndex + 1];
+
+    if (
+      event.key === "Backspace" &&
+      selectionStart === 0 &&
+      selectionEnd === 0 &&
+      previousBlock?.kind === "image"
+    ) {
+      event.preventDefault();
+      removeAdjacentImage(previousBlock.markerStart, previousBlock.markerEnd);
       return;
     }
 
-    selectionRef.current = {
-      start: markerStart,
-      end: markerEnd,
-    };
-    textarea.focus();
-    textarea.setSelectionRange(markerStart, markerEnd);
-  }
+    if (
+      event.key === "Delete" &&
+      selectionStart === block.text.length &&
+      selectionEnd === block.text.length &&
+      nextBlock?.kind === "image"
+    ) {
+      event.preventDefault();
+      removeAdjacentImage(nextBlock.markerStart, nextBlock.markerEnd);
+      return;
+    }
 
-  function handleEditorKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
     if (
       event.key !== "Enter" ||
       event.shiftKey ||
@@ -270,8 +448,8 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
 
     const edit = continueMarkdownBlock(
       markdown,
-      event.currentTarget.selectionStart,
-      event.currentTarget.selectionEnd,
+      block.start + selectionStart,
+      block.start + selectionEnd,
     );
 
     if (!edit) {
@@ -283,14 +461,9 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
   }
 
   function insertImageMarkdown(imageUrl: string): void {
-    const textarea = textareaRef.current;
-    const hasFocus = typeof document !== "undefined" && document.activeElement === textarea;
-    const selectionStart = hasFocus
-      ? (textarea?.selectionStart ?? markdown.length)
-      : selectionRef.current.start;
-    const selectionEnd = hasFocus
-      ? (textarea?.selectionEnd ?? markdown.length)
-      : selectionRef.current.end;
+    syncSelection();
+    const selectionStart = selectionRef.current.start;
+    const selectionEnd = selectionRef.current.end;
     const before = markdown.slice(0, selectionStart);
     const after = markdown.slice(selectionEnd);
     const imageMarkdown = `![图片](${imageUrl})`;
@@ -306,11 +479,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
       start: nextCursorPosition,
       end: nextCursorPosition,
     };
-
-    window.requestAnimationFrame(() => {
-      textarea?.focus();
-      textarea?.setSelectionRange(nextCursorPosition, nextCursorPosition);
-    });
+    focusGlobalSelection(nextMarkdown, nextCursorPosition);
   }
 
   async function handleImportedSource(source: File | string): Promise<void> {
@@ -370,7 +539,27 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     await handleImportedSource(clipboardUrl);
   }
 
-  async function importFromDrop(event: DragEvent<HTMLTextAreaElement>): Promise<void> {
+  function handleTextBlockChange(
+    event: ChangeEvent<HTMLTextAreaElement>,
+    block: EditorTextBlock,
+  ): void {
+    const nextValue = event.target.value;
+    const nextMarkdown = `${markdown.slice(0, block.start)}${nextValue}${markdown.slice(
+      block.end,
+    )}`;
+    const selectionStart =
+      block.start + (event.target.selectionStart ?? nextValue.length);
+    const selectionEnd =
+      block.start + (event.target.selectionEnd ?? nextValue.length);
+
+    selectionRef.current = {
+      end: selectionEnd,
+      start: selectionStart,
+    };
+    onMarkdownChange(nextMarkdown);
+  }
+
+  async function importFromDrop(event: DragEvent<HTMLElement>): Promise<void> {
     const imageFile = extractImageFile(event.dataTransfer.files);
 
     if (imageFile) {
@@ -400,18 +589,18 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     await handleImportedSource(file);
   }
 
-  function handleDragEnter(event: DragEvent<HTMLTextAreaElement>): void {
+  function handleDragEnter(event: DragEvent<HTMLElement>): void {
     event.preventDefault();
     setIsDropTargetActive(true);
   }
 
-  function handleDragOver(event: DragEvent<HTMLTextAreaElement>): void {
+  function handleDragOver(event: DragEvent<HTMLElement>): void {
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
     setIsDropTargetActive(true);
   }
 
-  function handleDragLeave(event: DragEvent<HTMLTextAreaElement>): void {
+  function handleDragLeave(event: DragEvent<HTMLElement>): void {
     event.preventDefault();
 
     if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
@@ -428,7 +617,15 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
       <div
         className={`markdown-editor-frame${
           isDropTargetActive ? " drag-active" : ""
-        }${editorImagePreviews.length > 0 ? " has-image-previews" : ""}`}
+        }`}
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={(event) => {
+          event.preventDefault();
+          setIsDropTargetActive(false);
+          void importFromDrop(event);
+        }}
       >
         {isDropTargetActive ? (
           <div className="markdown-drop-indicator">松手即可导入图片</div>
@@ -442,82 +639,94 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
             void handleImageInputChange(event);
           }}
         />
-        <textarea
-          id="markdown-editor"
-          name="note-content"
-          ref={textareaRef}
-          className="markdown-editor"
-          aria-label="便签正文"
-          aria-multiline="true"
-          autoComplete="off"
-          autoCapitalize="sentences"
-          inputMode="text"
-          enterKeyHint="enter"
-          value={markdown}
-          onChange={(event) => {
-            onMarkdownChange(event.target.value);
-          }}
-          onSelect={syncSelection}
-          onClick={syncSelection}
-          onKeyDown={handleEditorKeyDown}
-          onKeyUp={syncSelection}
-          onFocus={() => {
-            if (window.matchMedia("(max-width: 640px)").matches) {
-              keyboardBaselineHeightRef.current = Math.max(
-                keyboardBaselineHeightRef.current ??
-                  window.visualViewport?.height ??
-                  window.innerHeight,
-                window.visualViewport?.height ?? window.innerHeight,
-              );
-            }
-
-            syncSelection();
-          }}
-          onBlur={() => {
-            setIsQuickInputVisible(false);
-          }}
+        <div
+          ref={editorScrollRef}
+          className="markdown-editor-flow"
           onScroll={syncEditorPaperScroll}
-          onPaste={(event) => {
-            void importFromClipboard(event);
-          }}
-          onDragEnter={handleDragEnter}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={(event) => {
-            event.preventDefault();
-            setIsDropTargetActive(false);
-            void importFromDrop(event);
-          }}
-          spellCheck={false}
-        />
-        {editorImagePreviews.length > 0 ? (
-          <div
-            className="editor-image-previews"
-            aria-label="正文图片实时预览"
-          >
-            {editorImagePreviews.map((image, index) => (
-              <button
-                key={`${image.markerStart}-${image.source}`}
-                type="button"
-                className="editor-image-preview"
-                aria-label={`定位正文图片：${image.alt || `图片 ${index + 1}`}`}
-                onPointerDown={(event) => {
-                  event.preventDefault();
+        >
+          {editorContent.map((block, blockIndex) =>
+            block.kind === "text" ? (
+              <textarea
+                id={blockIndex === 0 ? "markdown-editor" : undefined}
+                key={`text-${blockIndex}`}
+                name={`note-content-${blockIndex}`}
+                ref={(textarea) => {
+                  if (textarea) {
+                    textareaRefs.current.set(blockIndex, textarea);
+                  } else {
+                    textareaRefs.current.delete(blockIndex);
+                  }
                 }}
-                onClick={() =>
-                  focusImageMarker(image.markerStart, image.markerEnd)
+                className="markdown-editor editor-text-segment"
+                aria-label={
+                  editorContent.length === 1
+                    ? "便签正文"
+                    : `便签正文第 ${Math.floor(blockIndex / 2) + 1} 段`
                 }
+                aria-multiline="true"
+                autoComplete="off"
+                autoCapitalize="sentences"
+                inputMode="text"
+                enterKeyHint="enter"
+                value={block.text}
+                onChange={(event) => handleTextBlockChange(event, block)}
+                onSelect={syncSelection}
+                onClick={syncSelection}
+                onKeyDown={(event) =>
+                  handleEditorKeyDown(event, block, blockIndex)
+                }
+                onKeyUp={syncSelection}
+                onFocus={() => {
+                  if (window.matchMedia("(max-width: 640px)").matches) {
+                    keyboardBaselineHeightRef.current = Math.max(
+                      keyboardBaselineHeightRef.current ??
+                        window.visualViewport?.height ??
+                        window.innerHeight,
+                      window.visualViewport?.height ?? window.innerHeight,
+                    );
+                  }
+
+                  syncSelection();
+                }}
+                onBlur={() => {
+                  setIsQuickInputVisible(false);
+                }}
+                onPaste={(event) => {
+                  void importFromClipboard(event);
+                }}
+                spellCheck={false}
+              />
+            ) : (
+              <figure
+                key={`image-${block.markerStart}-${block.source}`}
+                className="editor-image-block"
+                data-editor-image="true"
               >
                 <img
-                  src={image.source}
-                  alt={image.alt || `图片 ${index + 1}`}
+                  src={block.source}
+                  alt={block.alt || `正文图片 ${Math.floor(blockIndex / 2) + 1}`}
                   loading="lazy"
+                  onLoad={(event) => {
+                    snapImageBlockToLineGrid(event.currentTarget.parentElement);
+                  }}
                 />
-                <span>{image.alt || `图片 ${index + 1}`}</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
+                <button
+                  type="button"
+                  className="editor-image-handle"
+                  aria-label="将光标移到图片后"
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                  }}
+                  onClick={() => focusAfterImage(block.markerEnd)}
+                >
+                  <span />
+                  <span />
+                  <span />
+                </button>
+              </figure>
+            ),
+          )}
+        </div>
       </div>
       {isQuickInputVisible ? (
         <div

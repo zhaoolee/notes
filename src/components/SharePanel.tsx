@@ -65,7 +65,7 @@ export function SharePanel({
         aria-labelledby="app-share-title"
       >
         <header className="share-panel-header">
-          <h2 id="app-share-title">分享与导出</h2>
+          <h2 id="app-share-title">请选择操作</h2>
           <button
             type="button"
             className="share-panel-close"
@@ -76,12 +76,6 @@ export function SharePanel({
           </button>
         </header>
         <div className="share-actions">
-          <ShareAction
-            label={isExporting ? "正在存图..." : "保存为图片"}
-            description="导出当前便签长图"
-            disabled={isExporting}
-            onClick={onExport}
-          />
           <ShareAction
             label={copyButtonText}
             description="复制当前 Markdown 源文本"
@@ -94,7 +88,13 @@ export function SharePanel({
             onClick={onCopyWechat}
           />
           <ShareAction
-            label={isArchiving ? "归档中..." : "下载归档"}
+            label={isExporting ? "正在生成图片..." : "以图片形式分享"}
+            description="导出当前便签长图"
+            disabled={isExporting}
+            onClick={onExport}
+          />
+          <ShareAction
+            label={isArchiving ? "归档中..." : "导出离线归档"}
             description="下载 Markdown、HTML、图片和字体"
             disabled={isArchiving}
             onClick={onArchiveDownload}

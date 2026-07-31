@@ -181,7 +181,7 @@ test("便签正文声明为普通多行文本而不是账号或密码字段", ()
 
   assert.match(
     editorSource,
-    /<textarea[\s\S]*id="markdown-editor"[\s\S]*name="note-content"[\s\S]*aria-label="便签正文"[\s\S]*aria-multiline="true"[\s\S]*autoComplete="off"[\s\S]*autoCapitalize="sentences"[\s\S]*inputMode="text"[\s\S]*enterKeyHint="enter"/s,
+    /<textarea[\s\S]*name=\{`note-content-\$\{blockIndex\}`\}[\s\S]*className="markdown-editor editor-text-segment"[\s\S]*aria-label=\{[\s\S]*"便签正文"[\s\S]*aria-multiline="true"[\s\S]*autoComplete="off"[\s\S]*autoCapitalize="sentences"[\s\S]*inputMode="text"[\s\S]*enterKeyHint="enter"/s,
   );
   assert.doesNotMatch(
     editorSource,

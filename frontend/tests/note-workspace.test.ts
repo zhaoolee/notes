@@ -514,7 +514,11 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     editorSource,
-    /const syncNativeSelectionChange = \(\): void => \{[\s\S]*document\.activeElement !== textarea[\s\S]*selectionRef\.current = \{[\s\S]*start:\s*textarea\.selectionStart[\s\S]*end:\s*textarea\.selectionEnd[\s\S]*\};/s,
+    /const syncNativeSelectionChange = \(\): void => \{\s*syncSelection\(\);\s*\};/,
+  );
+  assert.match(
+    editorSource,
+    /start:\s*active\.block\.start \+ \(active\.textarea\.selectionStart[\s\S]*end:\s*active\.block\.start \+ \(active\.textarea\.selectionEnd/s,
   );
   assert.match(
     styles,
@@ -534,7 +538,7 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     styles,
-    /\.app-layout\[data-theme="smartisan-dark"\] \.markdown-editor-frame::before\s*\{[^}]*border-right-color:\s*#282828;[^}]*#161416;[^}]*\}[\s\S]*\.app-layout\[data-theme="smartisan-dark"\] \.markdown-editor\s*\{[^}]*#282828[^}]*#1c1a1c;[^}]*background-attachment:\s*local;[^}]*color:\s*#cecece;/s,
+    /\.app-layout\[data-theme="smartisan-dark"\] \.markdown-editor-frame::before\s*\{[^}]*border-right-color:\s*#282828;[^}]*#161416;[^}]*\}[\s\S]*\.app-layout\[data-theme="smartisan-dark"\] \.markdown-editor-flow\s*\{[^}]*#282828[^}]*#1c1a1c;[^}]*background-attachment:\s*local;[^}]*\}[\s\S]*\.app-layout\[data-theme="smartisan-dark"\] \.markdown-editor\s*\{[^}]*background:\s*transparent;[^}]*color:\s*#cecece;/s,
   );
   for (const darkAsset of [
     "public/smartisan/mobile/dark/action_bar_default.png",
@@ -558,7 +562,7 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     styles,
-    /@media \(max-width: 640px\)[\s\S]*--editor-rule-offset-y:\s*-10px;[\s\S]*--editor-rule-thickness:\s*0\.6667px;[\s\S]*--editor-rule-line:\s*#f4ebde;[\s\S]*\.markdown-editor\s*\{[^}]*transparent\s*calc\(var\(--editor-line-height\) - var\(--editor-rule-thickness\)\)[^}]*var\(--editor-rule-line\) var\(--editor-line-height\)[^}]*0 var\(--editor-rule-offset-y\) \/ 100% var\(--editor-line-height\) repeat-y,[^}]*var\(--editor-paper-base\);[^}]*background-attachment:\s*local;/s,
+    /@media \(max-width: 640px\)[\s\S]*--editor-rule-offset-y:\s*-10px;[\s\S]*--editor-rule-thickness:\s*0\.6667px;[\s\S]*--editor-rule-line:\s*#f4ebde;[\s\S]*\.markdown-editor-flow\s*\{[^}]*transparent\s*calc\(var\(--editor-line-height\) - var\(--editor-rule-thickness\)\)[^}]*var\(--editor-rule-line\) var\(--editor-line-height\)[^}]*0 var\(--editor-rule-offset-y\) \/ 100% var\(--editor-line-height\) repeat-y,[^}]*var\(--editor-paper-base\);[^}]*background-attachment:\s*local;/s,
   );
   assert.match(
     styles,
@@ -578,7 +582,7 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     editorSource,
-    /style\.setProperty\(\s*"--editor-paper-scroll-y",\s*`\$\{-textarea\.scrollTop\}px`,\s*\);/,
+    /style\.setProperty\(\s*"--editor-paper-scroll-y",\s*`\$\{-scroller\.scrollTop\}px`,\s*\);/,
   );
   assert.match(
     styles,
@@ -726,7 +730,7 @@ test("桌面工作区使用锤子便签网页版的纸面、细线和栏宽比�
   );
   assert.match(
     styles,
-    /\.markdown-editor\s*\{[^}]*font-weight:\s*400;[^}]*padding:\s*0 30px 100px 50px;[^}]*grid_6e4a41eefc\.png/s,
+    /\.markdown-editor-flow\s*\{[^}]*grid_6e4a41eefc\.png[^}]*background-attachment:\s*local;[^}]*\}[\s\S]*\.markdown-editor\s*\{[^}]*font-weight:\s*400;[^}]*padding:\s*0 30px 0 50px;[^}]*background:\s*transparent;[\s\S]*\.editor-text-segment:last-child\s*\{[^}]*padding-bottom:\s*100px;/s,
   );
   assert.match(
     styles,
@@ -783,11 +787,11 @@ test("桌面工作区使用锤子便签网页版的纸面、细线和栏宽比�
   );
   assert.match(
     styles,
-    /\.app-layout\[data-theme="smartisan-dark"\] \.markdown-editor\s*\{[^}]*#282828 var\(--editor-line-height\)[^}]*0 var\(--editor-rule-offset-y\) \/ 100% var\(--editor-line-height\) repeat-y,[^}]*#1c1a1c;[^}]*background-attachment:\s*local;[^}]*color:\s*#cecece;/s,
+    /\.app-layout\[data-theme="smartisan-dark"\] \.markdown-editor-flow\s*\{[^}]*#282828 var\(--editor-line-height\)[^}]*0 var\(--editor-rule-offset-y\) \/ 100% var\(--editor-line-height\) repeat-y,[^}]*#1c1a1c;[^}]*background-attachment:\s*local;/s,
   );
   const darkEditorRuleBodies = Array.from(
     styles.matchAll(
-      /\.app-layout\[data-theme="smartisan-dark"\] \.markdown-editor\s*\{([^}]*)\}/g,
+      /\.app-layout\[data-theme="smartisan-dark"\] \.markdown-editor-flow\s*\{([^}]*)\}/g,
     ),
     (match) => match[1],
   ).filter((ruleBody) => ruleBody.includes("#1c1a1c"));

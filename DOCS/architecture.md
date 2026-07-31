@@ -134,8 +134,12 @@ Markdown 便签、文件夹分类、加星、置顶以及生成公众号 HTML。
 `/images/*`、`public/*`、Data URL 或远程图片，并用内容 SHA-256 作为对象名上传
 到七牛。已经指向同一七牛域名的图片不会重复上传。底部署名使用的 Smartisan
 锤子 PNG 默认引用项目生产图片服务提供的 HTTPS 直链；用户上传自定义 Logo 后，
-后端把它与正文图片一起按内容哈希去重并上传，再将公众号页脚替换为 HTTPS 地址。
-复制结果不包含微信会拒绝的 Data URL，也不依赖当前站点域名是否配置有效证书。
+后端把它与正文图片一起按内容哈希去重并上传。按当前产品约定，公众号正文和
+自定义 Logo 的七牛对象直接使用 `QINIU_DOMAIN` 返回的公开地址；生产配置明确为
+`http://tmp-blog.fangyuanxiaozhan.com`，不再改写成本站 `/qiniu/` HTTPS 代理。
+内置页脚锤子图和编辑器、预览、同步使用的普通图片仍保留
+`https://notes.fangyuanxiaozhan.com/images/...`。复制结果不包含微信会拒绝的
+Data URL。
 如果 Markdown 或自定义 Logo 使用当前站点的完整
 `https://<本站>/images/...` 地址，服务端按请求的公开 Host 识别为同源图片并直接
 从 `IMAGE_STORAGE_DIR` 读取；不能再通过公网 `fetch` 回环访问自身。只有真正的
@@ -181,9 +185,10 @@ Smartisan 圆形锤子 PNG，并改用无边框的行内元素与文字垂直居
 复制 HTML 默认引用项目生产图片服务中内容哈希为
 `b5d3bd9587fa9a1226b25a0709ff61a450df29d96ca2f127c6afc0b8e193a60e`
 的有效 PNG 直链，也可通过
-`WECHAT_FOOTER_HAMMER_URL` 覆盖。这样能避免 `localhost`、Data URL 和无有效
-证书的 HTTP 图床进入公众号。React 服务端渲染自动生成的图片 preload `<link>`
-会在写入剪贴板前移除，公众号收到的只包含可粘贴正文节点。
+`WECHAT_FOOTER_HAMMER_URL` 覆盖。这样能避免 `localhost` 和 Data URL 进入
+内置署名；正文七牛图片则遵循上述 HTTP 直链产品约定。React 服务端渲染自动生成
+的图片 preload `<link>` 会在写入剪贴板前移除，公众号收到的只包含可粘贴正文
+节点。
 
 微信公众号会在 `**粗体**vibe` 这类行内格式结束后直接连接拉丁字符的边界强制
 断行。公众号专用渲染会在代码块和行内代码之外，把不可见的 WORD JOINER 放进

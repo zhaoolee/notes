@@ -2569,19 +2569,18 @@ body,
   position: relative;
   flex: 1;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
   border: 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+  overscroll-behavior: contain;
 }
 
 .markdown-editor-frame::before {
   content: "";
   position: absolute;
-  z-index: 1;
+  z-index: 2;
   inset: 0 auto 0 0;
   width: var(--editor-gutter-width);
   border-right: 1px solid #e8e2d7;
@@ -2601,6 +2600,7 @@ body,
 .markdown-editor-frame.drag-active::after {
   content: "";
   position: absolute;
+  z-index: 4;
   inset: 0;
   border-radius: 0;
   border: 1.5px dashed color-mix(in srgb, var(--accent) 65%, transparent);
@@ -2611,7 +2611,7 @@ body,
 .markdown-drop-indicator {
   position: absolute;
   inset: 18px;
-  z-index: 1;
+  z-index: 5;
   display: grid;
   place-items: center;
   border-radius: 18px;
@@ -2623,28 +2623,48 @@ body,
   pointer-events: none;
 }
 
-.markdown-editor {
+.markdown-editor-flow {
   position: relative;
   width: 100%;
-  height: auto;
-  min-height: 0;
-  flex: 1 1 auto;
+  height: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: #fbf7ed url("/smartisan/web/grid_6e4a41eefc.png") repeat;
+  background-attachment: local;
+  overscroll-behavior: contain;
+}
+
+.markdown-editor {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: var(--editor-line-height);
+  flex: 0 0 auto;
+  overflow: hidden;
   resize: none;
   font-family: var(--ui-font);
   font-weight: 400;
   font-size: var(--editor-font-size);
   border: 0;
   border-radius: 0;
-  padding: 0 30px 100px 50px;
-  background: #fbf7ed url("/smartisan/web/grid_6e4a41eefc.png") repeat;
+  padding: 0 30px 0 50px;
+  background: transparent;
   color: #635852;
   caret-color: var(--editor-caret-color);
   line-height: var(--editor-line-height);
   -webkit-text-size-adjust: none;
   text-size-adjust: none;
-  background-attachment: local;
   outline: none;
   box-shadow: none;
+}
+
+.editor-text-segment:last-child {
+  min-height: calc(var(--editor-line-height) * 4);
+  flex: 1 0 auto;
+  padding-bottom: 100px;
 }
 
 .markdown-editor::selection {
@@ -2659,59 +2679,68 @@ body,
   color: var(--ink);
 }
 
+:root[data-theme="smartisan-dark"] .markdown-editor-flow {
+  background: #1c1a1c;
+}
+
 .markdown-editor:focus {
   box-shadow: none;
 }
 
-.editor-image-previews {
+.editor-image-block {
   position: relative;
-  z-index: 3;
-  width: 100%;
-  height: 124px;
-  min-height: 124px;
-  padding: 10px 14px 10px calc(var(--editor-gutter-width) + 14px);
-  display: flex;
-  flex: 0 0 124px;
-  gap: 10px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  border-top: 1px solid var(--note-list-divider);
-  background: var(--editor-paper-base);
-  scrollbar-width: thin;
-}
-
-.editor-image-preview {
-  position: relative;
-  width: 168px;
-  min-width: 168px;
-  height: 103px;
+  z-index: 1;
+  margin:
+    8px
+    30px
+    calc(14px + var(--editor-image-grid-spacer, 0px))
+    calc(var(--editor-gutter-width) + 24px);
   padding: 4px;
-  overflow: hidden;
+  flex: 0 0 auto;
   border: 1px solid var(--note-image-frame);
-  border-radius: 5px;
+  border-radius: 2px;
   background: var(--note-image-mat);
-  color: var(--muted);
-  box-shadow: 0 1px 4px var(--note-image-shadow);
+  box-shadow:
+    0 1px 5px var(--note-image-shadow),
+    0 0 0 1px color-mix(in srgb, var(--note-image-frame) 45%, transparent);
 }
 
-.editor-image-preview img {
+.editor-image-block img {
   display: block;
   width: 100%;
-  height: 76px;
-  border-radius: 2px;
-  object-fit: cover;
+  height: auto;
+  border: 0;
+  border-radius: 0;
 }
 
-.editor-image-preview span {
-  display: block;
-  height: 20px;
-  padding: 2px 4px 0;
-  overflow: hidden;
-  font-size: 11px;
-  line-height: 18px;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.editor-image-handle {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  right: -13px;
+  width: 32px;
+  height: 32px;
+  padding: 8px 7px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  border: 1px solid rgba(126, 118, 110, 0.28);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--note-image-mat) 94%, white);
+  box-shadow:
+    0 2px 6px rgba(56, 46, 38, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.68);
+}
+
+.editor-image-handle span {
+  width: 100%;
+  height: 1.5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 84%, transparent);
+}
+
+.editor-image-handle:active {
+  background: color-mix(in srgb, var(--note-image-mat) 84%, var(--note-image-frame));
 }
 
 .markdown-quick-input {
@@ -4097,48 +4126,116 @@ body,
     inset: 0;
     display: block;
     border: 0;
-    background: rgba(34, 28, 24, 0.32);
+    border-radius: 0;
+    background: rgba(20, 18, 17, 0.58);
+    animation: share-backdrop-in 180ms ease-out both;
   }
 
   .share-panel {
     position: fixed;
     z-index: 60;
     top: auto;
-    right: max(8px, var(--mobile-safe-area-right));
-    bottom: max(8px, env(safe-area-inset-bottom));
-    left: max(8px, var(--mobile-safe-area-left));
+    right: 0;
+    bottom: 0;
+    left: 0;
     width: auto;
-    max-height: calc(100dvh - 70px);
-    padding: 16px;
-    border-color: #d7cdc0;
-    border-radius: 14px;
-    background: #fbf7ed;
-    color: #5c3c2a;
-    box-shadow: 0 8px 30px rgba(47, 35, 27, 0.28);
+    max-height: calc(100dvh - 48px);
+    padding: 0 0 calc(28px + var(--mobile-safe-area-bottom));
+    overflow-y: auto;
+    border: 0;
+    border-radius: 16px 16px 0 0;
+    background: #f2f2f2;
+    color: #747474;
+    box-shadow: 0 -2px 18px rgba(0, 0, 0, 0.14);
     backdrop-filter: none;
+    animation: share-panel-in 220ms cubic-bezier(0.22, 0.72, 0.24, 1) both;
+  }
+
+  .share-panel-header {
+    position: sticky;
+    z-index: 1;
+    top: 0;
+    min-height: 52px;
+    padding: 0 10px;
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    gap: 0;
+    border-bottom: 1px solid #dedede;
+    background: #f2f2f2;
   }
 
   .share-panel-header h2 {
-    color: #5c3c2a;
-    font-size: 17px;
-    font-weight: 500;
+    grid-column: 2;
+    color: #6f6f6f;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 52px;
+    text-align: center;
   }
 
   .share-panel-close {
-    border-color: #ded4c7;
-    background: #fffaf1;
-    color: rgba(92, 60, 42, 0.62);
+    width: 40px;
+    height: 40px;
+    padding: 0 0 3px;
+    grid-column: 3;
+    align-self: center;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #858585;
+    font-size: 32px;
+    font-weight: 300;
+  }
+
+  .share-actions {
+    margin-top: 0;
+    padding: 20px 16px 0;
+    gap: 18px;
   }
 
   .share-action {
-    border-color: #ded4c7;
-    border-radius: 6px;
-    background: rgba(255, 252, 246, 0.82);
-    color: #5c3c2a;
+    min-height: 58px;
+    padding: 0 14px;
+    display: grid;
+    place-items: center;
+    border: 1px solid #e1e1e1;
+    border-radius: 10px;
+    background: #fff;
+    color: #747474;
+    text-align: center;
+    box-shadow:
+      0 6px 16px rgba(0, 0, 0, 0.09),
+      0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+
+  .share-action:hover {
+    transform: none;
+    border-color: #d8d8d8;
+    box-shadow:
+      0 6px 16px rgba(0, 0, 0, 0.09),
+      0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+
+  .share-action:active:not(:disabled) {
+    background: #f8f8f8;
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.06),
+      0 3px 10px rgba(0, 0, 0, 0.07);
+  }
+
+  .share-action:disabled {
+    color: #a9a9a9;
+    opacity: 0.72;
+  }
+
+  .share-action-label {
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.2;
   }
 
   .share-action-description {
-    color: rgba(92, 60, 42, 0.54);
+    display: none;
   }
 
   .app-shell {
@@ -4819,10 +4916,7 @@ body,
     flex: 0 0 auto;
   }
 
-  .markdown-editor {
-    min-height: 0;
-    resize: none;
-    padding: 0 18px 18px 39px;
+  .markdown-editor-flow {
     background:
       linear-gradient(
           to bottom,
@@ -4836,9 +4930,35 @@ body,
         0 var(--editor-rule-offset-y) / 100% var(--editor-line-height) repeat-y,
       var(--editor-paper-base);
     background-attachment: local;
+  }
+
+  .markdown-editor {
+    min-height: var(--editor-line-height);
+    resize: none;
+    padding: 0 18px 0 39px;
+    background: transparent;
     color: #5c3c2ad1;
     caret-color: var(--editor-caret-color);
     font-weight: 400;
+  }
+
+  .editor-text-segment:last-child {
+    min-height: calc(var(--editor-line-height) * 4);
+    padding-bottom: 18px;
+  }
+
+  .editor-image-block {
+    margin:
+      4px
+      25px
+      calc(10px + var(--editor-image-grid-spacer, 0px))
+      calc(var(--mobile-editor-gutter-width) + 7px);
+    padding: 4px;
+  }
+
+  .editor-image-handle {
+    top: 14px;
+    right: -13px;
   }
 
   .markdown-quick-input {
@@ -6242,7 +6362,7 @@ body,
       #161416;
   }
 
-  .app-layout[data-theme="smartisan-dark"] .markdown-editor {
+  .app-layout[data-theme="smartisan-dark"] .markdown-editor-flow {
     background:
       linear-gradient(
           to bottom,
@@ -6256,6 +6376,10 @@ body,
         0 var(--editor-rule-offset-y) / 100% var(--editor-line-height) repeat-y,
       #1c1a1c;
     background-attachment: local;
+  }
+
+  .app-layout[data-theme="smartisan-dark"] .markdown-editor {
+    background: transparent;
     color: #cecece;
   }
 
@@ -6373,12 +6497,22 @@ body,
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.54);
   }
 
+  .app-layout[data-theme="smartisan-dark"] .share-panel-header {
+    border-bottom-color: #343134;
+    background: #1e1c1e;
+  }
+
   .app-layout[data-theme="smartisan-dark"] .share-panel-header h2,
   .app-layout[data-theme="smartisan-dark"] .share-action {
     color: #cecece;
   }
 
-  .app-layout[data-theme="smartisan-dark"] .share-panel-close,
+  .app-layout[data-theme="smartisan-dark"] .share-panel-close {
+    border: 0;
+    background: transparent;
+    color: #8f8c8f;
+  }
+
   .app-layout[data-theme="smartisan-dark"] .share-action {
     border-color: #3b383b;
     background: #242224;
@@ -6386,6 +6520,35 @@ body,
 
   .app-layout[data-theme="smartisan-dark"] .share-action-description {
     color: #777477;
+  }
+}
+
+@keyframes share-backdrop-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes share-panel-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .share-panel-backdrop,
+  .share-panel {
+    animation: none !important;
   }
 }
 
@@ -6593,7 +6756,7 @@ body,
       #161416;
   }
 
-  .app-layout[data-theme="smartisan-dark"] .markdown-editor {
+  .app-layout[data-theme="smartisan-dark"] .markdown-editor-flow {
     background:
       linear-gradient(
           to bottom,
@@ -6605,6 +6768,10 @@ body,
         0 var(--editor-rule-offset-y) / 100% var(--editor-line-height) repeat-y,
       #1c1a1c;
     background-attachment: local;
+  }
+
+  .app-layout[data-theme="smartisan-dark"] .markdown-editor {
+    background: transparent;
     color: #cecece;
   }
 

@@ -99,14 +99,14 @@ function getCategoryLabel(
 
 function getCopyButtonText(copyState: CopyState): string {
   if (copyState === "copied") {
-    return "已复制文本";
+    return "已复制文字";
   }
 
   if (copyState === "failed") {
     return "复制失败";
   }
 
-  return "复制文本";
+  return "复制文字";
 }
 
 function getWechatCopyButtonText(copyState: WechatCopyState): string {

@@ -140,7 +140,7 @@ test("分享面板承接存图、复制和归档", () => {
   const noop = () => undefined;
   const html = renderToStaticMarkup(
     createElement(SharePanel, {
-      copyButtonText: "已复制文本",
+      copyButtonText: "已复制文字",
       isArchiving: true,
       isCopyingWechat: false,
       isExporting: false,
@@ -154,12 +154,48 @@ test("分享面板承接存图、复制和归档", () => {
   );
 
   assert.match(html, /id="app-share-panel"/);
-  assert.match(html, /分享与导出/);
-  assert.match(html, /保存为图片/);
-  assert.match(html, /已复制文本/);
+  assert.match(html, /请选择操作/);
+  assert.match(html, /以图片形式分享/);
+  assert.match(html, /已复制文字/);
   assert.match(html, /复制到公众号/);
   assert.match(html, /上传图片并复制微信公众号富文本/);
   assert.match(html, /归档中\.\.\./);
+
+  assert.ok(
+    html.indexOf("已复制文字") < html.indexOf("复制到公众号") &&
+      html.indexOf("复制到公众号") < html.indexOf("以图片形式分享") &&
+      html.indexOf("以图片形式分享") < html.indexOf("归档中..."),
+    "分享动作顺序应先文字、再公众号、图片和归档",
+  );
+});
+
+test("移动分享面板复现原版贴底操作层", () => {
+  const styles = readFileSync("src/styles.css", "utf8");
+
+  assert.match(
+    styles,
+    /@media \(max-width:\s*640px\)[\s\S]*\.share-panel-backdrop\s*\{[^}]*inset:\s*0;[^}]*background:\s*rgba\(20,\s*18,\s*17,\s*0\.58\);/s,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width:\s*640px\)[\s\S]*\.share-panel\s*\{[^}]*right:\s*0;[^}]*bottom:\s*0;[^}]*left:\s*0;[^}]*border-radius:\s*16px 16px 0 0;[^}]*background:\s*#f2f2f2;/s,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width:\s*640px\)[\s\S]*\.share-panel-header\s*\{[^}]*min-height:\s*52px;[^}]*grid-template-columns:\s*40px minmax\(0,\s*1fr\) 40px;[^}]*border-bottom:\s*1px solid #dedede;/s,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width:\s*640px\)[\s\S]*\.share-actions\s*\{[^}]*padding:\s*20px 16px 0;[^}]*gap:\s*18px;/s,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width:\s*640px\)[\s\S]*\.share-action\s*\{[^}]*min-height:\s*58px;[^}]*border-radius:\s*10px;[^}]*background:\s*#fff;[^}]*text-align:\s*center;/s,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width:\s*640px\)[\s\S]*\.share-action-description\s*\{[^}]*display:\s*none;/s,
+  );
 });
 
 test("登录用户可在移动设置页修改密码或退出", () => {
