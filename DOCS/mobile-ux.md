@@ -118,18 +118,22 @@ textarea 光标、选区和软键盘。
 前缀，回车自动续行，在空项目上再次回车退出；加粗只包裹非空选区，并在包裹后
 继续选中原文字，连续点击允许继续嵌套星号。桌面端不显示该工具栏。
 
-非 iOS 的正文 textarea 必须显式使用普通便签语义：`name="note-content"`、
-`aria-label="便签正文"`、`autocomplete="off"` 和文本输入模式，不能携带
-`username`、`current-password`、`new-password` 或 `one-time-code` 等自动填充
-用途。真正的登录和修改密码弹窗继续使用标准密码自动填充字段。
+所有平台的正文统一使用 textarea，并显式声明普通便签语义：
+`name="note-content"`、`aria-label="便签正文"`、`autocomplete="off"` 和文本
+输入模式，不能携带 `username`、`current-password`、`new-password` 或
+`one-time-code` 等自动填充用途。真正的登录和修改密码弹窗继续使用标准密码
+自动填充字段。
 
-Apple 官方文档明确说明 Safari 会忽略 `autocomplete="off"`，把是否显示密码、
-银行卡和联系人 AutoFill 入口交给用户的 Safari 设置。iPhone / iPad 因此不再让
-便签正文使用表单控件，而改用 `contenteditable="plaintext-only"`、
-`role="textbox"`、`aria-multiline="true"` 的无表单纯文本编辑面；它不携带
-`name` 或 `autocomplete`，不会进入账号、密码、银行卡或联系人字段的表单启发式。
-Markdown 原文、选区索引、回车续行、粘贴、插图和快捷栏仍与 textarea 走同一套
-编辑逻辑。安卓与桌面继续使用原 textarea，避免改变已经稳定的输入法行为。
+iOS Chrome 的钥匙、银行卡、地址以及输入框上一项/下一项按钮属于浏览器原生输入
+附件，不在网页 DOM 中。页面只能用正确的字段语义减少误判，不能通过 CSS、
+JavaScript 或替换编辑控件可靠隐藏。Chrome iOS 仍可能忽略
+`autocomplete="off"`，银行卡入口需由用户在 Chrome“设置 → 付款方式”中关闭
+“保存并填充付款方式”。
+
+不得为了隐藏上述原生附件把正文切换为 `contenteditable`。2026-07-31 真机验证表明，
+该方案既没有移除 Chrome 的手动填充入口，又破坏了 textarea 已验证的
+`42px` 行高、纸轨相位、自定义光标与选区镜像，并额外触发上一项/下一项附件。
+编辑体验和纸张对齐优先于无法由网页控制的浏览器工具栏。
 
 文本选区沿用原版的暖棕纸感。参考图中未选纸面约为 `#faf7ee`，选区约为
 `#e8e0d5`，拖拽手柄约为 `#a68b75`；因此网页使用
@@ -210,6 +214,7 @@ Markdown 原文、选区索引、回车续行、粘贴、插图和快捷栏仍�
 - 手机木纹由根布局的一张背景铺满，列表层透明；不得按 `160 × 273px` 重复平铺。
 - 普通便签拖拽只移动便签本体，不带额外透明容器或装饰阴影。
 - 手机 Markdown 快捷栏只随软键盘显示，固定 `42.6667px` 高、五等分，点按后不得让编辑器失焦或收起键盘。
+- iOS Chrome 正文继续使用 textarea；不得用 `contenteditable` 规避浏览器原生 AutoFill 附件。
 - 标题三级循环、居中括号、列表/引用续行与空项退出、选区加粗保留选中状态都必须与原版一致。
 - 预览四角方块位于外框外侧，并以朝向正文的角连接外框，边框不能穿过方块中部。
 - 不生成 `641px–1360px` 的第三套平板布局。

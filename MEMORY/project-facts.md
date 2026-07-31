@@ -671,21 +671,23 @@
 
 ## 2026-07-31：iOS 便签正文自动填充语义
 
-- iOS Safari 的钥匙、银行卡和地址按钮属于系统 AutoFill 输入附件，不是项目的
-  Markdown 快捷栏。Apple 官方文档明确说明 Safari 会忽略
-  `autocomplete="off"`，用户真机也确认普通 textarea 即使声明该值仍会显示
-  AutoFill 附件栏；网页 CSS 无法覆盖键盘上方的系统界面。
-- iPhone / iPad 的正文不再使用表单控件，改用
-  `contenteditable="plaintext-only"`、`role="textbox"` 和
-  `aria-multiline="true"` 的无表单纯文本编辑面，不携带 `name` 或
-  `autocomplete`。安卓和桌面仍使用 textarea，保持已有输入法与拖放行为。
-- 两种编辑面共用 Markdown 字符串、选区索引、回车续行、粘贴、插图和快捷栏逻辑。
-  iPhone UA 与 `390 × 844` 视口浏览器回归中，正文 DOM 为无 `name` /
-  `autocomplete` 的 `DIV`；中文输入、列表续行、快捷按钮和点击后保留焦点均通过。
+- iOS Chrome 的钥匙、银行卡、地址和上一项/下一项按钮属于 Chrome 自己的
+  `FormInputAccessoryView`，不是项目的 Markdown 快捷栏，也不在网页 DOM 中。
+  Chromium 内部以 `passwordButtonHidden`、`creditCardButtonHidden` 和
+  `addressButtonHidden` 控制这些按钮；网页 CSS/JavaScript 没有对应控制接口。
+- `autocomplete="off"` 只是正确的字段语义和最佳努力提示，iOS 浏览器仍可能忽略。
+  用户如需隐藏银行卡入口，需在 Chrome“设置 → 付款方式”关闭“保存并填充付款方式”；
+  项目不能承诺从网页侧隐藏原生附件。
+- 曾尝试在 iPhone / iPad 将正文替换为 `contenteditable="plaintext-only"`，真机
+  Chrome 证明该方案既没有消除手动填充入口，又造成正文与 `42px` 横线错位、纸轨
+  相位脱节、自定义光标失效，并额外出现上一项/下一项输入附件。该实验已回退。
+- 所有平台统一保留 textarea，继续复用已验证的 Markdown 字符串、选区索引、回车
+  续行、粘贴、插图、快捷栏、自定义光标和负 `scrollTop` 纸轨同步。不要再以替换
+  编辑控件的方式对抗 iOS Chrome 原生界面。
 - 登录与修改密码弹窗继续保留 `username`、`current-password` 和 `new-password`
   的标准语义，正文修复不能以牺牲正常密码管理器体验为代价。
-- 回归测试锁定 iOS 正文不能回退为表单 AutoFill 字段；最终前端 54 项、后端
-  9 项全部通过，TypeScript 检查与生产构建通过。
+- 回归测试锁定正文 textarea 的普通文本语义以及纸轨从
+  `textarea.scrollTop` 获取相位，防止重新引入 `contenteditable` 路径。
 
 ## 2026-07-30：AI 逐条审阅基线
 
