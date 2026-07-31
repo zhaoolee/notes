@@ -396,6 +396,18 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     styles,
+    /@media \(max-width: 640px\)[\s\S]*\.app-layout\s*\{[^}]*note_background\.png[^}]*background-repeat:\s*no-repeat;[^}]*background-position:\s*center;[^}]*background-size:\s*100% 100%;/s,
+  );
+  assert.match(
+    styles,
+    /\.app-layout\[data-theme="default"\] \.note-sidebar,\s*\.app-layout\[data-theme="default"\] \.note-list\s*\{[^}]*background:\s*transparent;/s,
+  );
+  assert.match(
+    styles,
+    /\.app-layout\[data-theme="smartisan-dark"\] \.note-sidebar,\s*\.app-layout\[data-theme="smartisan-dark"\] \.note-list\s*\{[^}]*background:\s*transparent;/s,
+  );
+  assert.match(
+    styles,
     /\.app-layout\[data-mobile-view="notes"\] \.note-sidebar\s*\{[^}]*display:\s*flex;/s,
   );
   assert.match(
@@ -520,7 +532,11 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     styles,
-    /@media \(max-width: 640px\)[\s\S]*\.app-layout\[data-theme="default"\] \.preview-stage\s*\{[^}]*note_background\.png/s,
+    /@media \(max-width: 640px\)[\s\S]*\.app-layout\[data-theme="default"\] \.preview-stage\s*\{[^}]*note_background\.png[^}]*background-repeat:\s*no-repeat;[^}]*background-position:\s*center;[^}]*background-size:\s*100% 100%;/s,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 640px\)[\s\S]*\.app-layout\[data-theme="smartisan-dark"\] \.preview-stage\s*\{[^}]*dark\/note_background\.webp[^}]*background-repeat:\s*no-repeat;[^}]*background-position:\s*center;[^}]*background-size:\s*100% 100%;/s,
   );
   assert.doesNotMatch(
     styles,

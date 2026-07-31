@@ -2665,6 +2665,10 @@ body,
   display: none;
 }
 
+.markdown-quick-input {
+  display: none;
+}
+
 .preview-stage {
   --note-sheet-width: calc(330px * var(--note-scale));
   flex: 1;
@@ -3569,8 +3573,9 @@ body,
     overflow: hidden;
     background-color: #f1dab6;
     background-image: url("/smartisan/mobile/note_background.png");
-    background-repeat: repeat;
-    background-size: 160px 273px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% 100%;
   }
 
   .app-topbar {
@@ -4310,12 +4315,9 @@ body,
     background: var(--note-list-surface);
   }
 
+  .app-layout[data-theme="default"] .note-sidebar,
   .app-layout[data-theme="default"] .note-list {
-    background-color: #f1dab6;
-    background-image: url("/smartisan/mobile/note_background.png");
-    background-repeat: repeat;
-    background-position: left top;
-    background-size: 160px 273px;
+    background: transparent;
   }
 
   .note-list-item {
@@ -4743,9 +4745,9 @@ body,
   .app-layout[data-theme="default"] .preview-stage {
     background-color: #f1dab6;
     background-image: url("/smartisan/mobile/note_background.png");
-    background-repeat: repeat;
-    background-position: left top;
-    background-size: 160px 273px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% 100%;
   }
 
   .preview-stage .note-sheet {
@@ -4772,6 +4774,53 @@ body,
     color: #5c3c2ad1;
     caret-color: transparent;
     font-weight: 400;
+  }
+
+  .markdown-quick-input {
+    position: relative;
+    z-index: 5;
+    width: 100%;
+    height: 42.6667px;
+    min-height: 42.6667px;
+    display: flex;
+    flex: 0 0 42.6667px;
+    align-items: stretch;
+    overflow: hidden;
+    border-top: 1px solid #c8d479;
+    background: linear-gradient(to bottom, #e9eed1, #e3e9c6);
+  }
+
+  .markdown-quick-input button {
+    width: 20%;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    flex: 1 1 20%;
+    border: 0;
+    border-right: 1px solid #cdd892;
+    border-radius: 0;
+    outline: 0;
+    background: transparent;
+    box-shadow: none;
+    color: #98ae44;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 42px;
+    text-align: center;
+    white-space: nowrap;
+    touch-action: manipulation;
+    transition: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .markdown-quick-input button:last-child {
+    border-right: 0;
+  }
+
+  .markdown-quick-input button:active {
+    background: #dce5b8;
+    box-shadow: none;
+    transform: none;
   }
 
   .markdown-editor-caret-mirror {
@@ -6038,9 +6087,9 @@ body,
   .app-layout[data-theme="smartisan-dark"] {
     background-color: #131113;
     background-image: url("/smartisan/mobile/dark/note_background.webp");
-    background-repeat: repeat;
-    background-position: center top;
-    background-size: 358px 720px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% 100%;
   }
 
   .app-layout[data-theme="smartisan-dark"] .app-topbar {
@@ -6078,11 +6127,7 @@ body,
 
   .app-layout[data-theme="smartisan-dark"] .note-sidebar,
   .app-layout[data-theme="smartisan-dark"] .note-list {
-    background-color: #131113;
-    background-image: url("/smartisan/mobile/dark/note_background.webp");
-    background-repeat: repeat;
-    background-position: center top;
-    background-size: 358px 720px;
+    background: transparent;
   }
 
   .app-layout[data-theme="smartisan-dark"] .note-search {
@@ -6238,12 +6283,26 @@ body,
     color: #cecece;
   }
 
+  .app-layout[data-theme="smartisan-dark"] .markdown-quick-input {
+    border-top-color: #3f4d34;
+    background: #293025;
+  }
+
+  .app-layout[data-theme="smartisan-dark"] .markdown-quick-input button {
+    border-right-color: #3f4d34;
+    color: #8fa76f;
+  }
+
+  .app-layout[data-theme="smartisan-dark"] .markdown-quick-input button:active {
+    background: #232a1f;
+  }
+
   .app-layout[data-theme="smartisan-dark"] .preview-stage {
     background-color: #131113;
     background-image: url("/smartisan/mobile/dark/note_background.webp");
-    background-repeat: repeat;
-    background-position: center top;
-    background-size: 358px 720px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% 100%;
   }
 
   .app-layout[data-theme="smartisan-dark"] .category-sidebar,
@@ -6309,8 +6368,9 @@ body,
   .app-layout[data-theme="smartisan-dark"] .settings-content {
     background-color: #131113;
     background-image: url("/smartisan/mobile/dark/note_background.webp");
-    background-repeat: repeat;
-    background-size: 358px 720px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% 100%;
   }
 
   .app-layout[data-theme="smartisan-dark"] .settings-card {

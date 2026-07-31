@@ -8,8 +8,15 @@ import {
   type ChangeEvent,
   type ClipboardEvent,
   type DragEvent,
+  type KeyboardEvent,
 } from "react";
 import { importImageFile, importImageUrl } from "../lib/images";
+import {
+  applyMarkdownShortcut,
+  continueMarkdownBlock,
+  type MarkdownEditResult,
+  type MarkdownShortcut,
+} from "../lib/markdown-shortcuts";
 
 interface EditorPanelProps {
   markdown: string;
@@ -20,6 +27,18 @@ interface EditorPanelProps {
 export interface EditorPanelHandle {
   openImagePicker: () => void;
 }
+
+const MARKDOWN_SHORTCUTS: Array<{
+  action: MarkdownShortcut;
+  label: string;
+  accessibleLabel: string;
+}> = [
+  { action: "title", label: "# Title", accessibleLabel: "切换当前行标题级别" },
+  { action: "center", label: "[Center]", accessibleLabel: "居中当前行" },
+  { action: "list", label: "- List", accessibleLabel: "将当前行设为列表" },
+  { action: "bold", label: "**Bold**", accessibleLabel: "加粗所选文字" },
+  { action: "quote", label: "> Quote", accessibleLabel: "将当前行设为引用" },
+];
 
 function isHttpUrl(value: string): boolean {
   try {
@@ -69,6 +88,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
   const selectionStartHandleRef = useRef<HTMLSpanElement | null>(null);
   const selectionEndHandleRef = useRef<HTMLSpanElement | null>(null);
   const caretSyncFrameRef = useRef<number | null>(null);
+  const keyboardBaselineHeightRef = useRef<number | null>(null);
   const selectionRef = useRef({
     start: markdown.length,
     end: markdown.length,
@@ -76,6 +96,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
   const [isImportingImage, setIsImportingImage] = useState(false);
   const [imageImportError, setImageImportError] = useState("");
   const [isDropTargetActive, setIsDropTargetActive] = useState(false);
+  const [isQuickInputVisible, setIsQuickInputVisible] = useState(false);
 
   useImperativeHandle(
     ref,
@@ -229,6 +250,58 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     };
   }, [scheduleCustomCaretSync]);
 
+  useEffect(() => {
+    const mobileQuery = window.matchMedia("(max-width: 640px)");
+    const viewport = window.visualViewport;
+
+    const getViewportHeight = (): number =>
+      Math.max(1, viewport?.height ?? window.innerHeight);
+
+    const syncQuickInputVisibility = (): void => {
+      if (!mobileQuery.matches) {
+        keyboardBaselineHeightRef.current = null;
+        setIsQuickInputVisible(false);
+        return;
+      }
+
+      const textarea = textareaRef.current;
+      const viewportHeight = getViewportHeight();
+      const isEditorFocused = document.activeElement === textarea;
+
+      if (!isEditorFocused) {
+        keyboardBaselineHeightRef.current = viewportHeight;
+        setIsQuickInputVisible(false);
+        return;
+      }
+
+      const baselineHeight = Math.max(
+        keyboardBaselineHeightRef.current ?? viewportHeight,
+        viewportHeight,
+      );
+      keyboardBaselineHeightRef.current = baselineHeight;
+
+      if (baselineHeight - viewportHeight > 80) {
+        setIsQuickInputVisible(true);
+        return;
+      }
+
+      setIsQuickInputVisible(false);
+    };
+
+    keyboardBaselineHeightRef.current = getViewportHeight();
+    mobileQuery.addEventListener("change", syncQuickInputVisibility);
+    viewport?.addEventListener("resize", syncQuickInputVisibility);
+    window.addEventListener("resize", syncQuickInputVisibility);
+    window.addEventListener("orientationchange", syncQuickInputVisibility);
+
+    return () => {
+      mobileQuery.removeEventListener("change", syncQuickInputVisibility);
+      viewport?.removeEventListener("resize", syncQuickInputVisibility);
+      window.removeEventListener("resize", syncQuickInputVisibility);
+      window.removeEventListener("orientationchange", syncQuickInputVisibility);
+    };
+  }, []);
+
   function syncSelection(): void {
     const textarea = textareaRef.current;
 
@@ -241,6 +314,61 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
       end: textarea.selectionEnd ?? markdown.length,
     };
     scheduleCustomCaretSync();
+  }
+
+  function commitMarkdownEdit(edit: MarkdownEditResult): void {
+    const textarea = textareaRef.current;
+
+    if (edit.markdown !== markdown) {
+      onMarkdownChange(edit.markdown);
+    }
+
+    selectionRef.current = {
+      start: edit.selectionStart,
+      end: edit.selectionEnd,
+    };
+
+    window.requestAnimationFrame(() => {
+      textarea?.focus();
+      textarea?.setSelectionRange(edit.selectionStart, edit.selectionEnd);
+      scheduleCustomCaretSync();
+    });
+  }
+
+  function handleMarkdownShortcut(shortcut: MarkdownShortcut): void {
+    const textarea = textareaRef.current;
+    const selectionStart = textarea?.selectionStart ?? selectionRef.current.start;
+    const selectionEnd = textarea?.selectionEnd ?? selectionRef.current.end;
+
+    commitMarkdownEdit(
+      applyMarkdownShortcut(markdown, selectionStart, selectionEnd, shortcut),
+    );
+  }
+
+  function handleEditorKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if (
+      event.key !== "Enter" ||
+      event.shiftKey ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.nativeEvent.isComposing
+    ) {
+      return;
+    }
+
+    const edit = continueMarkdownBlock(
+      markdown,
+      event.currentTarget.selectionStart,
+      event.currentTarget.selectionEnd,
+    );
+
+    if (!edit) {
+      return;
+    }
+
+    event.preventDefault();
+    commitMarkdownEdit(edit);
   }
 
   function insertImageMarkdown(imageUrl: string): void {
@@ -403,8 +531,15 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
         />
         <textarea
           id="markdown-editor"
+          name="note-content"
           ref={textareaRef}
           className="markdown-editor"
+          aria-label="便签正文"
+          aria-multiline="true"
+          autoComplete="off"
+          autoCapitalize="sentences"
+          inputMode="text"
+          enterKeyHint="enter"
           value={markdown}
           onChange={(event) => {
             onMarkdownChange(event.target.value);
@@ -412,9 +547,24 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
           }}
           onSelect={syncSelection}
           onClick={syncSelection}
+          onKeyDown={handleEditorKeyDown}
           onKeyUp={syncSelection}
-          onFocus={syncSelection}
-          onBlur={hideEditorIndicators}
+          onFocus={() => {
+            if (window.matchMedia("(max-width: 640px)").matches) {
+              keyboardBaselineHeightRef.current = Math.max(
+                keyboardBaselineHeightRef.current ??
+                  window.visualViewport?.height ??
+                  window.innerHeight,
+                window.visualViewport?.height ?? window.innerHeight,
+              );
+            }
+
+            syncSelection();
+          }}
+          onBlur={() => {
+            setIsQuickInputVisible(false);
+            hideEditorIndicators();
+          }}
           onScroll={scheduleCustomCaretSync}
           onCompositionUpdate={scheduleCustomCaretSync}
           onPaste={(event) => {
@@ -450,6 +600,27 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
           aria-hidden="true"
         />
       </div>
+      {isQuickInputVisible ? (
+        <div
+          className="markdown-quick-input"
+          role="toolbar"
+          aria-label="Markdown 快速输入"
+        >
+          {MARKDOWN_SHORTCUTS.map((shortcut) => (
+            <button
+              key={shortcut.action}
+              type="button"
+              aria-label={shortcut.accessibleLabel}
+              onPointerDown={(event) => {
+                event.preventDefault();
+              }}
+              onClick={() => handleMarkdownShortcut(shortcut.action)}
+            >
+              {shortcut.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </aside>
   );
 });
