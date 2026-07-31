@@ -590,7 +590,15 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     styles,
-    /@media \(max-width: 640px\)[\s\S]*--editor-rule-offset-y:\s*-10px;[\s\S]*--editor-rule-thickness:\s*0\.6667px;[\s\S]*--editor-rule-line:\s*#f4ebde;[\s\S]*\.markdown-editor-flow\s*\{[^}]*transparent\s*calc\(var\(--editor-line-height\) - var\(--editor-rule-thickness\)\)[^}]*var\(--editor-rule-line\) var\(--editor-line-height\)[^}]*0 var\(--editor-rule-offset-y\) \/ 100% var\(--editor-line-height\) repeat-y,[^}]*var\(--editor-paper-base\);[^}]*background-attachment:\s*local;/s,
+    /@media \(max-width: 640px\)[\s\S]*--editor-rule-offset-y:\s*0px;[\s\S]*--editor-rule-thickness:\s*0\.6667px;[\s\S]*--editor-rule-line:\s*#f4ebde;[\s\S]*\.markdown-editor-flow\s*\{[^}]*transparent\s*calc\(var\(--editor-line-height\) - var\(--editor-rule-thickness\)\)[^}]*var\(--editor-rule-line\) var\(--editor-line-height\)[^}]*0 var\(--editor-rule-offset-y\) \/ 100% var\(--editor-line-height\) repeat-y,[^}]*var\(--editor-paper-base\);[^}]*background-attachment:\s*local;/s,
+  );
+  assert.doesNotMatch(
+    styles,
+    /@media \(max-width: 640px\)[\s\S]*--editor-rule-offset-y:\s*-[\d.]+px;/s,
+  );
+  assert.doesNotMatch(
+    styles,
+    /@media \(max-width: 640px\)[\s\S]*\.markdown-editor\s*\{[^}]*(?:transform|translate|inset-block-start|top):/s,
   );
   assert.match(
     styles,

@@ -3608,7 +3608,7 @@ body,
     --mobile-safe-area-left: env(safe-area-inset-left, 0px);
     --editor-line-height: 42px;
     --editor-font-size: 16px;
-    --editor-rule-offset-y: -10px;
+    --editor-rule-offset-y: 0px;
     --editor-rule-thickness: 0.6667px;
     --editor-paper-base: #fbf7ed;
     --editor-rule-line: #f4ebde;

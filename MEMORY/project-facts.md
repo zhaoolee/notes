@@ -776,12 +776,14 @@
 - `document.selectionchange` 只负责保存最新 `selectionStart / selectionEnd`，
   供 Markdown 快捷栏和插图操作读取，不再参与任何视觉绘制。
 - iPhone 真机 `1320px` 截图中正文横线物理纵坐标为
-  `791/792、917/918、1043/1044……`，周期 `126px = 42 CSS px`；系统光标上下边界
-  比对应背景行框提前约 `29–30px ≈ 10 CSS px`，导致横线穿过光标上段。移动端
-  `--editor-rule-offset-y` 因此固定为 `-10px`。
-- 正文渐变横线使用 `0 var(--editor-rule-offset-y)`；左纸轨使用
-  `calc(-scrollTop + var(--editor-rule-offset-y))`。不能只移动其中一层，也不能
-  通过移动文字或改变 `42px` 周期补偿，否则会破坏字体基线或滚动后的相位。
+  `791/792、917/918、1043/1044……`，周期 `126px = 42 CSS px`。曾为了匹配特定
+  WebKit 光标边界把横线相位设为 `-10px`，但这会把首个可见行框缩成 `32px`，并
+  让原生文字相对横线整体偏下。
+- 最终以原生 textarea 行框为唯一排版基准：`--editor-rule-offset-y: 0px`，首行与
+  后续行都保持完整 `42px`。系统光标、选区与插入点由 iPhone/WebKit 自行绘制，
+  不再移动纸张、文字或 textarea 追逐系统光标边界。正文渐变横线与左纸轨仍分别
+  使用 `0 var(--editor-rule-offset-y)` 和
+  `calc(-scrollTop + var(--editor-rule-offset-y))`，保证滚动后的共同相位。
 
 ## 2026-07-31：公众号同源图片与锤子式正文内图片编辑
 
