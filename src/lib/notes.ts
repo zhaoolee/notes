@@ -178,6 +178,13 @@ export function getCategoryNoteDocuments(
   return liveNotes.filter((note) => note.folderId === folderId);
 }
 
+export function getNoteDocumentById(
+  notes: NoteDocument[],
+  noteId: string,
+): NoteDocument | null {
+  return notes.find((note) => note.id === noteId) ?? null;
+}
+
 export function toggleNoteStarred(
   notes: NoteDocument[],
   noteId: string,

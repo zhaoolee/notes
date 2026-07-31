@@ -79,10 +79,13 @@ WebKit 可能忽略 viewport 的缩放上限，手机断点还必须在 `html / 
 移动端文本输入框、textarea 和 select 的字号不得小于 `16px`，避免 iPhone 聚焦
 小字号表单时自动把页面放大。
 
-iOS Safari 展开顶部地址栏、恢复页面或显示软键盘时，`visualViewport` 的纵向
-原点与高度会变化，只使用 `100dvh` 可能让顶栏落到浏览器工具栏后方。移动端应用壳
-保持固定定位，并实时使用 `visualViewport.offsetTop / height` 更新纵向几何；
-在 `pageshow`、横竖屏切换以及可视视口滚动/缩放时重新同步。
+iOS Safari / Chrome 展开顶部地址栏、恢复页面或显示软键盘时，
+`visualViewport.height` 会变化。移动端应用壳保持固定定位，只同步可视视口高度，
+并在 `pageshow`、横竖屏切换以及可视视口尺寸变化时重新计算。应用壳的原点必须
+始终固定在 `top: 0; left: 0`：不得使用 `visualViewport.offsetTop` 平移整个
+页面，也不得在 `visualViewport.scroll` 中强制 `window.scrollTo(0, 0)`。iOS
+浏览器的地址栏动画会让这些值短暂变化，平移绘制层会导致浏览器的触控高亮、点击
+命中区域与肉眼看到的标签或便签行错位。
 
 水平方向必须始终以布局视口的 `left: 0; right: 0` 铺满，安全区交给
 `env(safe-area-inset-left/right)`。不得把 `visualViewport.offsetLeft / width`

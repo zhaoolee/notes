@@ -552,15 +552,16 @@
   纸轨、横线和状态栏计算样式均与上述基线一致，控制台无错误。暗黑设置页也统一
   使用中性暖黑底纹和卡片，避免切换页面后回到刺眼的浅色界面。
 
-## 2026-07-30：iOS Safari 可视视口基线
+## 2026-07-30～31：iOS 可视视口与触控命中基线
 
-- iOS Safari 展开顶部地址栏、从页面缓存恢复或显示软键盘时，
-  `visualViewport.offsetTop / height` 会变化；即使应用使用 `100dvh`，布局视口
-  原点仍可能藏在浏览器工具栏后方，表现为首次打开看不到 `48px` Header。
-- 移动端应用壳必须使用固定定位，并通过 `useLayoutEffect` 在首次渲染、
-  `pageshow`、窗口/可视视口 resize、可视视口 scroll 和横竖屏切换时，把
-  `visualViewport` 的纵向 offset 与 height 同步到 CSS 变量。根页面禁止滚动，
-  内部列表、编辑器和预览区保持自己的滚动职责。
+- iOS Safari / Chrome 展开顶部地址栏、从页面缓存恢复或显示软键盘时，
+  `visualViewport.height` 会变化；应用壳继续同步这个高度，使列表、编辑器和
+  预览区只占用键盘上方的实际可见空间。
+- 不得用 `visualViewport.offsetTop` 平移固定定位的 `.app-layout`，也不得监听
+  `visualViewport.scroll` 后强制 `window.scrollTo(0, 0)`。iOS 地址栏动画会让
+  纵向原点短暂变化，绘制层被移动后，浏览器原生触控高亮和实际命中区域可能仍按
+  原坐标计算，表现为标签需要偏着点、点击第一条却命中第二条。应用壳固定
+  `top: 0; left: 0; right: 0`，仅在 resize、pageshow 和横竖屏切换时同步高度。
 - iOS 26 Safari 真机录屏中，应用壳右边界从 `1320px` 移到 `1232px`，按设备
   `3×` 比例恰好对应 `440px → 410.7px`，并在右侧露出约 `29.3px` 空带。旧实现
   唯一的横向动态输入正是 `visualViewport.width`，注入同一异常值可稳定复现；

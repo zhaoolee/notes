@@ -243,10 +243,7 @@ export default function App() {
     const rootStyle = document.documentElement.style;
     const mobileQuery = window.matchMedia("(max-width: 640px)");
     const viewport = window.visualViewport;
-    const propertyNames = [
-      "--mobile-visual-viewport-top",
-      "--mobile-visual-viewport-height",
-    ] as const;
+    const propertyNames = ["--mobile-visual-viewport-height"] as const;
 
     const clearViewportProperties = () => {
       for (const propertyName of propertyNames) {
@@ -260,21 +257,14 @@ export default function App() {
         return;
       }
 
-      const offsetTop = Math.max(0, viewport?.offsetTop ?? 0);
       const height = Math.max(1, viewport?.height ?? window.innerHeight);
 
-      rootStyle.setProperty("--mobile-visual-viewport-top", `${offsetTop}px`);
       rootStyle.setProperty("--mobile-visual-viewport-height", `${height}px`);
-
-      if (window.scrollX !== 0 || window.scrollY !== 0) {
-        window.scrollTo(0, 0);
-      }
     };
 
     syncVisualViewport();
     mobileQuery.addEventListener("change", syncVisualViewport);
     viewport?.addEventListener("resize", syncVisualViewport);
-    viewport?.addEventListener("scroll", syncVisualViewport);
     window.addEventListener("orientationchange", syncVisualViewport);
     window.addEventListener("pageshow", syncVisualViewport);
     window.addEventListener("resize", syncVisualViewport);
@@ -282,7 +272,6 @@ export default function App() {
     return () => {
       mobileQuery.removeEventListener("change", syncVisualViewport);
       viewport?.removeEventListener("resize", syncVisualViewport);
-      viewport?.removeEventListener("scroll", syncVisualViewport);
       window.removeEventListener("orientationchange", syncVisualViewport);
       window.removeEventListener("pageshow", syncVisualViewport);
       window.removeEventListener("resize", syncVisualViewport);

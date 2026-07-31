@@ -16,6 +16,7 @@ import {
   discardEmptyNoteDraft,
   getCategoryNoteDocuments,
   getFolderCategoryId,
+  getNoteDocumentById,
   getNoteListTitle,
   getNotePreview,
   getNoteTitle,
@@ -340,6 +341,33 @@ test("便签侧栏呈现搜索、新建、切换入口和移动端横滑删除�
   assert.match(html, /aria-current="page"/);
   assert.match(html, /aria-label="收起分类栏"/);
   assert.match(html, /class="note-sidebar-bottom-menu"/);
+  assert.match(html, new RegExp(`data-note-id="${secondNote.id}"`));
+  assert.match(html, new RegExp(`data-note-id="${firstNote.id}"`));
+});
+
+test("便签选择始终按唯一 ID 加载对应正文而非列表位置", () => {
+  const firstNote = createNoteDocument("# 视觉第一条", 2_000, 0);
+  const secondNote = createNoteDocument("# 视觉第二条", 1_000, 1);
+  const visuallyOrderedNotes = orderNoteDocuments([secondNote, firstNote]);
+  const selectedNote = getNoteDocumentById(
+    visuallyOrderedNotes,
+    firstNote.id,
+  );
+
+  assert.equal(selectedNote?.id, firstNote.id);
+  assert.equal(selectedNote?.markdown, firstNote.markdown);
+
+  const sidebarSource = readFileSync("src/components/NoteSidebar.tsx", "utf8");
+  const storeSource = readFileSync("src/store/useAppStore.ts", "utf8");
+
+  assert.match(sidebarSource, /useSortable\(\{\s*id:\s*note\.id,/s);
+  assert.match(sidebarSource, /data-note-id=\{note\.id\}/);
+  assert.match(sidebarSource, /onSelectNote\(note\.id\);/);
+  assert.match(sidebarSource, /key=\{note\.id\}/);
+  assert.match(
+    storeSource,
+    /selectNote:\s*\(noteId\)\s*=>\s*\{[\s\S]*getNoteDocumentById\(get\(\)\.notes,\s*noteId\);[\s\S]*activeNoteId:\s*note\.id,[\s\S]*markdown:\s*note\.markdown,/s,
+  );
 });
 
 test("分类侧栏呈现官方四类入口、数量与自定义文件夹", () => {
@@ -440,11 +468,11 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
 
   assert.match(
     appSource,
-    /useLayoutEffect\(\(\) => \{[\s\S]*window\.visualViewport;[\s\S]*--mobile-visual-viewport-top[\s\S]*--mobile-visual-viewport-height[\s\S]*viewport\?\.addEventListener\("resize", syncVisualViewport\);[\s\S]*viewport\?\.addEventListener\("scroll", syncVisualViewport\);[\s\S]*window\.addEventListener\("pageshow", syncVisualViewport\);/s,
+    /useLayoutEffect\(\(\) => \{[\s\S]*window\.visualViewport;[\s\S]*--mobile-visual-viewport-height[\s\S]*viewport\?\.addEventListener\("resize", syncVisualViewport\);[\s\S]*window\.addEventListener\("pageshow", syncVisualViewport\);/s,
   );
   assert.doesNotMatch(
     appSource,
-    /--mobile-visual-viewport-left|--mobile-visual-viewport-width|viewport\?\.offsetLeft|viewport\?\.width/,
+    /--mobile-visual-viewport-(?:top|left|width)|viewport\?\.offset(?:Top|Left)|viewport\?\.width|viewport\?\.addEventListener\("scroll", syncVisualViewport\)|window\.scrollTo\(0,\s*0\)/,
   );
   assert.match(appSource, /type MobileWorkspaceView = "notes" \| "editor" \| "preview";/);
   assert.match(appSource, /data-mobile-view=\{mobileWorkspaceView\}/);
@@ -458,7 +486,7 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     styles,
-    /@media \(max-width: 640px\)[\s\S]*\.app-layout\s*\{[^}]*position:\s*fixed;[^}]*top:\s*var\(--mobile-visual-viewport-top,\s*0px\);[^}]*right:\s*0;[^}]*left:\s*0;[^}]*width:\s*auto;[^}]*max-width:\s*none;[^}]*height:\s*var\(--mobile-visual-viewport-height,\s*100dvh\);[^}]*max-height:\s*var\(--mobile-visual-viewport-height,\s*100dvh\);[^}]*overflow:\s*hidden;/s,
+    /@media \(max-width: 640px\)[\s\S]*\.app-layout\s*\{[^}]*position:\s*fixed;[^}]*top:\s*0;[^}]*right:\s*0;[^}]*left:\s*0;[^}]*width:\s*auto;[^}]*max-width:\s*none;[^}]*height:\s*var\(--mobile-visual-viewport-height,\s*100dvh\);[^}]*max-height:\s*var\(--mobile-visual-viewport-height,\s*100dvh\);[^}]*overflow:\s*hidden;/s,
   );
   assert.match(
     styles,

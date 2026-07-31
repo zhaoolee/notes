@@ -4,6 +4,7 @@ import {
   createNoteFolder,
   createNoteDocument,
   discardEmptyNoteDraft,
+  getNoteDocumentById,
   moveNoteToFolder,
   moveNoteToTrash,
   reorderNormalNoteDocuments,
@@ -164,7 +165,7 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
       ),
     })),
   selectNote: (noteId) => {
-    const note = get().notes.find((candidate) => candidate.id === noteId);
+    const note = getNoteDocumentById(get().notes, noteId);
 
     if (!note) {
       return;
