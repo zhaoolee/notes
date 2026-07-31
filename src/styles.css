@@ -70,7 +70,7 @@
   --editor-font-size: 17px;
   --editor-rule-offset-y: 0px;
   --editor-selection-bg: rgba(166, 139, 117, 0.2);
-  --editor-selection-handle: #a68b75;
+  --editor-caret-color: #a68b75;
   --app-background:
     #f0dab3 url("/smartisan/web/cloud_note_bg_d2def91e10.jpg") left top repeat;
   --preview-stage-bg:
@@ -172,7 +172,7 @@
   --editor-margin-band: #161416;
   --editor-margin-line: #282828;
   --editor-selection-bg: rgba(166, 139, 117, 0.3);
-  --editor-selection-handle: #a68b75;
+  --editor-caret-color: #a68b75;
   --app-background: #131113 url("/smartisan/mobile/dark/note_background.webp") center top / 358px 720px repeat;
   --preview-stage-bg: #131113 url("/smartisan/mobile/dark/note_background.webp") center top / 358px 720px repeat;
   --selector-surface: #1e1c1e;
@@ -2634,7 +2634,7 @@ body,
   padding: 0 30px 100px 50px;
   background: #fbf7ed url("/smartisan/web/grid_6e4a41eefc.png") repeat;
   color: #635852;
-  caret-color: var(--editor-selection-handle);
+  caret-color: var(--editor-caret-color);
   line-height: var(--editor-line-height);
   -webkit-text-size-adjust: none;
   text-size-adjust: none;
@@ -2657,12 +2657,6 @@ body,
 
 .markdown-editor:focus {
   box-shadow: none;
-}
-
-.markdown-editor-caret-mirror,
-.markdown-editor-caret,
-.markdown-editor-selection-handle {
-  display: none;
 }
 
 .markdown-quick-input {
@@ -4787,7 +4781,7 @@ body,
       var(--editor-paper-base);
     background-attachment: local;
     color: #5c3c2ad1;
-    caret-color: transparent;
+    caret-color: var(--editor-caret-color);
     font-weight: 400;
   }
 
@@ -4836,80 +4830,6 @@ body,
     background: #dce5b8;
     box-shadow: none;
     transform: none;
-  }
-
-  .markdown-editor-caret-mirror {
-    position: absolute;
-    inset: 0;
-    display: block;
-    width: 100%;
-    min-height: 100%;
-    padding: 0 18px 18px 39px;
-    overflow: hidden;
-    color: transparent;
-    font-family: var(--ui-font);
-    font-size: var(--editor-font-size);
-    font-weight: 400;
-    line-height: var(--editor-line-height);
-    overflow-wrap: break-word;
-    pointer-events: none;
-    visibility: hidden;
-    white-space: pre-wrap;
-  }
-
-  .markdown-editor-caret {
-    position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 2;
-    width: 2px;
-    height: 22px;
-    border-radius: 1px;
-    background: var(--editor-selection-handle);
-    pointer-events: none;
-    transform: translate3d(-9999px, -9999px, 0);
-  }
-
-  .markdown-editor-caret.is-visible {
-    display: block;
-    animation: mobile-editor-caret-blink 1s steps(1, end) infinite;
-  }
-
-  .markdown-editor-selection-handle {
-    position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 3;
-    display: none;
-    width: 2px;
-    height: var(--editor-line-height);
-    border-radius: 1px;
-    background: var(--editor-selection-handle);
-    pointer-events: none;
-    transform: translate3d(-9999px, -9999px, 0);
-  }
-
-  .markdown-editor-selection-handle.is-visible {
-    display: block;
-  }
-
-  .markdown-editor-selection-handle::before {
-    position: absolute;
-    left: 50%;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--editor-selection-handle);
-    content: "";
-    transform: translateX(-50%);
-  }
-
-  .markdown-editor-selection-handle.is-start::before {
-    top: -5px;
-  }
-
-  .markdown-editor-selection-handle.is-end::before {
-    bottom: -5px;
   }
 
   .mobile-back-icon,
@@ -4978,22 +4898,6 @@ body,
 
   .theme-selector-options {
     grid-template-columns: 1fr;
-  }
-}
-
-@keyframes mobile-editor-caret-blink {
-  0%,
-  45% {
-    opacity: 1;
-  }
-
-  50%,
-  95% {
-    opacity: 0;
-  }
-
-  100% {
-    opacity: 1;
   }
 }
 

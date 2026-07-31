@@ -496,33 +496,17 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
     styles,
     /\.mobile-workspace-tabs\s*\{[^}]*height:\s*50px;/s,
   );
-  assert.match(
+  assert.doesNotMatch(
     editorSource,
-    /className="markdown-editor-caret-mirror"[\s\S]*className="markdown-editor-caret"[\s\S]*className="markdown-editor-selection-handle is-start"[\s\S]*className="markdown-editor-selection-handle is-end"/,
+    /markdown-editor-caret|markdown-editor-selection-handle|scheduleCustomCaretSync|updateCustomCaret|hideEditorIndicators/,
   );
-  assert.match(
-    editorSource,
-    /const anchorHeight = caretAnchor\.height \|\| caretHeight;[\s\S]*Math\.max\(0, \(anchorHeight - caretHeight\) \/ 2\)/,
+  assert.doesNotMatch(
+    styles,
+    /\.markdown-editor-caret|\.markdown-editor-selection-handle|caret-color:\s*transparent|mobile-editor-caret-blink/,
   );
   assert.doesNotMatch(
     editorSource,
-    /Math\.max\(0, \(lineHeight - caretHeight\) \/ 2\)/,
-  );
-  assert.match(
-    styles,
-    /@media \(max-width: 640px\)[\s\S]*\.markdown-editor\s*\{[^}]*caret-color:\s*transparent;[^}]*\}[\s\S]*\.markdown-editor-caret\s*\{[^}]*width:\s*2px;[^}]*height:\s*22px;[^}]*background:\s*var\(--editor-selection-handle\);/s,
-  );
-  assert.match(
-    styles,
-    /\.markdown-editor-selection-handle\s*\{[^}]*width:\s*2px;[^}]*height:\s*var\(--editor-line-height\);[^}]*background:\s*var\(--editor-selection-handle\);[^}]*pointer-events:\s*none;/s,
-  );
-  assert.match(
-    styles,
-    /\.markdown-editor-selection-handle::before\s*\{[^}]*width:\s*10px;[^}]*height:\s*10px;[^}]*border-radius:\s*50%;[^}]*background:\s*var\(--editor-selection-handle\);/s,
-  );
-  assert.match(
-    editorSource,
-    /textarea\.selectionStart !== textarea\.selectionEnd[\s\S]*positionSelectionHandle\(\s*selectionStartHandle,[\s\S]*positionSelectionHandle\(\s*selectionEndHandle,/s,
+    /caretMirrorTextRef|caretMirrorAnchorRef|customCaretRef|selectionStartHandleRef|selectionEndHandleRef/,
   );
   assert.match(
     editorSource,
@@ -530,11 +514,15 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     editorSource,
-    /const syncNativeSelectionChange = \(\): void => \{[\s\S]*document\.activeElement !== textarea[\s\S]*selectionRef\.current = \{[\s\S]*start:\s*textarea\.selectionStart[\s\S]*end:\s*textarea\.selectionEnd[\s\S]*hideEditorIndicators\(\);[\s\S]*scheduleCustomCaretSync\(\);/s,
+    /const syncNativeSelectionChange = \(\): void => \{[\s\S]*document\.activeElement !== textarea[\s\S]*selectionRef\.current = \{[\s\S]*start:\s*textarea\.selectionStart[\s\S]*end:\s*textarea\.selectionEnd[\s\S]*\};/s,
   );
   assert.match(
     styles,
-    /--editor-selection-bg:\s*rgba\(166,\s*139,\s*117,\s*0\.2\);[\s\S]*--editor-selection-handle:\s*#a68b75;/s,
+    /--editor-selection-bg:\s*rgba\(166,\s*139,\s*117,\s*0\.2\);[\s\S]*--editor-caret-color:\s*#a68b75;/s,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 640px\)[\s\S]*--editor-line-height:\s*42px;[\s\S]*\.markdown-editor\s*\{[^}]*caret-color:\s*var\(--editor-caret-color\);/s,
   );
   assert.match(
     styles,
@@ -566,7 +554,7 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     styles,
-    /\.markdown-editor\s*\{[^}]*caret-color:\s*var\(--editor-selection-handle\);/s,
+    /\.markdown-editor\s*\{[^}]*caret-color:\s*var\(--editor-caret-color\);[^}]*line-height:\s*var\(--editor-line-height\);/s,
   );
   assert.match(
     styles,

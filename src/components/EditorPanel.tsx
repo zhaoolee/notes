@@ -86,12 +86,6 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
 ) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
-  const caretMirrorTextRef = useRef<HTMLSpanElement | null>(null);
-  const caretMirrorAnchorRef = useRef<HTMLSpanElement | null>(null);
-  const customCaretRef = useRef<HTMLSpanElement | null>(null);
-  const selectionStartHandleRef = useRef<HTMLSpanElement | null>(null);
-  const selectionEndHandleRef = useRef<HTMLSpanElement | null>(null);
-  const caretSyncFrameRef = useRef<number | null>(null);
   const keyboardBaselineHeightRef = useRef<number | null>(null);
   const selectionRef = useRef({
     start: markdown.length,
@@ -112,29 +106,8 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     [],
   );
 
-  const hideCustomCaret = useCallback((): void => {
-    customCaretRef.current?.classList.remove("is-visible");
-  }, []);
-
-  const hideSelectionHandles = useCallback((): void => {
-    selectionStartHandleRef.current?.classList.remove("is-visible");
-    selectionEndHandleRef.current?.classList.remove("is-visible");
-  }, []);
-
-  const hideEditorIndicators = useCallback((): void => {
-    hideCustomCaret();
-    hideSelectionHandles();
-  }, [hideCustomCaret, hideSelectionHandles]);
-
-  const updateCustomCaret = useCallback((): void => {
-    caretSyncFrameRef.current = null;
-
+  const syncEditorPaperScroll = useCallback((): void => {
     const textarea = textareaRef.current;
-    const mirrorText = caretMirrorTextRef.current;
-    const mirrorAnchor = caretMirrorAnchorRef.current;
-    const customCaret = customCaretRef.current;
-    const selectionStartHandle = selectionStartHandleRef.current;
-    const selectionEndHandle = selectionEndHandleRef.current;
 
     if (textarea) {
       textarea.parentElement?.style.setProperty(
@@ -142,117 +115,11 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
         `${-textarea.scrollTop}px`,
       );
     }
-
-    if (
-      !textarea ||
-      !mirrorText ||
-      !mirrorAnchor ||
-      !customCaret ||
-      !selectionStartHandle ||
-      !selectionEndHandle ||
-      !window.matchMedia("(max-width: 640px)").matches ||
-      document.activeElement !== textarea
-    ) {
-      hideEditorIndicators();
-      return;
-    }
-
-    const measureAnchorAt = (offset: number): { left: number; top: number; height: number } => {
-      mirrorText.textContent = textarea.value.slice(0, offset);
-
-      return {
-        left: mirrorAnchor.offsetLeft - textarea.scrollLeft,
-        top: mirrorAnchor.offsetTop - textarea.scrollTop,
-        height: mirrorAnchor.offsetHeight,
-      };
-    };
-
-    const positionSelectionHandle = (
-      handle: HTMLSpanElement,
-      anchor: { left: number; top: number; height: number },
-    ): void => {
-      const handleStyle = window.getComputedStyle(handle);
-      const handleWidth = Number.parseFloat(handleStyle.width) || 2;
-      const handleHeight =
-        Number.parseFloat(handleStyle.height) ||
-        anchor.height ||
-        Number.parseFloat(window.getComputedStyle(textarea).lineHeight) ||
-        42;
-
-      if (
-        anchor.left < 0 ||
-        anchor.left > textarea.clientWidth ||
-        anchor.top + handleHeight < 0 ||
-        anchor.top > textarea.clientHeight
-      ) {
-        handle.classList.remove("is-visible");
-        return;
-      }
-
-      handle.style.transform =
-        `translate3d(${anchor.left - handleWidth / 2}px, ${anchor.top}px, 0)`;
-      handle.classList.add("is-visible");
-    };
-
-    if (textarea.selectionStart !== textarea.selectionEnd) {
-      hideCustomCaret();
-      positionSelectionHandle(
-        selectionStartHandle,
-        measureAnchorAt(textarea.selectionStart),
-      );
-      positionSelectionHandle(
-        selectionEndHandle,
-        measureAnchorAt(textarea.selectionEnd),
-      );
-      return;
-    }
-
-    hideSelectionHandles();
-
-    const caretStyle = window.getComputedStyle(customCaret);
-    const caretHeight = Number.parseFloat(caretStyle.height) || 22;
-    const caretAnchor = measureAnchorAt(textarea.selectionStart);
-    const anchorHeight = caretAnchor.height || caretHeight;
-    const top = caretAnchor.top + Math.max(0, (anchorHeight - caretHeight) / 2);
-
-    if (
-      caretAnchor.left < 0 ||
-      caretAnchor.left > textarea.clientWidth ||
-      top + caretHeight < 0 ||
-      top > textarea.clientHeight
-    ) {
-      hideCustomCaret();
-      return;
-    }
-
-    customCaret.classList.add("is-visible");
-    customCaret.style.transform =
-      `translate3d(${caretAnchor.left}px, ${top}px, 0)`;
-  }, [hideCustomCaret, hideEditorIndicators, hideSelectionHandles]);
-
-  const scheduleCustomCaretSync = useCallback((): void => {
-    if (caretSyncFrameRef.current !== null) {
-      window.cancelAnimationFrame(caretSyncFrameRef.current);
-    }
-
-    caretSyncFrameRef.current = window.requestAnimationFrame(updateCustomCaret);
-  }, [updateCustomCaret]);
+  }, []);
 
   useEffect(() => {
-    scheduleCustomCaretSync();
-  }, [markdown, scheduleCustomCaretSync]);
-
-  useEffect(() => {
-    window.addEventListener("resize", scheduleCustomCaretSync);
-
-    return () => {
-      window.removeEventListener("resize", scheduleCustomCaretSync);
-
-      if (caretSyncFrameRef.current !== null) {
-        window.cancelAnimationFrame(caretSyncFrameRef.current);
-      }
-    };
-  }, [scheduleCustomCaretSync]);
+    syncEditorPaperScroll();
+  }, [markdown, syncEditorPaperScroll]);
 
   useEffect(() => {
     const mobileQuery = window.matchMedia("(max-width: 640px)");
@@ -317,7 +184,6 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
       start: textarea.selectionStart ?? markdown.length,
       end: textarea.selectionEnd ?? markdown.length,
     };
-    scheduleCustomCaretSync();
   }
 
   useEffect(() => {
@@ -332,8 +198,6 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
         start: textarea.selectionStart ?? textarea.value.length,
         end: textarea.selectionEnd ?? textarea.value.length,
       };
-      hideEditorIndicators();
-      scheduleCustomCaretSync();
     };
 
     document.addEventListener("selectionchange", syncNativeSelectionChange);
@@ -341,7 +205,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     return () => {
       document.removeEventListener("selectionchange", syncNativeSelectionChange);
     };
-  }, [hideEditorIndicators, scheduleCustomCaretSync]);
+  }, []);
 
   function commitMarkdownEdit(edit: MarkdownEditResult): void {
     const textarea = textareaRef.current;
@@ -358,7 +222,6 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     window.requestAnimationFrame(() => {
       textarea?.focus();
       textarea?.setSelectionRange(edit.selectionStart, edit.selectionEnd);
-      scheduleCustomCaretSync();
     });
   }
 
@@ -570,7 +433,6 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
           value={markdown}
           onChange={(event) => {
             onMarkdownChange(event.target.value);
-            scheduleCustomCaretSync();
           }}
           onSelect={syncSelection}
           onClick={syncSelection}
@@ -590,10 +452,8 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
           }}
           onBlur={() => {
             setIsQuickInputVisible(false);
-            hideEditorIndicators();
           }}
-          onScroll={scheduleCustomCaretSync}
-          onCompositionUpdate={scheduleCustomCaretSync}
+          onScroll={syncEditorPaperScroll}
           onPaste={(event) => {
             void importFromClipboard(event);
           }}
@@ -606,25 +466,6 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
             void importFromDrop(event);
           }}
           spellCheck={false}
-        />
-        <div className="markdown-editor-caret-mirror" aria-hidden="true">
-          <span ref={caretMirrorTextRef} />
-          <span ref={caretMirrorAnchorRef}>{"\u200b"}</span>
-        </div>
-        <span
-          ref={customCaretRef}
-          className="markdown-editor-caret"
-          aria-hidden="true"
-        />
-        <span
-          ref={selectionStartHandleRef}
-          className="markdown-editor-selection-handle is-start"
-          aria-hidden="true"
-        />
-        <span
-          ref={selectionEndHandleRef}
-          className="markdown-editor-selection-handle is-end"
-          aria-hidden="true"
         />
       </div>
       {isQuickInputVisible ? (
