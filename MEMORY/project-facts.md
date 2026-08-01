@@ -1250,3 +1250,32 @@
   已在 lockfile 的兼容范围内升级到 `multer@2.2.0`、`body-parser@2.3.0` 和
   `path-to-regexp@8.4.2`；`npm audit --omit=dev` 为 0，完整 feedback 与构建在新依赖
   上重新通过。
+
+## 2026-08-01：Hermes Skill 下载与可复用链接生产发布
+
+- GitHub `dev` 与生产 detached HEAD 发布时均为精确应用提交
+  `295e6f213e844d74a3e066797c1637e618401287`；上一可回滚应用版本为
+  `73f5db4e097bfb6a7980cc20f1240600c426794c`。生产 `.env` 的必需账号、会话、七牛与
+  AI 配置均非空，并明确设置 `NOTES_PUBLIC_BASE_URL=https://notes.fangyuanxiaozhan.com`。
+- 发布前仓库外备份位于
+  `/home/hermes/notes-deploy-backups/20260801T151559Z-73f5db4-pre295e6f2`，约 63 MB，
+  包含 105 个图片文件和 2 个数据文件；受保护的 `notes-data.json` 通过后端容器只读
+  导出，源与备份 SHA-256 均为
+  `522faefe7436642563ad569e0dd42e03f209668d951db95daf284c155a6a79eb`。
+- 新生产前端镜像为 `69fe09b59e7d`，后端镜像为 `1573a7b9403c`；两个容器均为
+  running、重启次数为 0。公开和本机健康检查成功，AI 状态可用；生产 JS / CSS 与
+  精确提交干净构建的 SHA-256 分别同为
+  `78fa8ba360781375f5d7e19af28ea2319cc06269f4b02e46ce2cb0dd3cf04c29` 和
+  `8d88daa08baf4d8390d70a30f60f9ef81f47cd8701a6fbb9187b6d10494e5552`。
+- 公网超级管理员安全 Cookie、Hermes 当前链接幂等复制、同一链接多设备重复下载、
+  主动重置后旧链接返回 410、ZIP 白名单与生产 HTTPS 地址均通过；重启唯一后端后
+  当前链接、账号和工作区仍保持。收尾数据为 1 个普通用户、2 个工作区、11 条便签、
+  1 个当前安装链接，数据 SHA-256 为
+  `10eb58c4bc4509c5805205467bf01b35d74765a8c75fb96974c2b2c81a26df35`。
+- 匿名纯文本 PNG、站内图片导入与公网读取、带图 ZIP、带图 PNG、HTTPS
+  `X-Export-Url`、`/superadmin` 和登录用户公众号七牛长期上传全部通过。冒烟新增了
+  4 个正常图片文件，使图片数从 105 增至 109；没有修改真实便签或消耗匿名公众号
+  额度。最终一分钟后端日志无 warning/error。
+- 精确提交的 71 项前端 feedback、12 项后端 feedback、完整 TypeScript 检查和生产
+  构建通过；`npm audit --omit=dev` 为 0。仅保留不进入生产依赖的 Windows 开发服务
+  esbuild low 提示，以及既有单 chunk 超过 `500kB` 的构建提示。
