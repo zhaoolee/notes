@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   buildMarkdownFromAcceptedSuggestions,
+  getAcceptedSuggestionIdsAfterAcceptAll,
   validateAiSuggestions,
   type AiSuggestion,
 } from "../../src/lib/ai-suggestions.js";
@@ -66,6 +67,24 @@ test("任意顺序确认多个建议都按源快照稳定应用", () => {
   );
 });
 
+test("同意所有只接受仍待处理的建议并保留已忽略项", () => {
+  const acceptedIds = getAcceptedSuggestionIdsAfterAcceptAll(
+    suggestions,
+    new Set(["typo"]),
+    new Set(["bold"]),
+  );
+
+  assert.deepEqual([...acceptedIds], ["typo"]);
+  assert.equal(
+    buildMarkdownFromAcceptedSuggestions(
+      sourceMarkdown,
+      suggestions,
+      acceptedIds,
+    ),
+    "这里有一个别字。\n这行应该加粗。",
+  );
+});
+
 test("越界、原文不符和重叠建议会被拒绝", () => {
   assert.equal(
     validateAiSuggestions(sourceMarkdown, [
@@ -95,17 +114,30 @@ test("越界、原文不符和重叠建议会被拒绝", () => {
   );
 });
 
-test("AI 审阅界面只提供逐条确认和忽略，不提供批量自动改写", () => {
+test("AI 审阅支持三种快捷模式、逐条确认和安全的同意所有", () => {
   const source = readFileSync("src/components/AiReviewDialog.tsx", "utf8");
   const appSource = readFileSync("src/App.tsx", "utf8");
 
-  assert.match(source, /AI 只给建议；每一处修改都由你单独确认/);
+  assert.match(source, /纠正标点语法/);
+  assert.match(source, /重点加粗/);
+  assert.match(source, /让公众更易读/);
+  assert.match(source, /把过长、信息过密的句子拆成自然、易读的短句/);
+  assert.match(source, /保持原意、语气和 Markdown 结构/);
+  assert.match(source, /支持逐条确认，也可以一键同意所有待处理建议/);
   assert.match(source, /确认修改/);
   assert.match(source, /忽略/);
-  assert.doesNotMatch(source, /全部接受|自动修改/);
+  assert.match(source, /同意所有/);
   assert.match(
     source,
     /function handleAccept\(suggestion: AiSuggestion\)[\s\S]*onMarkdownChange\(nextMarkdown\)/,
+  );
+  assert.match(
+    source,
+    /function handleAcceptAll\(\)[\s\S]*getAcceptedSuggestionIdsAfterAcceptAll\([\s\S]*onMarkdownChange\(nextMarkdown\)/,
+  );
+  assert.match(
+    source,
+    /!session\.acceptedIds\.has\(suggestion\.id\)[\s\S]*!session\.ignoredIds\.has\(suggestion\.id\)/,
   );
   assert.match(
     appSource,
@@ -143,7 +175,7 @@ test("AI 主要操作复用主题按钮色，不出现大面积荧光绿", () =>
   );
   assert.match(
     styles,
-    /\.ai-suggestion-actions \.is-primary\s*\{[\s\S]*?background:\s*var\(--export-button-bg\)/,
+    /\.ai-suggestion-actions \.is-primary,\s*\.ai-suggestion-summary \.is-primary\s*\{[\s\S]*?background:\s*var\(--export-button-bg\)/,
   );
   assert.doesNotMatch(
     styles,

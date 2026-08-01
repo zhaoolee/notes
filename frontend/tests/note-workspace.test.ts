@@ -971,6 +971,26 @@ test("桌面工作区使用锤子便签网页版的纸面、细线和栏宽比�
     styles,
     /data-desktop-focus="true"[^}]*\.category-sidebar,[\s\S]*data-desktop-focus="true"[^}]*\.note-sidebar\s*\{[^}]*display:\s*none;/s,
   );
+  assert.match(
+    styles,
+    /\.desktop-focus-back-icon\s*\{[^}]*width:\s*10px;[^}]*height:\s*10px;[^}]*border-bottom:\s*3px solid currentColor;[^}]*border-left:\s*3px solid currentColor;/s,
+  );
+  assert.match(
+    styles,
+    /\.app-layout\[data-desktop-focus="true"\]\s*\{[^}]*--desktop-focus-paper-width:\s*min\(1120px, calc\(100vw - 160px\)\);/s,
+  );
+  assert.match(
+    styles,
+    /data-desktop-focus="true"[^}]*\.app-shell\s*\{[^}]*background:\s*var\(--app-background\);/s,
+  );
+  assert.match(
+    styles,
+    /data-desktop-focus="true"[^}]*\.editor-panel,[\s\S]*width:\s*var\(--desktop-focus-paper-width\);[^}]*justify-self:\s*center;/s,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 640px\)[\s\S]*\.desktop-workspace-toolbar,[\s\S]*display:\s*none;/s,
+  );
 });
 
 test("移动端复用安卓版 48dp 顶栏素材且返回按钮不会被标题挤压", () => {

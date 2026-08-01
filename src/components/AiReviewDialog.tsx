@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { reviewMarkdownWithAi } from "../lib/ai";
 import {
   buildMarkdownFromAcceptedSuggestions,
+  getAcceptedSuggestionIdsAfterAcceptAll,
   type AiSuggestion,
 } from "../lib/ai-suggestions";
 
@@ -22,9 +23,25 @@ interface ReviewSession {
   suggestions: AiSuggestion[];
 }
 
-const QUICK_INSTRUCTIONS = [
-  "请检查文章的错别字和标点",
-  "请对重要的内容添加粗体符号",
+const QUICK_REVIEW_MODES = [
+  {
+    id: "punctuation",
+    instruction:
+      "请纠正文章中的错别字、病句和标点错误，只提出必要的最小修改，并保持原意和 Markdown 结构。",
+    label: "纠正标点语法",
+  },
+  {
+    id: "bold",
+    instruction:
+      "请识别对公众阅读最重要的短语或句子，并用 Markdown **粗体**突出，避免过度加粗或改变原意。",
+    label: "重点加粗",
+  },
+  {
+    id: "readability",
+    instruction:
+      "请让文章更适合公众阅读：优先把过长、信息过密的句子拆成自然、易读的短句，保持原意、语气和 Markdown 结构，不扩写，也不改写无关内容。",
+    label: "让公众更易读",
+  },
 ] as const;
 
 export function AiReviewDialog({
@@ -33,7 +50,9 @@ export function AiReviewDialog({
   onClose,
   onMarkdownChange,
 }: AiReviewDialogProps) {
-  const [instruction, setInstruction] = useState<string>(QUICK_INSTRUCTIONS[0]);
+  const [instruction, setInstruction] = useState<string>(
+    QUICK_REVIEW_MODES[0].instruction,
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [session, setSession] = useState<ReviewSession | null>(null);
@@ -147,6 +166,55 @@ export function AiReviewDialog({
     setSession({ ...session, ignoredIds });
   }
 
+  function handleAcceptAll() {
+    if (!session) {
+      return;
+    }
+
+    if (
+      currentNoteId !== session.sourceNoteId ||
+      currentMarkdown !== session.expectedMarkdown
+    ) {
+      setError("便签内容已变化，为避免覆盖你的编辑，请重新审阅。");
+      return;
+    }
+
+    const acceptedIds = getAcceptedSuggestionIdsAfterAcceptAll(
+      session.suggestions,
+      session.acceptedIds,
+      session.ignoredIds,
+    );
+
+    try {
+      const nextMarkdown = buildMarkdownFromAcceptedSuggestions(
+        session.sourceMarkdown,
+        session.suggestions,
+        acceptedIds,
+      );
+      onMarkdownChange(nextMarkdown);
+      setError("");
+      setSession({
+        ...session,
+        acceptedIds,
+        expectedMarkdown: nextMarkdown,
+      });
+    } catch (applyError) {
+      setError(
+        applyError instanceof Error
+          ? applyError.message
+          : "这些建议已失效，请重新审阅。",
+      );
+    }
+  }
+
+  const pendingSuggestionCount = session
+    ? session.suggestions.filter(
+        (suggestion) =>
+          !session.acceptedIds.has(suggestion.id) &&
+          !session.ignoredIds.has(suggestion.id),
+      ).length
+    : 0;
+
   return createPortal(
     <div className="ai-review-backdrop" role="presentation">
       <section
@@ -158,7 +226,7 @@ export function AiReviewDialog({
         <header className="ai-review-header">
           <div>
             <h2 id="ai-review-title">AI 辅助审阅</h2>
-            <p>AI 只给建议；每一处修改都由你单独确认。</p>
+            <p>支持逐条确认，也可以一键同意所有待处理建议。</p>
           </div>
           <button type="button" aria-label="关闭 AI 审阅" onClick={onClose}>
             ×
@@ -178,13 +246,17 @@ export function AiReviewDialog({
           </label>
 
           <div className="ai-review-quick-actions" aria-label="常用审阅要求">
-            {QUICK_INSTRUCTIONS.map((quickInstruction) => (
+            {QUICK_REVIEW_MODES.map((mode) => (
               <button
-                key={quickInstruction}
+                key={mode.id}
                 type="button"
-                onClick={() => setInstruction(quickInstruction)}
+                aria-pressed={instruction === mode.instruction}
+                className={
+                  instruction === mode.instruction ? "is-active" : undefined
+                }
+                onClick={() => setInstruction(mode.instruction)}
               >
-                {quickInstruction}
+                {mode.label}
               </button>
             ))}
           </div>
@@ -207,65 +279,82 @@ export function AiReviewDialog({
           {session ? (
             <div className="ai-suggestion-list" aria-live="polite">
               {session.suggestions.length > 0 ? (
-                session.suggestions.map((suggestion, index) => {
-                  const isAccepted = session.acceptedIds.has(suggestion.id);
-                  const isIgnored = session.ignoredIds.has(suggestion.id);
-
-                  return (
-                    <article
-                      key={suggestion.id}
-                      className="ai-suggestion-card"
-                      data-status={
-                        isAccepted
-                          ? "accepted"
-                          : isIgnored
-                            ? "ignored"
-                            : "pending"
-                      }
+                <>
+                  <div className="ai-suggestion-summary">
+                    <p>
+                      共 {session.suggestions.length} 条建议，尚有{" "}
+                      {pendingSuggestionCount} 条等待确认
+                    </p>
+                    <button
+                      type="button"
+                      className="is-primary"
+                      disabled={pendingSuggestionCount === 0}
+                      onClick={handleAcceptAll}
                     >
-                      <div className="ai-suggestion-heading">
-                        <strong>建议 {index + 1}</strong>
-                        <span>
-                          {isAccepted
-                            ? "已确认"
+                      同意所有
+                    </button>
+                  </div>
+
+                  {session.suggestions.map((suggestion, index) => {
+                    const isAccepted = session.acceptedIds.has(suggestion.id);
+                    const isIgnored = session.ignoredIds.has(suggestion.id);
+
+                    return (
+                      <article
+                        key={suggestion.id}
+                        className="ai-suggestion-card"
+                        data-status={
+                          isAccepted
+                            ? "accepted"
                             : isIgnored
-                              ? "已忽略"
-                              : "等待确认"}
-                        </span>
-                      </div>
-                      <p className="ai-suggestion-reason">
-                        {suggestion.reason}
-                      </p>
-                      <div className="ai-suggestion-diff">
-                        <div>
-                          <span>原文</span>
-                          <pre>{suggestion.original}</pre>
+                              ? "ignored"
+                              : "pending"
+                        }
+                      >
+                        <div className="ai-suggestion-heading">
+                          <strong>建议 {index + 1}</strong>
+                          <span>
+                            {isAccepted
+                              ? "已确认"
+                              : isIgnored
+                                ? "已忽略"
+                                : "等待确认"}
+                          </span>
                         </div>
-                        <div>
-                          <span>建议改为</span>
-                          <pre>{suggestion.replacement}</pre>
+                        <p className="ai-suggestion-reason">
+                          {suggestion.reason}
+                        </p>
+                        <div className="ai-suggestion-diff">
+                          <div>
+                            <span>原文</span>
+                            <pre>{suggestion.original}</pre>
+                          </div>
+                          <div>
+                            <span>建议改为</span>
+                            <pre>{suggestion.replacement}</pre>
+                          </div>
                         </div>
-                      </div>
-                      <div className="ai-suggestion-actions">
-                        <button
-                          type="button"
-                          disabled={isAccepted || isIgnored}
-                          onClick={() => handleIgnore(suggestion)}
-                        >
-                          忽略
-                        </button>
-                        <button
-                          type="button"
-                          className="is-primary"
-                          disabled={isAccepted || isIgnored}
-                          onClick={() => handleAccept(suggestion)}
-                        >
-                          确认修改
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })
+                        <div className="ai-suggestion-actions">
+                          <button
+                            type="button"
+                            disabled={isAccepted || isIgnored}
+                            onClick={() => handleIgnore(suggestion)}
+                          >
+                            忽略
+                          </button>
+                          <button
+                            type="button"
+                            className="is-primary"
+                            disabled={isAccepted || isIgnored}
+                            onClick={() => handleAccept(suggestion)}
+                          >
+                            确认修改
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </>
               ) : (
                 <p className="ai-review-empty">
                   AI 没有发现需要修改的地方。正文未发生任何变化。

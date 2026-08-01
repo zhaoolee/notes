@@ -1745,18 +1745,26 @@ body,
 
 .desktop-focus-exit {
   display: none;
-  width: 48px;
-  height: 32px;
+  width: 44px;
+  height: 34px;
   padding: 0;
-  flex: 0 0 48px;
+  flex: 0 0 44px;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--note-list-divider);
   border-radius: 5px;
   background: var(--note-list-surface);
   color: var(--note-list-time);
-  font-size: 21px;
   line-height: 1;
+}
+
+.desktop-focus-back-icon {
+  width: 10px;
+  height: 10px;
+  margin-left: 4px;
+  border-bottom: 3px solid currentColor;
+  border-left: 3px solid currentColor;
+  transform: rotate(45deg);
 }
 
 .desktop-focus-exit:hover,
@@ -1802,6 +1810,7 @@ body,
   .app-layout[data-desktop-focus="true"] {
     --category-sidebar-width: 0px;
     --note-sidebar-width: 0px;
+    --desktop-focus-paper-width: min(1120px, calc(100vw - 160px));
   }
 
   .app-layout[data-desktop-focus="true"] .app-topbar,
@@ -1813,6 +1822,7 @@ body,
   .app-layout[data-desktop-focus="true"] .app-shell {
     height: 100vh;
     max-height: 100vh;
+    background: var(--app-background);
   }
 
   .app-layout[data-desktop-focus="true"] .desktop-workspace-toolbar {
@@ -1820,8 +1830,23 @@ body,
     gap: 14px;
   }
 
+  .app-layout[data-desktop-focus="true"] .desktop-view-switch {
+    margin-left: calc(
+      (100vw - var(--desktop-focus-paper-width)) / 2 - 75px
+    );
+  }
+
   .app-layout[data-desktop-focus="true"] .desktop-focus-exit {
     display: inline-flex;
+  }
+
+  .app-layout[data-desktop-focus="true"] .editor-panel,
+  .app-layout[data-desktop-focus="true"] .category-empty-workspace {
+    width: var(--desktop-focus-paper-width);
+    justify-self: center;
+    border-right: 1px solid var(--column-divider);
+    border-left: 1px solid var(--column-divider);
+    box-shadow: 0 0 7px rgba(73, 54, 35, 0.12);
   }
 
   .app-layout:not([data-render-mode="playwright"]) .note-sidebar-header {
@@ -3403,7 +3428,8 @@ body,
 }
 
 .ai-review-quick-actions button,
-.ai-suggestion-actions button {
+.ai-suggestion-actions button,
+.ai-suggestion-summary button {
   min-height: 34px;
   padding: 0 12px;
   border: 1px solid var(--toolbar-border);
@@ -3412,6 +3438,14 @@ body,
   color: var(--ink);
   font-family: var(--ui-font);
   font-size: 0.76rem;
+}
+
+.ai-review-quick-actions button.is-active,
+.ai-review-quick-actions button[aria-pressed="true"] {
+  border-color: var(--toolbar-hover-border);
+  background: var(--selector-active);
+  color: var(--accent-strong);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .ai-review-submit {
@@ -3432,7 +3466,8 @@ body,
 }
 
 .ai-review-submit:disabled,
-.ai-suggestion-actions button:disabled {
+.ai-suggestion-actions button:disabled,
+.ai-suggestion-summary button:disabled {
   cursor: default;
   opacity: 0.48;
 }
@@ -3460,6 +3495,25 @@ body,
 .ai-suggestion-list {
   display: grid;
   gap: 12px;
+}
+
+.ai-suggestion-summary {
+  min-height: 44px;
+  padding: 6px 8px 6px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--dialog-bg) 88%, var(--panel-border));
+}
+
+.ai-suggestion-summary p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
 }
 
 .ai-suggestion-card {
@@ -3539,14 +3593,16 @@ body,
   gap: 8px;
 }
 
-.ai-suggestion-actions .is-primary {
+.ai-suggestion-actions .is-primary,
+.ai-suggestion-summary .is-primary {
   border-color: var(--export-button-border);
   background: var(--export-button-bg);
   color: var(--export-button-text);
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.08);
 }
 
-.ai-suggestion-actions .is-primary:hover:not(:disabled) {
+.ai-suggestion-actions .is-primary:hover:not(:disabled),
+.ai-suggestion-summary .is-primary:hover:not(:disabled) {
   background: var(--export-button-hover-bg);
 }
 

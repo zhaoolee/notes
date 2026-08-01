@@ -1589,7 +1589,7 @@ export default function App() {
               title="退出专注编辑"
               onClick={() => setIsDesktopFocusMode(false)}
             >
-              <span aria-hidden="true">←</span>
+              <span className="desktop-focus-back-icon" aria-hidden="true" />
             </button>
 
             <div className="desktop-view-switch" ref={desktopViewMenuRef}>

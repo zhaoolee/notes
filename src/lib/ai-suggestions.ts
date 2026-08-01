@@ -64,3 +64,19 @@ export function buildMarkdownFromAcceptedSuggestions(
 
   return result;
 }
+
+export function getAcceptedSuggestionIdsAfterAcceptAll(
+  suggestions: AiSuggestion[],
+  acceptedIds: ReadonlySet<string>,
+  ignoredIds: ReadonlySet<string>,
+): Set<string> {
+  const nextAcceptedIds = new Set(acceptedIds);
+
+  for (const suggestion of suggestions) {
+    if (!ignoredIds.has(suggestion.id)) {
+      nextAcceptedIds.add(suggestion.id);
+    }
+  }
+
+  return nextAcceptedIds;
+}

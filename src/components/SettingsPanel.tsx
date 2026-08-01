@@ -247,8 +247,8 @@ export function SettingsPanel({
                     AI 辅助审阅
                     <small>
                       {authUsername
-                        ? "逐条确认修改建议，不会自动改写"
-                        : "逐条确认修改建议，登录后可使用"}
+                        ? "逐条确认或同意所有，修改前由你决定"
+                        : "逐条确认或同意所有，登录后可使用"}
                     </small>
                   </span>
                   <span
