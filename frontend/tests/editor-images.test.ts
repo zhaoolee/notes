@@ -138,6 +138,22 @@ test("编辑器以内联图片块复刻锤子便签，并保留原生 textarea �
   assert.match(editorSource, /className="markdown-editor editor-text-segment"/);
   assert.match(editorSource, /focusAfterImage\(image\.markerEnd\)/);
   assert.match(editorSource, /removeAdjacentImage\(/);
+  assert.match(editorSource, /function requestImageDeletion\(/);
+  assert.match(
+    editorSource,
+    /if \(activeImageKey !== imageKey\) \{[\s\S]*setActiveImageKey\(imageKey\);[\s\S]*return;/,
+  );
+  assert.match(editorSource, /setPendingImageDeletion\(\{ focusOffset, imageKey \}\)/);
+  assert.match(editorSource, /requestImageDeletion\(previousBlock, block\.start\)/);
+  assert.match(editorSource, /requestImageDeletion\(nextBlock, block\.end\)/);
+  assert.match(editorSource, /<ConfirmDialog/);
+  assert.match(editorSource, /confirmLabel: "删除图片"/);
+  assert.match(editorSource, /onClose=\{closeImageDeletionConfirmation\}/);
+  assert.match(editorSource, /onConfirm=\{confirmImageDeletion\}/);
+  assert.match(
+    editorSource,
+    /function closeImageDeletionConfirmation\(\): void \{[\s\S]*setPendingImageDeletion\(null\);[\s\S]*focusGlobalSelection\(markdown, focusOffset\);/,
+  );
   assert.match(editorSource, /replaceEditorImageAlt\(/);
   assert.match(editorSource, /replaceEditorImageSource\(/);
   assert.match(editorSource, /moveEditorImage\(/);

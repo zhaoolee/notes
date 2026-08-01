@@ -19,7 +19,7 @@
     "test": "npm run test:feedback",
     "test:feedback": "npm run test:frontend && npm run test:backend",
     "test:frontend": "node --import tsx --test frontend/tests/*.test.ts",
-    "test:backend": "node --import tsx --test backend/tests/*.test.ts",
+    "test:backend": "node --import tsx --test --test-concurrency=1 backend/tests/*.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

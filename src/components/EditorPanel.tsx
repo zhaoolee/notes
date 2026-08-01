@@ -14,6 +14,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { ImageCropDialog } from "./ImageCropDialog";
 import { importImageFile, importImageUrl } from "../lib/images";
 import {
@@ -173,6 +174,10 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
   const [isQuickInputVisible, setIsQuickInputVisible] = useState(false);
   const [activeImageKey, setActiveImageKey] = useState<string | null>(null);
   const [captionImageKey, setCaptionImageKey] = useState<string | null>(null);
+  const [pendingImageDeletion, setPendingImageDeletion] = useState<{
+    focusOffset: number;
+    imageKey: string;
+  } | null>(null);
   const [draggingImageKey, setDraggingImageKey] = useState<string | null>(null);
   const [imageDropIndicatorTop, setImageDropIndicatorTop] = useState<number | null>(
     null,
@@ -205,7 +210,19 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     if (captionImageKey && !imageKeys.has(captionImageKey)) {
       setCaptionImageKey(null);
     }
-  }, [activeImageKey, captionImageKey, editorContent]);
+
+    if (
+      pendingImageDeletion &&
+      !imageKeys.has(pendingImageDeletion.imageKey)
+    ) {
+      setPendingImageDeletion(null);
+    }
+  }, [
+    activeImageKey,
+    captionImageKey,
+    editorContent,
+    pendingImageDeletion,
+  ]);
 
   useEffect(
     () => () => {
@@ -663,6 +680,44 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     focusGlobalSelection(nextMarkdown, markerStart);
   }
 
+  function requestImageDeletion(
+    image: EditorImageBlock,
+    focusOffset: number,
+  ): void {
+    const imageKey = getEditorImageKey(image);
+
+    if (activeImageKey !== imageKey) {
+      setCaptionImageKey(null);
+      setActiveImageKey(imageKey);
+      return;
+    }
+
+    setPendingImageDeletion({ focusOffset, imageKey });
+  }
+
+  function closeImageDeletionConfirmation(): void {
+    const focusOffset = pendingImageDeletion?.focusOffset;
+    setPendingImageDeletion(null);
+
+    if (focusOffset !== undefined) {
+      focusGlobalSelection(markdown, focusOffset);
+    }
+  }
+
+  function confirmImageDeletion(): void {
+    const image = editorContent.find(
+      (block): block is EditorImageBlock =>
+        block.kind === "image" &&
+        getEditorImageKey(block) === pendingImageDeletion?.imageKey,
+    );
+
+    setPendingImageDeletion(null);
+
+    if (image) {
+      removeAdjacentImage(image.markerStart, image.markerEnd);
+    }
+  }
+
   function updateImageAlt(image: EditorImageBlock, nextAlt: string): void {
     const nextMarkdown = replaceEditorImageAlt(markdown, image, nextAlt);
 
@@ -948,7 +1003,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
       previousBlock?.kind === "image"
     ) {
       event.preventDefault();
-      removeAdjacentImage(previousBlock.markerStart, previousBlock.markerEnd);
+      requestImageDeletion(previousBlock, block.start);
       return;
     }
 
@@ -959,7 +1014,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
       nextBlock?.kind === "image"
     ) {
       event.preventDefault();
-      removeAdjacentImage(nextBlock.markerStart, nextBlock.markerEnd);
+      requestImageDeletion(nextBlock, block.end);
       return;
     }
 
@@ -1300,7 +1355,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
                         type="button"
                         aria-label="删除这张图片"
                         onClick={() =>
-                          removeAdjacentImage(block.markerStart, block.markerEnd)
+                          requestImageDeletion(block, block.markerEnd)
                         }
                       >
                         <img
@@ -1488,6 +1543,20 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
           onConfirm={saveCroppedImage}
         />
       ) : null}
+
+      <ConfirmDialog
+        pendingAction={
+          pendingImageDeletion
+            ? {
+                confirmLabel: "删除图片",
+                description: "删除后将无法恢复，是否确认删除这张图片？",
+                title: "删除图片",
+              }
+            : null
+        }
+        onClose={closeImageDeletionConfirmation}
+        onConfirm={confirmImageDeletion}
+      />
     </>
   );
 });

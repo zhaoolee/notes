@@ -27,7 +27,7 @@ async function getUnusedPort(): Promise<number> {
 }
 
 async function waitForHealth(baseUrl: string, child: ChildProcess): Promise<void> {
-  const deadline = Date.now() + 15_000;
+  const deadline = Date.now() + 30_000;
 
   while (Date.now() < deadline) {
     if (child.exitCode != null) {
