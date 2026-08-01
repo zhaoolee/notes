@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   collectEditorImagePreviews,
+  moveEditorImage,
+  replaceEditorImageAlt,
+  replaceEditorImageSource,
   splitEditorContent,
 } from "../../src/lib/editor-images.js";
 
@@ -67,16 +70,85 @@ test("图片标记被拆成正文流内的独立块，并保留图片前后的�
   );
 });
 
+test("图片标注只更新 Markdown 中括号或 HTML alt，不改动图片地址", () => {
+  const markdown = [
+    "前文",
+    "![旧标注](/images/demo.png \"标题\")",
+    '<img src="/images/html.png">',
+    "后文",
+  ].join("\n");
+  const [markdownImage, htmlImage] = collectEditorImagePreviews(markdown);
+  const withMarkdownAlt = replaceEditorImageAlt(
+    markdown,
+    markdownImage,
+    "新标注 ] 保留",
+  );
+  const currentHtmlImage = collectEditorImagePreviews(withMarkdownAlt)[1];
+  const withBothAlts = replaceEditorImageAlt(
+    withMarkdownAlt,
+    currentHtmlImage,
+    'HTML "标注"',
+  );
+
+  assert.match(withBothAlts, /!\[新标注 \\] 保留]\(\/images\/demo\.png "标题"\)/);
+  assert.match(
+    withBothAlts,
+    /<img src="\/images\/html\.png" alt="HTML &quot;标注&quot;">/,
+  );
+  assert.deepEqual(
+    collectEditorImagePreviews(withBothAlts).map(({ alt, source }) => ({ alt, source })),
+    [
+      { alt: "新标注 ] 保留", source: "/images/demo.png" },
+      { alt: 'HTML "标注"', source: "/images/html.png" },
+    ],
+  );
+});
+
+test("裁剪替换图片地址并支持把图片按正文行重新插入", () => {
+  const markdown = [
+    "第一行",
+    "![图片](/images/original.png)",
+    "第二行",
+    "第三行",
+  ].join("\n");
+  const image = collectEditorImagePreviews(markdown)[0];
+  const cropped = replaceEditorImageSource(
+    markdown,
+    image,
+    "/images/cropped.png",
+  );
+  const currentImage = collectEditorImagePreviews(cropped)[0];
+  const targetOffset = cropped.indexOf("第三行");
+
+  assert.equal(
+    moveEditorImage(cropped, currentImage, targetOffset),
+    ["第一行", "第二行", "![图片](/images/cropped.png)", "第三行"].join(
+      "\n",
+    ),
+  );
+});
+
 test("编辑器以内联图片块复刻锤子便签，并保留原生 textarea 输入控件", () => {
   const editorSource = readFileSync("src/components/EditorPanel.tsx", "utf8");
   const styles = readFileSync("src/styles.css", "utf8");
 
   assert.match(editorSource, /splitEditorContent\(markdown\)/);
   assert.match(editorSource, /className="markdown-editor-flow"/);
-  assert.match(editorSource, /className="editor-image-block"/);
+  assert.match(editorSource, /className={`editor-image-block\$\{/);
   assert.match(editorSource, /className="markdown-editor editor-text-segment"/);
-  assert.match(editorSource, /focusAfterImage\(block\.markerEnd\)/);
+  assert.match(editorSource, /focusAfterImage\(image\.markerEnd\)/);
   assert.match(editorSource, /removeAdjacentImage\(/);
+  assert.match(editorSource, /replaceEditorImageAlt\(/);
+  assert.match(editorSource, /replaceEditorImageSource\(/);
+  assert.match(editorSource, /moveEditorImage\(/);
+  assert.match(editorSource, /const imageMarkdown = `!\[\]\(\$\{imageUrl\}\)`/);
+  assert.match(editorSource, /aria-label="图片操作"/);
+  assert.match(editorSource, /aria-label="编辑图片标注"/);
+  assert.match(editorSource, /aria-label="下载这张图片"/);
+  assert.match(editorSource, /aria-label="放大查看这张图片"/);
+  assert.match(editorSource, /aria-label="裁剪这张图片"/);
+  assert.match(editorSource, /aria-label="拖动图片位置"/);
+  assert.match(editorSource, /<ImageCropDialog/);
   assert.match(editorSource, /snapImageBlockToLineGrid\(/);
   assert.doesNotMatch(editorSource, /contentEditable/);
   assert.doesNotMatch(editorSource, /editor-image-previews/);
@@ -90,7 +162,17 @@ test("编辑器以内联图片块复刻锤子便签，并保留原生 textarea �
   );
   assert.match(
     styles,
-    /\.editor-image-handle\s*\{[^}]*top:\s*14px;[^}]*right:\s*-13px;[^}]*width:\s*32px;[^}]*height:\s*32px;/s,
+    /\.editor-image-handle\s*\{[^}]*top:\s*6px;[^}]*right:\s*-27px;[^}]*width:\s*51px;[^}]*height:\s*51px;/s,
   );
+  assert.match(
+    styles,
+    /\.editor-image-block\.is-active \.editor-image-main\s*\{[^}]*filter:\s*blur\(12px\);/s,
+  );
+  assert.match(
+    styles,
+    /\.editor-image-actions button\s*\{[^}]*width:\s*51px;[^}]*height:\s*51px;/s,
+  );
+  assert.match(styles, /\.editor-image-preview\s*\{/);
+  assert.match(styles, /\.image-crop-selection\s*\{/);
   assert.match(styles, /--editor-image-grid-spacer/);
 });

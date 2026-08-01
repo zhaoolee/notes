@@ -24,6 +24,7 @@ import {
   getInitialFooterVia,
   getInitialNoteWorkspace,
   getRenderMode,
+  isSmartisanWebTestDataMode,
   persistAiEnabled,
   persistFooterLogoUrl,
   persistFooterText,
@@ -142,6 +143,7 @@ function formatMobileNoteUpdatedAt(timestamp: number | undefined): string {
 export default function App() {
   const renderMode = getRenderMode();
   const isPlaywrightRender = renderMode === "playwright";
+  const isTestDataMode = isSmartisanWebTestDataMode();
   const [footerBrand, setFooterBrand] = useState(getInitialFooterBrand);
   const [footerLogoUrl, setFooterLogoUrl] = useState(getInitialFooterLogoUrl);
   const [footerVia, setFooterVia] = useState(getInitialFooterVia);
@@ -281,6 +283,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (isTestDataMode) {
+      setAuthStatus("ready");
+      setCloudSyncState("local");
+      return;
+    }
+
     let cancelled = false;
 
     void (async () => {
@@ -336,7 +344,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [replaceWorkspace]);
+  }, [isTestDataMode, replaceWorkspace]);
 
   useEffect(() => {
     if (isPlaywrightRender) {

@@ -11,10 +11,17 @@ import {
   type ClipboardEvent,
   type DragEvent,
   type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
+import { createPortal } from "react-dom";
+import { ImageCropDialog } from "./ImageCropDialog";
 import { importImageFile, importImageUrl } from "../lib/images";
 import {
+  moveEditorImage,
+  replaceEditorImageAlt,
+  replaceEditorImageSource,
   splitEditorContent,
+  type EditorImageBlock,
   type EditorTextBlock,
 } from "../lib/editor-images";
 import {
@@ -82,6 +89,59 @@ function extractImageFile(files: FileList | File[]): File | null {
   return null;
 }
 
+function getEditorImageKey(image: EditorImageBlock): string {
+  return `${image.markerStart}:${image.source}`;
+}
+
+function collectVisualLineOffsets(
+  textarea: HTMLTextAreaElement,
+  text: string,
+): number[] {
+  const style = getComputedStyle(textarea);
+  const contentWidth = Math.max(
+    1,
+    textarea.clientWidth -
+      Number.parseFloat(style.paddingLeft) -
+      Number.parseFloat(style.paddingRight),
+  );
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    return [0, text.length];
+  }
+
+  context.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+  const letterSpacing = Number.parseFloat(style.letterSpacing) || 0;
+  const offsets = [0];
+  let lineWidth = 0;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+
+    if (character === "\n") {
+      offsets.push(index + 1);
+      lineWidth = 0;
+      continue;
+    }
+
+    const characterWidth = context.measureText(character).width + letterSpacing;
+
+    if (lineWidth > 0 && lineWidth + characterWidth > contentWidth) {
+      offsets.push(index);
+      lineWidth = characterWidth;
+    } else {
+      lineWidth += characterWidth;
+    }
+  }
+
+  if (offsets.at(-1) !== text.length) {
+    offsets.push(text.length);
+  }
+
+  return Array.from(new Set(offsets));
+}
+
 export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(function EditorPanel(
   {
     markdown,
@@ -93,12 +153,14 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
   const editorFrameRef = useRef<HTMLDivElement | null>(null);
   const editorScrollRef = useRef<HTMLDivElement | null>(null);
   const textareaRefs = useRef(new Map<number, HTMLTextAreaElement>());
+  const captionInputRefs = useRef(new Map<string, HTMLInputElement>());
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const caretMirrorRef = useRef<HTMLDivElement | null>(null);
   const caretMirrorTextRef = useRef<HTMLSpanElement | null>(null);
   const caretMirrorAnchorRef = useRef<HTMLSpanElement | null>(null);
   const mobileCaretRef = useRef<HTMLSpanElement | null>(null);
   const caretSyncFrameRef = useRef<number | null>(null);
+  const imageDragCleanupRef = useRef<(() => void) | null>(null);
   const isComposingRef = useRef(false);
   const keyboardBaselineHeightRef = useRef<number | null>(null);
   const selectionRef = useRef({
@@ -109,10 +171,64 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
   const [imageImportError, setImageImportError] = useState("");
   const [isDropTargetActive, setIsDropTargetActive] = useState(false);
   const [isQuickInputVisible, setIsQuickInputVisible] = useState(false);
+  const [activeImageKey, setActiveImageKey] = useState<string | null>(null);
+  const [captionImageKey, setCaptionImageKey] = useState<string | null>(null);
+  const [draggingImageKey, setDraggingImageKey] = useState<string | null>(null);
+  const [imageDropIndicatorTop, setImageDropIndicatorTop] = useState<number | null>(
+    null,
+  );
+  const [previewImage, setPreviewImage] = useState<{
+    alt: string;
+    source: string;
+  } | null>(null);
+  const [cropSession, setCropSession] = useState<{
+    alt: string;
+    imageKey: string;
+    source: string;
+  } | null>(null);
   const editorContent = useMemo(
     () => splitEditorContent(markdown),
     [markdown],
   );
+
+  useEffect(() => {
+    const imageKeys = new Set(
+      editorContent
+        .filter((block): block is EditorImageBlock => block.kind === "image")
+        .map(getEditorImageKey),
+    );
+
+    if (activeImageKey && !imageKeys.has(activeImageKey)) {
+      setActiveImageKey(null);
+    }
+
+    if (captionImageKey && !imageKeys.has(captionImageKey)) {
+      setCaptionImageKey(null);
+    }
+  }, [activeImageKey, captionImageKey, editorContent]);
+
+  useEffect(
+    () => () => {
+      imageDragCleanupRef.current?.();
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!previewImage) {
+      return;
+    }
+
+    const handlePreviewKeyDown = (event: globalThis.KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setPreviewImage(null);
+      }
+    };
+
+    window.addEventListener("keydown", handlePreviewKeyDown);
+    return () => window.removeEventListener("keydown", handlePreviewKeyDown);
+  }, [previewImage]);
 
   useImperativeHandle(
     ref,
@@ -538,11 +654,281 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     )}`;
 
     onMarkdownChange(nextMarkdown);
+    setActiveImageKey(null);
+    setCaptionImageKey(null);
     selectionRef.current = {
       end: markerStart,
       start: markerStart,
     };
     focusGlobalSelection(nextMarkdown, markerStart);
+  }
+
+  function updateImageAlt(image: EditorImageBlock, nextAlt: string): void {
+    const nextMarkdown = replaceEditorImageAlt(markdown, image, nextAlt);
+
+    if (nextMarkdown !== markdown) {
+      onMarkdownChange(nextMarkdown);
+    }
+  }
+
+  function openImageCaption(image: EditorImageBlock): void {
+    const imageKey = getEditorImageKey(image);
+    setActiveImageKey(null);
+    setCaptionImageKey(imageKey);
+    hideMobileCaret();
+
+    window.requestAnimationFrame(() => {
+      const input = captionInputRefs.current.get(imageKey);
+      input?.focus();
+      input?.setSelectionRange(input.value.length, input.value.length);
+      input?.scrollIntoView({ block: "nearest" });
+      snapImageBlockToLineGrid(
+        input?.closest<HTMLElement>(".editor-image-block") ?? null,
+      );
+    });
+  }
+
+  async function downloadEditorImage(image: EditorImageBlock): Promise<void> {
+    const fallbackName = image.alt.trim() || "note-image";
+
+    try {
+      const response = await fetch(image.source);
+
+      if (!response.ok) {
+        throw new Error(`图片下载失败（${response.status}）`);
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const extension = blob.type.split("/")[1]?.replace("jpeg", "jpg") || "png";
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = `${fallbackName.replace(/[\\/:*?"<>|]/g, "-")}.${extension}`;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
+      setImageImportError("");
+    } catch (error) {
+      const anchor = document.createElement("a");
+      anchor.href = image.source;
+      anchor.download = fallbackName;
+      anchor.target = "_blank";
+      anchor.rel = "noreferrer";
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      setImageImportError(
+        error instanceof Error
+          ? `${error.message}，已在新窗口打开原图。`
+          : "图片下载失败，已在新窗口打开原图。",
+      );
+    }
+  }
+
+  async function openImageCrop(image: EditorImageBlock): Promise<void> {
+    try {
+      setActiveImageKey(null);
+      setIsImportingImage(true);
+      onImageImportingChange(true);
+      setImageImportError("");
+      const imageUrl = new URL(image.source, window.location.href);
+      let cropSource = imageUrl.href;
+
+      if (
+        (imageUrl.protocol === "http:" || imageUrl.protocol === "https:") &&
+        imageUrl.origin !== window.location.origin
+      ) {
+        const imported = await importImageUrl(image.source);
+        cropSource = new URL(
+          imported.path || imported.url,
+          window.location.href,
+        ).href;
+      }
+
+      setCropSession({
+        alt: image.alt,
+        imageKey: getEditorImageKey(image),
+        source: cropSource,
+      });
+    } catch (error) {
+      setImageImportError(
+        error instanceof Error ? error.message : "无法打开图片裁剪。",
+      );
+    } finally {
+      setIsImportingImage(false);
+      onImageImportingChange(false);
+    }
+  }
+
+  async function saveCroppedImage(file: File): Promise<void> {
+    const session = cropSession;
+    const currentImage = editorContent.find(
+      (block): block is EditorImageBlock =>
+        block.kind === "image" && getEditorImageKey(block) === session?.imageKey,
+    );
+
+    if (!session || !currentImage) {
+      throw new Error("图片内容已变化，请重新打开裁剪。");
+    }
+
+    try {
+      setIsImportingImage(true);
+      onImageImportingChange(true);
+      setImageImportError("");
+      const imported = await importImageFile(file);
+      const nextMarkdown = replaceEditorImageSource(
+        markdown,
+        currentImage,
+        imported.path || imported.url,
+      );
+
+      if (nextMarkdown === markdown) {
+        throw new Error("裁剪后的图片无法替换原图。");
+      }
+
+      onMarkdownChange(nextMarkdown);
+      setCropSession(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "图片裁剪失败。";
+      setImageImportError(message);
+      throw new Error(message);
+    } finally {
+      setIsImportingImage(false);
+      onImageImportingChange(false);
+    }
+  }
+
+  function getImageDropTargets(): Array<{ offset: number; y: number }> {
+    const targets: Array<{ offset: number; y: number }> = [];
+
+    for (const [blockIndex, textarea] of textareaRefs.current) {
+      const block = editorContent[blockIndex];
+
+      if (!block || block.kind !== "text") {
+        continue;
+      }
+
+      const style = getComputedStyle(textarea);
+      const lineHeight = Number.parseFloat(style.lineHeight) || 42;
+      const paddingTop = Number.parseFloat(style.paddingTop) || 0;
+      const rect = textarea.getBoundingClientRect();
+      const offsets = collectVisualLineOffsets(textarea, block.text);
+
+      offsets.forEach((offset, lineIndex) => {
+        targets.push({
+          offset: block.start + offset,
+          y: Math.min(
+            rect.bottom,
+            rect.top + paddingTop + lineIndex * lineHeight + lineHeight / 2,
+          ),
+        });
+      });
+    }
+
+    return targets;
+  }
+
+  function beginImageDrag(
+    event: ReactPointerEvent<HTMLButtonElement>,
+    image: EditorImageBlock,
+  ): void {
+    if (event.button !== 0) {
+      return;
+    }
+
+    const flow = editorScrollRef.current;
+
+    if (!flow) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    hideMobileCaret();
+    const pointerId = event.pointerId;
+    const startY = event.clientY;
+    let hasMoved = false;
+    let targetOffset: number | null = null;
+
+    const cleanup = (): void => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+      imageDragCleanupRef.current = null;
+      setDraggingImageKey(null);
+      setImageDropIndicatorTop(null);
+    };
+
+    const handlePointerMove = (pointerEvent: globalThis.PointerEvent): void => {
+      if (pointerEvent.pointerId !== pointerId) {
+        return;
+      }
+
+      if (!hasMoved && Math.abs(pointerEvent.clientY - startY) < 6) {
+        return;
+      }
+
+      hasMoved = true;
+      pointerEvent.preventDefault();
+      setActiveImageKey(null);
+      setDraggingImageKey(getEditorImageKey(image));
+
+      const flowRect = flow.getBoundingClientRect();
+      const edgeSize = Math.min(72, flowRect.height * 0.16);
+
+      if (pointerEvent.clientY < flowRect.top + edgeSize) {
+        flow.scrollTop -= 18;
+      } else if (pointerEvent.clientY > flowRect.bottom - edgeSize) {
+        flow.scrollTop += 18;
+      }
+
+      const targets = getImageDropTargets();
+      const nearest = targets.reduce<
+        { offset: number; y: number } | undefined
+      >((current, candidate) =>
+        !current ||
+        Math.abs(candidate.y - pointerEvent.clientY) <
+          Math.abs(current.y - pointerEvent.clientY)
+          ? candidate
+          : current,
+      undefined);
+
+      if (!nearest) {
+        return;
+      }
+
+      targetOffset = nearest.offset;
+      setImageDropIndicatorTop(
+        nearest.y - flowRect.top + flow.scrollTop - 1,
+      );
+      syncEditorPaperScroll();
+    };
+
+    const handlePointerUp = (pointerEvent: globalThis.PointerEvent): void => {
+      if (pointerEvent.pointerId !== pointerId) {
+        return;
+      }
+
+      cleanup();
+
+      if (!hasMoved || targetOffset === null) {
+        focusAfterImage(image.markerEnd);
+        return;
+      }
+
+      const nextMarkdown = moveEditorImage(markdown, image, targetOffset);
+
+      if (nextMarkdown !== markdown) {
+        onMarkdownChange(nextMarkdown);
+      }
+    };
+
+    imageDragCleanupRef.current?.();
+    imageDragCleanupRef.current = cleanup;
+    window.addEventListener("pointermove", handlePointerMove, { passive: false });
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
   }
 
   function handleEditorKeyDown(
@@ -608,7 +994,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     const selectionEnd = selectionRef.current.end;
     const before = markdown.slice(0, selectionStart);
     const after = markdown.slice(selectionEnd);
-    const imageMarkdown = `![图片](${imageUrl})`;
+    const imageMarkdown = `![](${imageUrl})`;
     const leadingBreak = before && !before.endsWith("\n") ? "\n" : "";
     const trailingBreak = after && !after.startsWith("\n") ? "\n" : "";
     const inserted = `${leadingBreak}${imageMarkdown}${trailingBreak}`;
@@ -756,7 +1142,8 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
   }
 
   return (
-    <aside className="editor-panel">
+    <>
+      <aside className="editor-panel">
       {imageImportError ? <p className="image-import-status error">{imageImportError}</p> : null}
       {isImportingImage ? <p className="image-import-status">正在导入图片...</p> : null}
       <div
@@ -789,7 +1176,19 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
           ref={editorScrollRef}
           className="markdown-editor-flow"
           onScroll={syncEditorPaperScroll}
+          onPointerDown={(event) => {
+            if (!(event.target as HTMLElement).closest(".editor-image-block")) {
+              setActiveImageKey(null);
+            }
+          }}
         >
+          {imageDropIndicatorTop !== null ? (
+            <span
+              className="editor-image-drop-line"
+              style={{ top: `${imageDropIndicatorTop}px` }}
+              aria-hidden="true"
+            />
+          ) : null}
           {editorContent.map((block, blockIndex) =>
             block.kind === "text" ? (
               <textarea
@@ -856,29 +1255,144 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
             ) : (
               <figure
                 key={`image-${block.markerStart}-${block.source}`}
-                className="editor-image-block"
+                className={`editor-image-block${
+                  activeImageKey === getEditorImageKey(block) ? " is-active" : ""
+                }${
+                  draggingImageKey === getEditorImageKey(block)
+                    ? " is-dragging"
+                    : ""
+                }`}
                 data-editor-image="true"
+                data-image-key={getEditorImageKey(block)}
               >
-                <img
-                  src={block.source}
-                  alt={block.alt || `正文图片 ${Math.floor(blockIndex / 2) + 1}`}
-                  loading="lazy"
-                  onLoad={(event) => {
-                    snapImageBlockToLineGrid(event.currentTarget.parentElement);
+                <div
+                  className="editor-image-visual"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setActiveImageKey((currentKey) =>
+                      currentKey === getEditorImageKey(block)
+                        ? null
+                        : getEditorImageKey(block),
+                    );
                   }}
-                />
+                >
+                  <img
+                    className="editor-image-main"
+                    src={block.source}
+                    alt={block.alt || `正文图片 ${Math.floor(blockIndex / 2) + 1}`}
+                    loading="lazy"
+                    draggable={false}
+                    onLoad={(event) => {
+                      snapImageBlockToLineGrid(
+                        event.currentTarget.closest(".editor-image-block"),
+                      );
+                    }}
+                  />
+
+                  {activeImageKey === getEditorImageKey(block) ? (
+                    <div
+                      className="editor-image-actions"
+                      role="toolbar"
+                      aria-label="图片操作"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        aria-label="删除这张图片"
+                        onClick={() =>
+                          removeAdjacentImage(block.markerStart, block.markerEnd)
+                        }
+                      >
+                        <img
+                          src="/smartisan/mobile/item_image_btn_unbrella_delete.png"
+                          alt=""
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="编辑图片标注"
+                        onClick={() => openImageCaption(block)}
+                      >
+                        <img
+                          src="/smartisan/mobile/item_image_btn_unbrella_edit_detail.png"
+                          alt=""
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="下载这张图片"
+                        onClick={() => void downloadEditorImage(block)}
+                      >
+                        <img
+                          src="/smartisan/mobile/item_image_btn_unbrella_download_image.png"
+                          alt=""
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="放大查看这张图片"
+                        onClick={() => {
+                          setActiveImageKey(null);
+                          setPreviewImage({ alt: block.alt, source: block.source });
+                        }}
+                      >
+                        <img
+                          src="/smartisan/mobile/item_image_btn_unbrella_preview_image.png"
+                          alt=""
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="裁剪这张图片"
+                        onClick={() => void openImageCrop(block)}
+                      >
+                        <img
+                          src="/smartisan/mobile/item_image_btn_unbrella_edit_image.png"
+                          alt=""
+                        />
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+
+                {captionImageKey === getEditorImageKey(block) || block.alt ? (
+                  <input
+                    ref={(input) => {
+                      const imageKey = getEditorImageKey(block);
+
+                      if (input) {
+                        captionInputRefs.current.set(imageKey, input);
+                      } else {
+                        captionInputRefs.current.delete(imageKey);
+                      }
+                    }}
+                    className="editor-image-caption"
+                    aria-label="图片标注"
+                    maxLength={240}
+                    placeholder="图片描述"
+                    value={block.alt}
+                    onChange={(event) => updateImageAlt(block, event.target.value)}
+                    onClick={(event) => event.stopPropagation()}
+                    onFocus={() => {
+                      setActiveImageKey(null);
+                      hideMobileCaret();
+                    }}
+                  />
+                ) : null}
+
                 <button
                   type="button"
                   className="editor-image-handle"
-                  aria-label="将光标移到图片后"
+                  aria-label="拖动图片位置"
                   onPointerDown={(event) => {
-                    event.preventDefault();
+                    beginImageDrag(event, block);
                   }}
-                  onClick={() => focusAfterImage(block.markerEnd)}
                 >
-                  <span />
-                  <span />
-                  <span />
+                  <img
+                    src="/smartisan/mobile/detail_note_item_image_move.png"
+                    alt=""
+                    draggable={false}
+                  />
                 </button>
               </figure>
             ),
@@ -919,6 +1433,61 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
           ))}
         </div>
       ) : null}
-    </aside>
+      </aside>
+
+      {previewImage
+        ? createPortal(
+            <div
+              className="editor-image-preview"
+              role="dialog"
+              aria-modal="true"
+              aria-label="图片放大预览"
+            >
+              <button
+                type="button"
+                className="editor-image-preview-close"
+                aria-label="关闭图片预览"
+                onClick={() => setPreviewImage(null)}
+              >
+                ×
+              </button>
+              <strong className="editor-image-preview-count">1 / 1</strong>
+              <img
+                className="editor-image-preview-main"
+                src={previewImage.source}
+                alt={previewImage.alt || "图片预览"}
+              />
+              <button
+                type="button"
+                className="editor-image-preview-save"
+                onClick={() => {
+                  const image = editorContent.find(
+                    (block): block is EditorImageBlock =>
+                      block.kind === "image" &&
+                      block.source === previewImage.source &&
+                      block.alt === previewImage.alt,
+                  );
+
+                  if (image) {
+                    void downloadEditorImage(image);
+                  }
+                }}
+              >
+                保存图片
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
+
+      {cropSession ? (
+        <ImageCropDialog
+          alt={cropSession.alt}
+          source={cropSession.source}
+          onCancel={() => setCropSession(null)}
+          onConfirm={saveCroppedImage}
+        />
+      ) : null}
+    </>
   );
 });

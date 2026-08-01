@@ -42,6 +42,10 @@ contact-sheet.png        核心资源速览图
 | 详情标题 | `detail_notes_title_size` | `18sp` |
 | 详情正文左右内边距 | `detail_notes_text_padding_left/right` | `39dp / 18dp` |
 | 详情行高基准 | `detail_notes_line_height` | `42dp` |
+| 图片操作按钮 | `detail_note_item_image.xml` 与 153 × 153 px PNG | `51 × 51dp`，左 `40dp`、上 `6dp` |
+| 图片操作按钮叠放 | `detail_note_image_edit_icon_margin` | 后续按钮左边距 `-11.5dp` |
+| 图片拖动柄 | `detail_note_item_image_move.png` | `51 × 51dp`，右侧突出 |
+| 图片标注输入 | `DetailNoteImageDesEdit` | `15sp`、最多 2 行、最大宽 `270dp` |
 | 长图中的图片底板 | `longlength_weibo_image_bg.9.png` | 暖灰外线、暖白衬边与极轻底部阴影，无圆角 |
 | 搜索文字 | `search_bar_input_editor_text_size` | `15sp` |
 | 搜索框内部边距基准 | `right_container_margin` | `6dp` |
@@ -72,6 +76,14 @@ APK 的纸张和顶栏图片包含纹理与渐变，不能用一个纯色完全�
 - 左侧装订夹、右侧收藏/置顶/图片状态都占用各自的透明画布；文字的 `52dp` 左边距正是为了避开装订夹。
 - 返回、设置、新建、分享、删除等顶栏按钮使用统一的 `36dp` 画布，放在 `48dp` 顶栏里。
 - 搜索框、列表项和清除按钮都通过 selector 区分普通、按下或禁用状态。
+- 1080 × 2400 真机实测图片被选中后，五个按钮和拖动柄的物理边界均为
+  `153 × 153px = 51dp`。图片显示独立模糊层，按钮从左到右为红色删除、标注、
+  下载、放大、裁剪；标注会隐藏浮层并在图片下方打开输入框和软键盘。
+- 放大使用黑底全屏 `PreviewActivity`，左上角关闭、顶部显示 `1 / 1`，底部提供
+  “保存图片”。裁剪调用系统图片裁剪 Activity；Web 复刻保持同等入口和结果，
+  但使用站内裁剪层以兼容普通浏览器。
+- 本目录 `assets/drawable-xxhdpi/` 保留了上述五个按钮、禁用裁剪按钮和拖动柄的
+  原始 `xxhdpi` PNG，用于尺寸与交互比对。
 - 长图分享预览由 `Convert2PicturePreviewActivity` 使用
   `convert_to_picture_preview_weibo_image_item.xml` 渲染；图片外层不是普通
   `border`，而是 `longlength_weibo_image_bg.9.png` 提供的暖灰细线、白色衬边和

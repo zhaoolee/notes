@@ -145,6 +145,7 @@ test("官方网页版前 20 条便签可作为隔离且可重复的测试工作�
   assert.match(firstWorkspace.notes[0].markdown, /班味儿/);
   assert.equal(firstWorkspace.notes[1].markdown, "test");
   assert.match(firstWorkspace.notes[2].markdown, /运维神器爱马仕/);
+  assert.match(firstWorkspace.notes[6].markdown, /!\[\]\(\/example-assets\/dog\.jpeg\)/);
   assert.match(firstWorkspace.notes[19].markdown, /OpenClaw很火/);
   assert.deepEqual(
     firstWorkspace.notes.map((note) => note.normalOrder),
@@ -152,6 +153,12 @@ test("官方网页版前 20 条便签可作为隔离且可重复的测试工作�
   );
   assert.notEqual(firstWorkspace.notes, secondWorkspace.notes);
   assert.notEqual(firstWorkspace.notes[0], secondWorkspace.notes[0]);
+
+  const appSource = readFileSync("src/App.tsx", "utf8");
+  assert.match(
+    appSource,
+    /if \(isTestDataMode\) \{[\s\S]*setAuthStatus\("ready"\);[\s\S]*setCloudSyncState\("local"\);[\s\S]*return;/,
+  );
 });
 
 test("测试数据重置参数只消费一次并保留隔离工作区地址", () => {

@@ -37,7 +37,7 @@ export const THEME_STORAGE_KEY = "notes.previewTheme";
 export const AI_ENABLED_STORAGE_KEY = "notes.aiEnabled";
 export const SAMPLE_MARKDOWN_CONTENT = sampleMarkdown || FALLBACK_CONTENT;
 
-function isSmartisanWebTestDataMode(): boolean {
+export function isSmartisanWebTestDataMode(): boolean {
   return readSearchParam("testData") === SMARTISAN_WEB_TEST_DATA_ID;
 }
 
