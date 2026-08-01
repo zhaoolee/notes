@@ -1187,3 +1187,66 @@
   `714b22cbaff893eb44f489bc20a6a25665b690426dea1c4236c9b69385bd01ff`；公共目录的
   Moderation 与 Security 均为 `CLEAN`，线上 `SKILL.md`、API 参考和导出脚本哈希与
   本地提交一致。
+
+## 2026-08-01：登录用户一键下载已授权 Hermes Skill
+
+- 设置浮窗的“工具与扩展”类别为登录用户提供 Hermes Skill 下载；匿名用户显示登录
+  引导。`POST /api/hermes-skill/download` 只接受同源网页登录 Cookie，按白名单打包
+  `notes-workspace-api/SKILL.md`、管理
+  脚本、API 参考和动态 `.env`；包内已写入公开服务地址与当前账号 Token，根目录为
+  `notes-workspace-api/`，可直接解压到 `~/.hermes/skills/`。两个生产 Dockerfile
+  都必须复制该模板；反向代理无法正确提供公开 Host/Protocol 时可设置服务端
+  `NOTES_PUBLIC_BASE_URL`。
+- Skill Token 使用 `notes_sk_v1` 前缀和 `SESSION_SECRET` 做 HMAC 签名，不在
+  `notes-data.json` 保存明文。同一账号及版本得到稳定 Token；普通用户修改或重置
+  密码会同时递增 `passwordVersion` 与 `skillTokenVersion`，超级管理员凭据变化或
+  `SESSION_SECRET` 轮换也会使旧 Token 失效。
+- Bearer Token 只扩展工作区 GET/PUT，以及 `/api/wechat` 的登录上传身份判断；它不
+  是网页登录 Cookie，不能读取网页登录会话、改密、管理用户或调用 AI。申请 Token
+  的 `/api/auth/skill-token` 可使用同源网页登录会话，或由无 Origin 的可信客户端
+  提交一次性用户名/密码；带 Origin 的浏览器请求必须严格同源。
+- `skills/notes-workspace-api` 是从既有管理能力拆出的 Hermes 专用 Skill；两个仓库
+  Skill 都遵循 Token 优先。Token 缺失时才用账号密码申请，成功后把实际服务地址和
+  Token 原子写回目标 `.env`，移除用户名/密码并设为 `0600`；Token 已存在时账号密码
+  被忽略，不做静默重新授权。
+- 新增 Skill Token 闭环 feedback，覆盖稳定签发、Bearer 工作区读写、权限边界、ZIP
+  白名单、账号密码首次换取并清理 `.env`、Token 优先、改密失效和服务端不落明文。
+  最终 71 项前端 feedback、12 项后端 feedback、完整 TypeScript 检查、生产构建与
+  两个 Skill quick validation 全部通过；构建只保留既有的单 chunk 超过 `500kB`
+  提示。本次只完成本地实现和验证，未部署或发布 Skill。
+
+## 2026-08-01：设置浮窗按 ChatGPT 式信息架构重组
+
+- 设置不再从左下角展开一列混合卡片。桌面端改为居中的 `760 × 620px` 浮窗，左侧
+  是稳定类别导航，右侧一次只展示当前类别；遮罩点击、关闭按钮和 Escape 都能关闭。
+- 一级分类固定为“常规、个性化、账号与同步、工具与扩展”。背景主题和 AI 审阅归入
+  常规；页脚预览、Logo、发送来源和 `via` 归入个性化；登录、同步、改密、退出归入
+  账号与同步；Hermes Skill 下载只放在工具与扩展，避免与账号动作混杂。
+- 手机端复用同一个 `SettingsPanel` 和分类状态，但把左侧导航转换成顶部横向滚动栏，
+  内容独立纵向滚动；`390 × 844` 视口下四个类别和常规设置均通过实际浏览器检查。
+  桌面 `1280 × 720` 下逐项检查了常规、个性化、账号与同步、工具与扩展的 DOM 与
+  截图，分类切换和既有控件均正常。
+- 设置回归约束同步覆盖分类顺序、Hermes 归属、桌面居中浮窗和手机横向导航。最终
+  71 项前端 feedback、12 项后端 feedback、完整 TypeScript 检查与生产构建通过；
+  构建只保留既有的单 chunk 超过 `500kB` 提示。
+
+## 2026-08-01：Hermes 可复用安装链接与主动重置
+
+- “工具与扩展”的 Hermes Skill 卡片包含下载、复制链接、重置链接三个独立动作。
+  首次复制为账号创建随机 `notes_hi_v1` 票据，之后复制始终返回同一地址；该地址
+  无需 Cookie、可重复下载，因此能直接交给多台 Hermes 设备。
+- 复制不会轮换凭据。只有用户点击“重置链接”，或普通用户修改密码、管理员重置
+  密码时，当前链接才失效；重置链接不会影响已经安装的 Skill。下载时才动态生成
+  当前版本 `NOTES_API_TOKEN`，URL 本身不包含长期 Token。
+- 当前票据持久化在 `notes-data.json` 的 `hermesInstallLinks`，服务重启后保持不变。
+  数据文件权限仍为 `0600`；备份也包含该入口凭据，必须继续加密和限制访问。
+- feedback 覆盖同源管理限制、重复复制幂等、多设备重复 GET、主动重置轮换、旧链接
+  失效、URL 不含 Token、改密撤销，以及 ZIP 白名单内容与直接下载一致。
+- 最终 71 项前端 feedback、12 项后端 feedback、完整 TypeScript 检查和生产构建
+  全部通过；构建只保留既有的单 chunk 超过 `500kB` 提示。桌面 `1280 × 720` 与
+  手机 `390 × 844` 均通过实际浏览器检查，三个按钮没有横向溢出，复制后显示
+  “已复制”。
+- 发布前 npm 安全审计发现生产依赖中的 Multer 与 Express 路由依赖存在 DoS 公告，
+  已在 lockfile 的兼容范围内升级到 `multer@2.2.0`、`body-parser@2.3.0` 和
+  `path-to-regexp@8.4.2`；`npm audit --omit=dev` 为 0，完整 feedback 与构建在新依赖
+  上重新通过。

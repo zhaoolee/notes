@@ -17,13 +17,11 @@
 - `NOTES_API_TOKEN` 或 `--token` 存在时，脚本直接使用 Bearer Token，不读取账号
   密码。
 - Token 缺失时，`POST /api/auth/skill-token` 使用普通用户或超级管理员的用户名/
-  邮箱和密码申请稳定 Token。成功后脚本原子更新目标 `.env`，移除用户名与密码，
-  并把文件权限设为 `0600`。
+  邮箱和密码申请稳定的账号 Token。成功后脚本原子更新目标 `.env`，移除
+  `NOTES_API_USERNAME` 和 `NOTES_API_PASSWORD`，并把文件权限设为 `0600`。
 - `GET /api/workspace` 读取当前账号自己的完整工作区。
 - `PUT /api/workspace` 保存工作区；Skill 同时提交 `expectedUpdatedAt`，服务端在版本
   变化时返回 HTTP 409，脚本会重新读取并最多重试 4 次。
-- `POST /api/wechat` 接收指定便签的 Markdown，返回公众号富文本 `html` 和图片已
-  替换后的 `markdown`。
 - 服务端不接受用户 ID 参数，普通用户和超级管理员的数据都由登录会话隔离。
 
 ## 命令
@@ -41,7 +39,6 @@
 | `classify` | `--note-id`、`--folder` | 无 | 更新后的便签 |
 | `star` | `--note-id` | `--state on|off|toggle` | 更新后的便签 |
 | `pin` | `--note-id` | `--state on|off|toggle` | 更新后的便签 |
-| `wechat` | `--note-id` | `--output-html`、`--output-markdown` | 公众号 HTML 与图片信息 |
 
 `list --category` 接受 `all`、`starred`、`trash`、`folder:<id>`、文件夹 ID 或
 文件夹精确名称。默认 `all`，默认最多返回 50 条，最大 500 条。

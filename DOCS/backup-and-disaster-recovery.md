@@ -28,7 +28,7 @@
 
 | 内容 | 当前位置 | 恢复价值 |
 | --- | --- | --- |
-| 账号、scrypt 盐和密码哈希、密码版本 | `storage/data/notes-data.json` | 保留普通用户账号和登录能力 |
+| 账号、scrypt 盐和密码哈希、密码版本、Skill Token 版本、当前 Hermes 安装票据 | `storage/data/notes-data.json` | 保留普通用户账号、登录能力和可复用安装地址；不包含 Skill Token 明文，但安装票据本身应按敏感凭据保护 |
 | 普通用户及超级管理员云工作区 | `storage/data/notes-data.json` | 保留便签、文件夹、星标、置顶和回收站 |
 | 匿名上传额度状态 | `storage/data/notes-data.json` | 保持限额计数连续；丢失时也可安全重置 |
 | 导入图片、页脚图片和导出文件 | `storage/images` | 保证便签中的站内 `/images/*` 引用可恢复 |
@@ -252,7 +252,8 @@ GET  /api/superadmin/backups/:backupId/download
 2. 解开源码快照，确认 commit、lockfile 和构建清单一致。
 3. 从备份白名单配置创建新的 `.env`，设置 `0600`；事故场景优先轮换
    `SUPERADMINPASSWORD`、`SESSION_SECRET`、七牛、OpenAI、GitHub 和镜像仓库
-   凭据。轮换 `SESSION_SECRET` 会使所有旧 Cookie 失效，这是期望行为。
+   凭据。轮换 `SESSION_SECRET` 会使所有旧 Cookie 和 Skill Token 失效，这是期望
+   行为。
 4. 把 `storage/data` 和 `storage/images` 恢复到新的临时目录，拒绝符号链接和路径
    穿越，校验 JSON schema、文件数量、大小、哈希和所有站内图片引用。
 5. 保证后端尚未启动，再原子切换两个目录；`notes-data.json` 设为 `0600`。

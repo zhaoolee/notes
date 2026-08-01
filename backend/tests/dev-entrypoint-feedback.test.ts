@@ -24,6 +24,10 @@ test("本地开发入口同时启动前端和导出后端", async () => {
   assert.match(dockerignore, /^\.env$/m);
   assert.match(environmentExample, /^QINIU_ACCESS_KEY=$/m);
   assert.match(environmentExample, /^QINIU_SECRET_KEY=$/m);
+  assert.match(
+    environmentExample,
+    /^# NOTES_PUBLIC_BASE_URL=https:\/\/notes\.example\.com$/m,
+  );
 });
 
 test("生产反向代理保留外层 HTTPS 协议", async () => {
@@ -51,7 +55,7 @@ test("生产反向代理为 20MB 单图保留请求封装空间", async () => {
   assert.match(nginxConfig, /client_max_body_size 25m;/);
 });
 
-test("生产镜像包含归档 HTML 的背景和默认页脚 Logo", async () => {
+test("生产镜像包含归档资源和 Hermes Skill 下载模板", async () => {
   const [backendDockerfile, appDockerfile] = await Promise.all([
     readFile("Dockerfile.backend", "utf8"),
     readFile("Dockerfile.app", "utf8"),
@@ -65,6 +69,10 @@ test("生产镜像包含归档 HTML 的背景和默认页脚 Logo", async () => 
     assert.match(
       dockerfile,
       /COPY public\/smartisan\/web\/smartisan_hammer_footer\.png \.\/public\/smartisan\/web\/smartisan_hammer_footer\.png/,
+    );
+    assert.match(
+      dockerfile,
+      /COPY skills\/notes-workspace-api \.\/skills\/notes-workspace-api/,
     );
   }
 });

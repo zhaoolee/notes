@@ -35,10 +35,13 @@ import { getAiStatus } from "./lib/ai";
 import {
   canUseCloudWorkspace,
   changeUserPassword,
+  downloadHermesSkillPackage,
+  getHermesSkillInstallLink,
   getAuthSession,
   getCloudWorkspace,
   loginUser,
   logoutUser,
+  resetHermesSkillInstallLink,
   saveCloudWorkspace,
   type AuthUser,
 } from "./lib/auth";
@@ -68,6 +71,12 @@ import type {
 type MobileWorkspaceView = "notes" | "editor" | "preview";
 type DesktopWorkspaceView = "editor" | "preview";
 type WechatCopyState = "idle" | "preparing" | "copied" | "failed";
+type HermesSkillLinkActionState =
+  | "idle"
+  | "copying"
+  | "copied"
+  | "resetting"
+  | "reset";
 
 interface NoteRouteNavigation {
   revision: number;
@@ -182,6 +191,10 @@ export default function App() {
   const [cloudSyncError, setCloudSyncError] = useState("");
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [isHermesSkillDownloading, setIsHermesSkillDownloading] =
+    useState(false);
+  const [hermesSkillLinkActionState, setHermesSkillLinkActionState] =
+    useState<HermesSkillLinkActionState>("idle");
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [wechatCopyState, setWechatCopyState] =
     useState<WechatCopyState>("idle");
@@ -985,6 +998,83 @@ export default function App() {
     writeCurrentNoteRoute(null);
   }
 
+  async function handleHermesSkillDownload() {
+    if (isHermesSkillDownloading) {
+      return;
+    }
+
+    try {
+      setIsHermesSkillDownloading(true);
+      await downloadHermesSkillPackage();
+    } catch (error) {
+      console.error("Hermes Skill download failed", error);
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Hermes Skill 下载失败，请稍后重试。",
+      );
+    } finally {
+      setIsHermesSkillDownloading(false);
+    }
+  }
+
+  async function handleHermesSkillLinkCopy() {
+    if (
+      hermesSkillLinkActionState === "copying" ||
+      hermesSkillLinkActionState === "resetting"
+    ) {
+      return;
+    }
+
+    try {
+      setHermesSkillLinkActionState("copying");
+      const { installUrl } = await getHermesSkillInstallLink();
+      await copyTextToClipboard(installUrl);
+      setHermesSkillLinkActionState("copied");
+      window.setTimeout(() => {
+        setHermesSkillLinkActionState((state) =>
+          state === "copied" ? "idle" : state,
+        );
+      }, 2_400);
+    } catch (error) {
+      console.error("Hermes Skill install link copy failed", error);
+      setHermesSkillLinkActionState("idle");
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Hermes 安装链接复制失败，请稍后重试。",
+      );
+    }
+  }
+
+  async function handleHermesSkillLinkReset() {
+    if (
+      hermesSkillLinkActionState === "copying" ||
+      hermesSkillLinkActionState === "resetting"
+    ) {
+      return;
+    }
+
+    try {
+      setHermesSkillLinkActionState("resetting");
+      await resetHermesSkillInstallLink();
+      setHermesSkillLinkActionState("reset");
+      window.setTimeout(() => {
+        setHermesSkillLinkActionState((state) =>
+          state === "reset" ? "idle" : state,
+        );
+      }, 2_400);
+    } catch (error) {
+      console.error("Hermes Skill install link reset failed", error);
+      setHermesSkillLinkActionState("idle");
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Hermes 安装链接重置失败，请稍后重试。",
+      );
+    }
+  }
+
   async function handleExport() {
     if (isExporting) {
       return;
@@ -1431,6 +1521,8 @@ export default function App() {
       footerBrand={footerBrand}
       footerLogoUrl={footerLogoUrl}
       footerVia={footerVia}
+      hermesSkillLinkActionState={hermesSkillLinkActionState}
+      isHermesSkillDownloading={isHermesSkillDownloading}
       selectedTheme={selectedTheme}
       onAiEnabledChange={setAiEnabled}
       onChangePassword={() => {
@@ -1449,6 +1541,9 @@ export default function App() {
       onFooterBrandChange={setFooterBrand}
       onFooterLogoChange={setFooterLogoUrl}
       onFooterViaChange={setFooterVia}
+      onHermesSkillDownload={() => void handleHermesSkillDownload()}
+      onHermesSkillLinkCopy={() => void handleHermesSkillLinkCopy()}
+      onHermesSkillLinkReset={() => void handleHermesSkillLinkReset()}
       onThemeChange={setSelectedTheme}
     />
   ) : null;

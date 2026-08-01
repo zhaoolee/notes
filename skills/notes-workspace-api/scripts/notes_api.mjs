@@ -1003,38 +1003,6 @@ async function commandPin(config, cookie, options) {
   return { note: result.value, updatedAt: result.updatedAt };
 }
 
-async function commandWechat(config, cookie, options) {
-  const loaded = await loadWorkspace(config, cookie);
-  const workspace = requireWorkspace(loaded);
-  const noteId = requireStringOption(options, "note-id");
-  const note = requireNote(workspace, noteId);
-  const payload = await apiJson(config, cookie, "/api/wechat", {
-    method: "POST",
-    body: JSON.stringify({ markdown: note.markdown }),
-  });
-  const output = {
-    noteId,
-    title: getNoteTitle(note.markdown),
-    ...payload,
-  };
-
-  if (typeof options["output-html"] === "string") {
-    const outputPath = path.resolve(options["output-html"]);
-    await fs.writeFile(outputPath, output.html, "utf8");
-    delete output.html;
-    output.htmlPath = outputPath;
-  }
-
-  if (typeof options["output-markdown"] === "string") {
-    const outputPath = path.resolve(options["output-markdown"]);
-    await fs.writeFile(outputPath, output.markdown, "utf8");
-    delete output.markdown;
-    output.markdownPath = outputPath;
-  }
-
-  return output;
-}
-
 function printUsage() {
   process.stdout.write(`便签管理 API
 
@@ -1050,7 +1018,6 @@ Usage:
   notes_api.mjs classify --note-id ID --folder NAME_OR_ID|none
   notes_api.mjs star --note-id ID [--state on|off|toggle]
   notes_api.mjs pin --note-id ID [--state on|off|toggle]
-  notes_api.mjs wechat --note-id ID [--output-html PATH] [--output-markdown PATH]
 
 Global options:
   --base-url URL
@@ -1083,7 +1050,6 @@ async function main() {
     restore: commandRestore,
     star: commandStar,
     update: commandUpdate,
-    wechat: commandWechat,
   };
   const handler = handlers[command];
 

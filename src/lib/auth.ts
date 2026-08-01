@@ -135,6 +135,58 @@ export async function changeUserPassword(
   );
 }
 
+export async function downloadHermesSkillPackage(): Promise<void> {
+  const response = await fetch("/api/hermes-skill/download", {
+    method: "POST",
+    credentials: "same-origin",
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(response, "Hermes Skill 下载失败，请稍后重试。"),
+    );
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  try {
+    link.href = objectUrl;
+    link.download = "notes-workspace-api.zip";
+    link.rel = "noopener";
+    document.body.append(link);
+    link.click();
+    link.remove();
+  } finally {
+    globalThis.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  }
+}
+
+export interface HermesSkillInstallLink {
+  installUrl: string;
+}
+
+export function getHermesSkillInstallLink(): Promise<HermesSkillInstallLink> {
+  return requestJson<HermesSkillInstallLink>(
+    "/api/hermes-skill/install-link",
+    {
+      method: "POST",
+    },
+    "Hermes 安装链接生成失败，请稍后重试。",
+  );
+}
+
+export function resetHermesSkillInstallLink(): Promise<HermesSkillInstallLink> {
+  return requestJson<HermesSkillInstallLink>(
+    "/api/hermes-skill/install-link/reset",
+    {
+      method: "POST",
+    },
+    "Hermes 安装链接重置失败，请稍后重试。",
+  );
+}
+
 export function getCloudWorkspace(): Promise<CloudWorkspace> {
   return requestJson<CloudWorkspace>(
     "/api/workspace",

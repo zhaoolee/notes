@@ -22,15 +22,23 @@ test("设置页只保留长期偏好，不混入当前便签操作", () => {
   );
 
   assert.match(html, /id="app-settings-panel"/);
-  assert.match(html, /data-settings-page="root"/);
+  assert.match(html, /data-settings-category="general"/);
   assert.match(html, />设置</);
+  assert.match(html, /aria-label="设置分类"/);
+  assert.ok(
+    html.indexOf("常规") < html.indexOf("个性化") &&
+      html.indexOf("个性化") < html.indexOf("账号与同步") &&
+      html.indexOf("账号与同步") < html.indexOf("工具与扩展"),
+    "设置分类应按常规、个性化、账号与同步、工具与扩展排列",
+  );
   assert.match(html, /账号与同步/);
   assert.match(html, /登录账号/);
   assert.match(html, /数据仅保存在当前浏览器/);
-  assert.match(html, /背景颜色/);
+  assert.match(html, /外观/);
   assert.match(html, /暖白纸感/);
-  assert.match(html, /便签底部文字/);
-  assert.match(html, /当前为自定义/);
+  assert.match(html, /个性化/);
+  assert.match(html, /由测试发送/);
+  assert.match(html, /via Feedback/);
   assert.doesNotMatch(html, /新建空白便签/);
   assert.doesNotMatch(html, /插入图片/);
   assert.doesNotMatch(html, /加载示例/);
@@ -65,7 +73,7 @@ test("AI 服务可用时才显示开启选项，并明确逐条确认", () => {
   assert.match(availableHtml, /AI 辅助审阅/);
   assert.match(availableHtml, /role="switch"/);
   assert.match(availableHtml, /aria-checked="true"/);
-  assert.match(availableHtml, /逐条确认或接受剩余建议，修改前由你决定/);
+  assert.match(availableHtml, /逐条确认建议，正文始终由你决定是否修改/);
 });
 
 test("底部显示设置提供四角格、Logo 上传、双文本编辑、恢复默认与持久化", () => {
@@ -78,9 +86,10 @@ test("底部显示设置提供四角格、Logo 上传、双文本编辑、恢复
 
   assert.match(
     settingsSource,
-    /type SettingsPage = "root" \| "background" \| "footer";/,
+    /const SETTINGS_CATEGORIES = \[/,
   );
-  assert.match(settingsSource, /onClick=\{\(\) => setPage\("footer"\)\}/);
+  assert.match(settingsSource, /id: "personalization", label: "个性化"/);
+  assert.match(settingsSource, /id="settings-pane-personalization"/);
   assert.match(settingsSource, /aria-label="便签底部文字预览"/);
   assert.equal(
     (settingsSource.match(/settings-footer-preview-corner is-/g) ?? []).length,
@@ -208,6 +217,9 @@ test("登录用户可在移动设置页修改密码或退出", () => {
       selectedTheme: "default",
       onChangePassword: noop,
       onClose: noop,
+      onHermesSkillDownload: noop,
+      onHermesSkillLinkCopy: noop,
+      onHermesSkillLinkReset: noop,
       onLogout: noop,
       onThemeChange: noop,
     }),
@@ -216,11 +228,51 @@ test("登录用户可在移动设置页修改密码或退出", () => {
   assert.match(html, /feedback-user/);
   assert.match(html, /便签已保存到云端/);
   assert.match(html, /修改密码/);
+  assert.match(html, /Hermes Skill/);
+  assert.match(html, /下载 Skill/);
+  assert.match(html, /复制链接/);
+  assert.match(html, /重置链接/);
+  assert.match(html, /当前链接可用于多台电脑/);
+  assert.match(html, /仅在主动重置或修改密码后失效/);
+  assert.match(html, /解压到[\s\S]*~\/\.hermes\/skills[\s\S]*后即可使用/);
   assert.match(html, /退出登录/);
   assert.doesNotMatch(html, /登录账号/);
+  assert.ok(
+      html.indexOf('id="settings-pane-account"') <
+      html.indexOf('id="settings-pane-extensions"') &&
+      html.indexOf('id="settings-pane-extensions"') <
+        html.indexOf("Hermes Skill"),
+    "Hermes 下载应归入工具与扩展，而不是账号操作列表",
+  );
 });
 
-test("桌面设置入口位于分类栏底部并复用移动设置面板", () => {
+test("Hermes Skill 支持下载、幂等复制和主动重置安装链接", () => {
+  const appSource = readFileSync("src/App.tsx", "utf8");
+  const authSource = readFileSync("src/lib/auth.ts", "utf8");
+  const settingsSource = readFileSync("src/components/SettingsPanel.tsx", "utf8");
+
+  assert.match(settingsSource, /settings-hermes-skill-row/);
+  assert.match(settingsSource, /settings-tool-action-secondary/);
+  assert.match(settingsSource, /settings-tool-action-reset/);
+  assert.match(
+    settingsSource,
+    /disabled=\{Boolean\(authUsername\) && isHermesSkillDownloading\}/,
+  );
+  assert.match(appSource, /await downloadHermesSkillPackage\(\)/);
+  assert.match(authSource, /fetch\("\/api\/hermes-skill\/download"/);
+  assert.match(authSource, /method: "POST"/);
+  assert.match(authSource, /credentials: "same-origin"/);
+  assert.match(authSource, /link\.download = "notes-workspace-api\.zip"/);
+  assert.match(authSource, /"\/api\/hermes-skill\/install-link"/);
+  assert.match(authSource, /"\/api\/hermes-skill\/install-link\/reset"/);
+  assert.match(appSource, /await getHermesSkillInstallLink\(\)/);
+  assert.match(appSource, /await resetHermesSkillInstallLink\(\)/);
+  assert.match(appSource, /await copyTextToClipboard\(installUrl\)/);
+  assert.match(settingsSource, /hermesSkillLinkActionState === "copied"/);
+  assert.match(settingsSource, /hermesSkillLinkActionState === "reset"/);
+});
+
+test("设置入口复用同一个分类浮窗，并按桌面和手机切换导航布局", () => {
   const appSource = readFileSync("src/App.tsx", "utf8");
   const styles = readFileSync("src/styles.css", "utf8");
 
@@ -248,7 +300,19 @@ test("桌面设置入口位于分类栏底部并复用移动设置面板", () =>
   );
   assert.match(
     styles,
-    /@media \(min-width:\s*641px\)[\s\S]*\.settings-panel-host \.settings-panel\s*\{[^}]*position:\s*fixed;[^}]*bottom:\s*58px;[^}]*left:\s*10px;[^}]*width:\s*min\(340px,\s*calc\(100vw - 24px\)\);/s,
+    /\.settings-modal-backdrop\s*\{[^}]*position:\s*fixed;[^}]*inset:\s*0;[^}]*place-items:\s*center;/s,
+  );
+  assert.match(
+    styles,
+    /\.settings-layout\s*\{[^}]*grid-template-columns:\s*190px minmax\(0,\s*1fr\);/s,
+  );
+  assert.match(
+    styles,
+    /@media \(min-width:\s*641px\)[\s\S]*\.settings-panel-host \.settings-panel\s*\{[^}]*position:\s*relative;[^}]*width:\s*min\(760px,\s*calc\(100vw - 48px\)\);[^}]*height:\s*min\(620px,\s*calc\(100vh - 48px\)\);/s,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width:\s*640px\)[\s\S]*\.settings-category-nav\s*\{[^}]*flex-direction:\s*row;[^}]*overflow-x:\s*auto;/s,
   );
 });
 

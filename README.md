@@ -11,6 +11,8 @@
 - 开源免费，可私有化部署。
 - 工匠精神沁入AI，可以通过AI Skill直接调用工具，生成便签。
 - 支持自定义底部标识（点击即可编辑）
+- 登录后可从设置页下载已授权的 Hermes Skill，也可复制可复用安装链接交给多台
+  Hermes 设备；只有主动重置链接或修改密码才会撤销旧地址。
 
 ## 通过skill调用
 
@@ -63,6 +65,8 @@ clawhub地址 https://clawhub.ai/zhaoolee/notes-export-api
 - 便签管理和长图导出统一使用 `NOTES_API_BASE_URL`
 - 可在 `skills/notes-export-api/.env` 中设置
   `NOTES_API_BASE_URL=http://127.0.0.1:18080`，或给两个脚本传 `--base-url`
+- 工作区管理优先使用 `NOTES_API_TOKEN`；Token 缺失时可临时填写用户名和密码，
+  首次成功运行会自动写入 Token 并从 `.env` 移除账号密码
 - 未提供服务地址时脚本直接报错，不自动探测或回退线上地址
 
 

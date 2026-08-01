@@ -14,6 +14,7 @@ import type { NoteWorkspace } from "../src/types/app.js";
 
 const scryptAsync = promisify(scrypt);
 const sessionCookieName = "notes_session";
+const skillTokenPrefix = "notes_sk_v1";
 const sessionDurationSeconds = 12 * 60 * 60;
 const rememberedSessionDurationSeconds = 30 * 24 * 60 * 60;
 const generatedPasswordAlphabet =
@@ -40,6 +41,7 @@ export interface CreatedAccount extends AccountSummary {
 
 export interface AuthenticatedAccount extends AccountSummary {
   passwordVersion: number;
+  skillTokenVersion: number;
 }
 
 export interface ResetAccountPassword extends AccountSummary {
@@ -64,6 +66,7 @@ interface StoredAccount extends AccountSummary {
   passwordHash: string;
   passwordSalt: string;
   passwordVersion: number;
+  skillTokenVersion: number;
 }
 
 interface AuthDatabase {
@@ -71,6 +74,7 @@ interface AuthDatabase {
     count: number;
     dateKey: string;
   };
+  hermesInstallLinks: Record<string, string>;
   users: StoredAccount[];
   version: 1;
   workspaces: Record<string, StoredWorkspace>;
@@ -82,9 +86,19 @@ interface SessionPayload extends AuthUser {
   remember?: boolean;
 }
 
+interface SkillTokenPayload extends AuthUser {
+  credentialVersion?: string;
+  passwordVersion?: number;
+  skillTokenVersion: number;
+}
+
 export interface AuthSession extends AuthUser {
   passwordVersion?: number;
   remember: boolean;
+}
+
+export interface SkillTokenSession extends AuthSession {
+  skillTokenVersion: number;
 }
 
 interface CookieOptions {
@@ -155,6 +169,7 @@ function createEmptyDatabase(): AuthDatabase {
       count: 0,
       dateKey: "",
     },
+    hermesInstallLinks: {},
     users: [],
     version: 1,
     workspaces: {},
@@ -198,6 +213,34 @@ function generateInitialPassword(length = 16): string {
     bytes,
     (value) => generatedPasswordAlphabet[value % generatedPasswordAlphabet.length],
   ).join("");
+}
+
+function createHermesInstallTicket(ownerId: string): string {
+  const encodedOwnerId = Buffer.from(ownerId, "utf8").toString("base64url");
+  return `notes_hi_v1.${encodedOwnerId}.${randomBytes(32).toString("base64url")}`;
+}
+
+function readHermesInstallTicketOwner(ticket: string): string | null {
+  const [prefix, encodedOwnerId, secret, extra] = ticket.split(".");
+
+  if (
+    prefix !== "notes_hi_v1" ||
+    !encodedOwnerId ||
+    !/^[A-Za-z0-9_-]{43}$/.test(secret || "") ||
+    extra
+  ) {
+    return null;
+  }
+
+  try {
+    const ownerId = Buffer.from(encodedOwnerId, "base64url").toString("utf8");
+    return ownerId &&
+      Buffer.from(ownerId, "utf8").toString("base64url") === encodedOwnerId
+      ? ownerId
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 export function validateNewPassword(password: string): string {
@@ -277,6 +320,12 @@ function parseStoredAccount(value: unknown): StoredAccount | null {
         account.passwordVersion >= 1
           ? account.passwordVersion
           : 1,
+      skillTokenVersion:
+        typeof account.skillTokenVersion === "number" &&
+        Number.isInteger(account.skillTokenVersion) &&
+        account.skillTokenVersion >= 1
+          ? account.skillTokenVersion
+          : 1,
       username: account.username,
     };
   }
@@ -325,6 +374,18 @@ function parseDatabase(value: unknown): AuthDatabase {
   }
 
   const quota = database.anonymousUploadQuota;
+  const hermesInstallLinks: Record<string, string> = {};
+
+  if (
+    database.hermesInstallLinks &&
+    typeof database.hermesInstallLinks === "object"
+  ) {
+    for (const [ownerId, ticket] of Object.entries(database.hermesInstallLinks)) {
+      if (ownerId && typeof ticket === "string" && ticket) {
+        hermesInstallLinks[ownerId] = ticket;
+      }
+    }
+  }
 
   return {
     anonymousUploadQuota: {
@@ -338,6 +399,7 @@ function parseDatabase(value: unknown): AuthDatabase {
       dateKey:
         quota && typeof quota.dateKey === "string" ? quota.dateKey : "",
     },
+    hermesInstallLinks,
     users: Array.isArray(database.users)
       ? database.users
           .map(parseStoredAccount)
@@ -460,6 +522,7 @@ export class NotesDataStore {
         passwordHash: password.hash,
         passwordSalt: password.salt,
         passwordVersion: 1,
+        skillTokenVersion: 1,
         username: displayUsername,
       };
 
@@ -500,6 +563,7 @@ export class NotesDataStore {
       createdAt: account.createdAt,
       id: account.id,
       passwordVersion: account.passwordVersion,
+      skillTokenVersion: account.skillTokenVersion,
       username: account.username,
     };
   }
@@ -513,9 +577,61 @@ export class NotesDataStore {
           createdAt: account.createdAt,
           id: account.id,
           passwordVersion: account.passwordVersion,
+          skillTokenVersion: account.skillTokenVersion,
           username: account.username,
         }
       : null;
+  }
+
+  async getOrCreateHermesInstallLink(ownerId: string): Promise<string> {
+    return this.runExclusive(async () => {
+      const database = await this.readDatabase();
+      const current = database.hermesInstallLinks[ownerId];
+
+      if (current) {
+        return current;
+      }
+
+      const ticket = createHermesInstallTicket(ownerId);
+      database.hermesInstallLinks[ownerId] = ticket;
+      await this.writeDatabase(database);
+      return ticket;
+    });
+  }
+
+  async resetHermesInstallLink(ownerId: string): Promise<string> {
+    return this.runExclusive(async () => {
+      const database = await this.readDatabase();
+      const ticket = createHermesInstallTicket(ownerId);
+      database.hermesInstallLinks[ownerId] = ticket;
+      await this.writeDatabase(database);
+      return ticket;
+    });
+  }
+
+  async revokeHermesInstallLink(ownerId: string): Promise<void> {
+    return this.runExclusive(async () => {
+      const database = await this.readDatabase();
+
+      if (!(ownerId in database.hermesInstallLinks)) {
+        return;
+      }
+
+      delete database.hermesInstallLinks[ownerId];
+      await this.writeDatabase(database);
+    });
+  }
+
+  async getHermesInstallLinkOwner(ticket: string): Promise<string | null> {
+    const ownerId = readHermesInstallTicketOwner(ticket);
+
+    if (!ownerId) {
+      return null;
+    }
+
+    const database = await this.readDatabase();
+    const current = database.hermesInstallLinks[ownerId];
+    return current && safeStringEqual(current, ticket) ? ownerId : null;
   }
 
   async changePassword(
@@ -556,6 +672,7 @@ export class NotesDataStore {
       account.passwordHash = password.hash;
       account.passwordSalt = password.salt;
       account.passwordVersion += 1;
+      account.skillTokenVersion += 1;
       await this.writeDatabase(database);
       return account.passwordVersion;
     });
@@ -575,6 +692,7 @@ export class NotesDataStore {
       account.passwordHash = password.hash;
       account.passwordSalt = password.salt;
       account.passwordVersion += 1;
+      account.skillTokenVersion += 1;
       await this.writeDatabase(database);
 
       return {
@@ -764,6 +882,133 @@ export function verifySessionToken(
           : undefined,
       remember: payload.remember === true,
       role: payload.role,
+      username: payload.username,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getSuperAdminSkillCredentialVersion(username: string): string | null {
+  const adminUsername = process.env.SUPERADMIN?.trim();
+  const adminPassword = process.env.SUPERADMINPASSWORD?.trim();
+
+  if (
+    !adminUsername ||
+    !adminPassword ||
+    normalizeUsername(username) !== normalizeUsername(adminUsername)
+  ) {
+    return null;
+  }
+
+  return createHmac("sha256", getSessionSecret())
+    .update(
+      [
+        "smartisan-notes-skill-superadmin-v1",
+        normalizeUsername(adminUsername),
+        adminPassword,
+      ].join(":"),
+    )
+    .digest("base64url");
+}
+
+export function createSkillToken(
+  user: AuthUser,
+  passwordVersion?: number,
+  skillTokenVersion = 1,
+): string {
+  const payload: SkillTokenPayload = {
+    id: user.id,
+    role: user.role,
+    skillTokenVersion,
+    username: user.username,
+    ...(user.role === "user"
+      ? { passwordVersion }
+      : {
+          credentialVersion:
+            getSuperAdminSkillCredentialVersion(user.username) ?? undefined,
+        }),
+  };
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+  const signature = createHmac("sha256", getSessionSecret())
+    .update(`${skillTokenPrefix}.${encodedPayload}`)
+    .digest("base64url");
+
+  return `${skillTokenPrefix}.${encodedPayload}.${signature}`;
+}
+
+export function verifySkillToken(
+  token: string | undefined,
+): SkillTokenSession | null {
+  if (!token) {
+    return null;
+  }
+
+  const [prefix, encodedPayload, providedSignature, extra] = token.split(".");
+
+  if (
+    prefix !== skillTokenPrefix ||
+    !encodedPayload ||
+    !providedSignature ||
+    extra
+  ) {
+    return null;
+  }
+
+  const expectedSignature = createHmac("sha256", getSessionSecret())
+    .update(`${prefix}.${encodedPayload}`)
+    .digest("base64url");
+
+  if (!safeStringEqual(providedSignature, expectedSignature)) {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(
+      Buffer.from(encodedPayload, "base64url").toString("utf8"),
+    ) as Partial<SkillTokenPayload>;
+    const validTokenVersion =
+      typeof payload.skillTokenVersion === "number" &&
+      Number.isInteger(payload.skillTokenVersion) &&
+      payload.skillTokenVersion >= 1;
+
+    if (
+      typeof payload.id !== "string" ||
+      !payload.id ||
+      typeof payload.username !== "string" ||
+      !payload.username ||
+      (payload.role !== "user" && payload.role !== "superadmin") ||
+      !validTokenVersion
+    ) {
+      return null;
+    }
+
+    if (payload.role === "superadmin") {
+      const currentCredentialVersion = getSuperAdminSkillCredentialVersion(
+        payload.username,
+      );
+
+      if (
+        !currentCredentialVersion ||
+        typeof payload.credentialVersion !== "string" ||
+        !safeStringEqual(payload.credentialVersion, currentCredentialVersion)
+      ) {
+        return null;
+      }
+    } else if (
+      typeof payload.passwordVersion !== "number" ||
+      !Number.isInteger(payload.passwordVersion) ||
+      payload.passwordVersion < 1
+    ) {
+      return null;
+    }
+
+    return {
+      id: payload.id,
+      passwordVersion: payload.passwordVersion,
+      remember: false,
+      role: payload.role,
+      skillTokenVersion: payload.skillTokenVersion!,
       username: payload.username,
     };
   } catch {

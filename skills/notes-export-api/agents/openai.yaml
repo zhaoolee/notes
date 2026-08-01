@@ -1,4 +1,4 @@
 interface:
   display_name: "锤子便签 API"
-  short_description: "用账号密码完整增删改查便签，并导出长图和公众号富文本"
-  default_prompt: "使用 $notes-export-api 通过调用方提供的服务地址和账号密码增删改查便签，并按需导出 PNG 长图或生成公众号富文本。"
+  short_description: "通过安全 Token 管理便签并导出长图与公众号富文本"
+  default_prompt: "使用 $notes-export-api 管理我的云端便签，并按需导出长图或公众号富文本。"

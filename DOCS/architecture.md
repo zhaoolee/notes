@@ -25,6 +25,7 @@ public/                  前端静态资源
 storage/images/          导入图片与导出 PNG 的持久化目录
 storage/data/            账号、云端工作区与匿名额度的服务端持久化目录
 skills/notes-export-api/ 长图导出与登录工作区管理 API Skill
+skills/notes-workspace-api/ Hermes 云端工作区管理 Skill 与下载模板
 DOCS/                    项目上下文
 TOOLS/                   可用工具与命令
 PROMPTS/                 固定工作流 Prompt
@@ -80,8 +81,18 @@ Vite，普通编辑仍可使用，但 `/api/export`、`/api/archive` 和图片�
 - `GET /api/health`：健康检查
 - `GET /api/auth/session`：读取当前签名会话
 - `POST /api/auth/login`：普通用户或超级管理员从便签首页登录
+- `POST /api/auth/skill-token`：使用当前网页登录会话，或一次性的用户名和密码，
+  取得稳定的账号级 Skill Token
 - `POST /api/auth/password`：普通用户校验当前密码后修改自己的密码
 - `POST /api/auth/logout`：清除当前会话
+- `POST /api/hermes-skill/download`：登录用户下载已写入服务地址和 Skill Token 的
+  `notes-workspace-api.zip`
+- `POST /api/hermes-skill/install-link`：获取或首次创建当前账号可复用的 Hermes
+  安装链接；重复调用返回同一地址
+- `POST /api/hermes-skill/install-link/reset`：用户主动轮换当前安装链接，使旧地址
+  失效但不影响已经安装的 Skill
+- `HEAD/GET /api/hermes-skill/install/:ticket/notes-workspace-api.zip`：无需 Cookie
+  探测或下载 Skill，同一当前链接可供多台设备重复使用
 - `POST /api/superadmin/login`：使用服务端环境变量登录管理员后台
 - `GET /api/superadmin/users`：管理员读取普通用户列表
 - `POST /api/superadmin/users`：管理员创建普通用户并生成一次性显示的初始密码
@@ -105,11 +116,14 @@ Vite，普通编辑仍可使用，但 `/api/export`、`/api/archive` 和图片�
 
 ## 便签 API Skill
 
-`skills/notes-export-api` 在原有 Markdown 长图导出能力之外，把登录、工作区读取
+`skills/notes-workspace-api` 专门提供便签工作区查询、增删改、回收站、分类、星标
+和置顶，既是可独立安装的 Skill，也是网页一键下载 ZIP 的白名单模板。
+`skills/notes-export-api` 在原有 Markdown 长图导出能力之外，把认证、工作区读取
 与条件保存、公众号富文本生成封装为统一命令，支持便签列表和全文查询、新增
 或更新 Markdown 便签、软删除、回收站恢复、显式永久删除、文件夹分类、加星、
-置顶以及生成公众号 HTML。调用方可以通过用户名/邮箱和密码登录普通用户或超级
-管理员账号；数据仍由服务端签名会话隔离。项目现有“分类”数据结构是 `folderId`，
+置顶以及生成公众号 HTML。两个 Skill 都优先使用 `NOTES_API_TOKEN`；只有 Token
+缺失时才用用户名/邮箱和密码调用 `/api/auth/skill-token`，成功后原子改写 `.env`
+并移除账号密码。项目现有“分类”数据结构是 `folderId`，
 Skill 不维护另一套标签字段。便签管理和长图导出统一读取调用方明确提供的
 `NOTES_API_BASE_URL` 或 `--base-url`；缺失时直接报错，不自动探测本地端口，也不
 回退到公网服务。

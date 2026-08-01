@@ -1,0 +1,4 @@
+interface:
+  display_name: "锤子便签工作区 API"
+  short_description: "通过安全 Token 查询和维护云端锤子便签工作区"
+  default_prompt: "使用 $notes-workspace-api 查询或维护我的云端锤子便签。"

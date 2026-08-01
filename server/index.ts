@@ -32,6 +32,7 @@ import {
   createExpiredSessionCookie,
   createSessionCookie,
   createSessionToken,
+  createSkillToken,
   DuplicateUsernameError,
   getShanghaiDateKey,
   InvalidCurrentPasswordError,
@@ -42,6 +43,7 @@ import {
   readSessionToken,
   safeStringEqual,
   verifySessionToken,
+  verifySkillToken,
   WorkspaceConflictError,
   type AnonymousQuotaStatus,
   type AuthRole,
@@ -145,6 +147,7 @@ interface ArchiveImage {
 interface ZipEntry {
   path: string;
   data: Buffer;
+  mode?: number;
 }
 
 interface ArchiveFont {
@@ -161,6 +164,7 @@ const rootDir =
     : path.resolve(__dirname, "..");
 const distDir = path.join(rootDir, "dist");
 const publicDir = path.join(rootDir, "public");
+const workspaceSkillDir = path.join(rootDir, "skills", "notes-workspace-api");
 const imagesDir = process.env.IMAGE_STORAGE_DIR || path.join(rootDir, "storage", "images");
 const dataDirectory =
   process.env.DATA_STORAGE_DIR || path.join(rootDir, "storage", "data");
@@ -264,6 +268,63 @@ function getPublicBaseUrl(request: Request): string {
   return `${protocol}://${host}`;
 }
 
+function getNotesPublicBaseUrl(request: Request): string {
+  const configured = process.env.NOTES_PUBLIC_BASE_URL?.trim();
+  const url = new URL(configured || getPublicBaseUrl(request));
+
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("NOTES_PUBLIC_BASE_URL 只支持 HTTP 或 HTTPS 地址。");
+  }
+
+  url.hash = "";
+  url.pathname = "";
+  url.search = "";
+  return url.toString().replace(/\/$/, "");
+}
+
+async function buildHermesSkillPackage(
+  request: Request,
+  token: string,
+): Promise<Buffer> {
+  const packageRoot = "notes-workspace-api";
+  const templateFiles = [
+    { mode: 0o100644, relativePath: "SKILL.md" },
+    { mode: 0o100755, relativePath: "scripts/notes_api.mjs" },
+    { mode: 0o100644, relativePath: "references/workspace-api.md" },
+  ];
+  const entries = await Promise.all(
+    templateFiles.map(async ({ mode, relativePath }) => ({
+      data: await fs.readFile(path.join(workspaceSkillDir, relativePath)),
+      mode,
+      path: `${packageRoot}/${relativePath}`,
+    })),
+  );
+  const env = [
+    `NOTES_API_BASE_URL=${getNotesPublicBaseUrl(request)}`,
+    `NOTES_API_TOKEN=${token}`,
+    "",
+  ].join("\n");
+
+  entries.push({
+    data: Buffer.from(env, "utf8"),
+    mode: 0o100600,
+    path: `${packageRoot}/.env`,
+  });
+
+  return createZip(entries);
+}
+
+function applyHermesDownloadHeaders(response: Response): void {
+  response.setHeader("Cache-Control", "no-store");
+  response.setHeader("Pragma", "no-cache");
+  response.setHeader("X-Content-Type-Options", "nosniff");
+  response.setHeader("Content-Type", "application/zip");
+  response.setHeader(
+    "Content-Disposition",
+    'attachment; filename="notes-workspace-api.zip"',
+  );
+}
+
 function applyCorsHeaders(request: Request, response: Response): void {
   response.setHeader("Access-Control-Allow-Origin", "*");
   response.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,OPTIONS");
@@ -351,6 +412,95 @@ async function getAuthenticatedUser(
       normalizeUsername(session.username),
     )
     ? session
+    : null;
+}
+
+function readBearerToken(request: Request): string | undefined {
+  const authorization = request.get("authorization")?.trim();
+  const match = authorization?.match(/^Bearer\s+([^\s]+)$/i);
+  return match?.[1];
+}
+
+async function getAuthenticatedSkillUser(
+  request: Request,
+): Promise<AuthSession | null> {
+  const session = verifySkillToken(readBearerToken(request));
+
+  if (!session) {
+    return null;
+  }
+
+  if (session.role === "superadmin") {
+    return session;
+  }
+
+  const account = await notesDataStore.getUserById(session.id);
+
+  return account &&
+    account.passwordVersion === session.passwordVersion &&
+    account.skillTokenVersion === session.skillTokenVersion &&
+    safeStringEqual(
+      normalizeUsername(account.username),
+      normalizeUsername(session.username),
+    )
+    ? session
+    : null;
+}
+
+async function getWorkspaceUser(request: Request): Promise<AuthSession | null> {
+  return (
+    (await getAuthenticatedUser(request)) ??
+    (await getAuthenticatedSkillUser(request))
+  );
+}
+
+async function createSkillTokenForUser(user: AuthUser): Promise<string | null> {
+  if (user.role === "superadmin") {
+    return createSkillToken(user);
+  }
+
+  const account = await notesDataStore.getUserById(user.id);
+
+  return account
+    ? createSkillToken(
+        user,
+        account.passwordVersion,
+        account.skillTokenVersion,
+      )
+    : null;
+}
+
+async function getSkillTokenForHermesInstallTicket(
+  ticket: string,
+): Promise<string | null> {
+  const ownerId = await notesDataStore.getHermesInstallLinkOwner(ticket);
+
+  if (!ownerId) {
+    return null;
+  }
+
+  if (ownerId === "superadmin") {
+    const credentials = getSuperAdminCredentials();
+    return credentials
+      ? createSkillToken({
+          id: "superadmin",
+          role: "superadmin",
+          username: credentials.username,
+        })
+      : null;
+  }
+
+  const account = await notesDataStore.getUserById(ownerId);
+  return account
+    ? createSkillToken(
+        {
+          id: account.id,
+          role: "user",
+          username: account.username,
+        },
+        account.passwordVersion,
+        account.skillTokenVersion,
+      )
     : null;
 }
 
@@ -446,6 +596,20 @@ async function requireNoteServiceUser(
   return user;
 }
 
+async function requireWorkspaceUser(
+  request: Request,
+  response: Response,
+): Promise<AuthSession | null> {
+  const user = await getWorkspaceUser(request);
+
+  if (!user) {
+    response.status(401).json({ error: "请先登录账号或提供有效的 Skill Token。" });
+    return null;
+  }
+
+  return user;
+}
+
 function isSameOriginRequest(request: Request): boolean {
   const origin = request.get("origin");
 
@@ -455,9 +619,7 @@ function isSameOriginRequest(request: Request): boolean {
 
   try {
     const originUrl = new URL(origin);
-    const requestHost =
-      request.get("x-forwarded-host") || request.get("host") || "";
-    return originUrl.host === requestHost;
+    return originUrl.origin === new URL(getPublicBaseUrl(request)).origin;
   } catch {
     return false;
   }
@@ -1625,7 +1787,7 @@ function createZip(entries: ZipEntry[]): Buffer {
 
     const centralHeader = Buffer.alloc(46);
     centralHeader.writeUInt32LE(0x02014b50, 0);
-    centralHeader.writeUInt16LE(20, 4);
+    centralHeader.writeUInt16LE((3 << 8) | 20, 4);
     centralHeader.writeUInt16LE(20, 6);
     centralHeader.writeUInt16LE(0x0800, 8);
     centralHeader.writeUInt16LE(8, 10);
@@ -1639,7 +1801,7 @@ function createZip(entries: ZipEntry[]): Buffer {
     centralHeader.writeUInt16LE(0, 32);
     centralHeader.writeUInt16LE(0, 34);
     centralHeader.writeUInt16LE(0, 36);
-    centralHeader.writeUInt32LE(0, 38);
+    centralHeader.writeUInt32LE(((entry.mode ?? 0o100644) << 16) >>> 0, 38);
     centralHeader.writeUInt32LE(offset, 42);
 
     centralParts.push(centralHeader, name);
@@ -2444,6 +2606,203 @@ app.post(
 );
 
 app.post(
+  "/api/auth/skill-token",
+  async (
+    request: Request<Record<string, never>, unknown, LoginRequestBody>,
+    response: Response,
+  ) => {
+    response.setHeader("Cache-Control", "no-store");
+
+    if (!isSameOriginRequest(request)) {
+      response.status(403).json({ error: "请从当前便签页面或可信客户端申请 Skill Token。" });
+      return;
+    }
+
+    let user: AuthUser | null = await getAuthenticatedUser(request);
+
+    if (!user) {
+      const credentials = resolveLoginCredentials(request.body);
+
+      if (!credentials) {
+        response.status(400).json({ error: "请提供用户名或邮箱及密码。" });
+        return;
+      }
+
+      const superAdmin = authenticateSuperAdmin(credentials);
+      const account = superAdmin
+        ? null
+        : await notesDataStore.authenticateUser(
+            credentials.username,
+            credentials.password,
+          );
+
+      if (!superAdmin && !account) {
+        response.status(401).json({ error: "用户名、邮箱或密码错误。" });
+        return;
+      }
+
+      user =
+        superAdmin ??
+        ({
+          id: account!.id,
+          role: "user",
+          username: account!.username,
+        } satisfies AuthUser);
+    }
+
+    if (!user) {
+      response.status(401).json({ error: "当前账号已不存在，请重新登录。" });
+      return;
+    }
+
+    const token = await createSkillTokenForUser(user);
+
+    if (!token) {
+      response.status(401).json({ error: "当前账号已不存在，请重新登录。" });
+      return;
+    }
+
+    response.json({ token });
+  },
+);
+
+app.post(
+  "/api/hermes-skill/download",
+  async (request: Request, response: Response) => {
+    response.setHeader("Cache-Control", "no-store");
+    response.setHeader("Pragma", "no-cache");
+    response.setHeader("X-Content-Type-Options", "nosniff");
+
+    if (!isSameOriginRequest(request)) {
+      response.status(403).json({ error: "请从当前便签页面下载 Hermes Skill。" });
+      return;
+    }
+
+    const user = await getAuthenticatedUser(request);
+
+    if (!user) {
+      response.status(401).json({ error: "请先登录账号。" });
+      return;
+    }
+
+    const token = await createSkillTokenForUser(user);
+
+    if (!token) {
+      response.status(401).json({ error: "当前账号已不存在，请重新登录。" });
+      return;
+    }
+
+    try {
+      const zip = await buildHermesSkillPackage(request, token);
+      applyHermesDownloadHeaders(response);
+      response.send(zip);
+    } catch (error) {
+      console.error("Hermes Skill package failed", error);
+      response.status(500).json({ error: "Hermes Skill 生成失败，请稍后重试。" });
+    }
+  },
+);
+
+async function respondWithHermesInstallLink(
+  request: Request,
+  response: Response,
+  reset: boolean,
+): Promise<void> {
+  response.setHeader("Cache-Control", "no-store");
+  response.setHeader("Pragma", "no-cache");
+
+  if (!isSameOriginRequest(request)) {
+    response.status(403).json({ error: "请从当前便签页面管理安装链接。" });
+    return;
+  }
+
+  const user = await getAuthenticatedUser(request);
+
+  if (!user) {
+    response.status(401).json({ error: "请先登录账号。" });
+    return;
+  }
+
+  let publicBaseUrl: string;
+
+  try {
+    publicBaseUrl = getNotesPublicBaseUrl(request);
+  } catch (error) {
+    console.error("Hermes Skill public URL failed", error);
+    response.status(500).json({ error: "Hermes 安装链接生成失败，请检查公开服务地址。" });
+    return;
+  }
+
+  const ticket = reset
+    ? await notesDataStore.resetHermesInstallLink(user.id)
+    : await notesDataStore.getOrCreateHermesInstallLink(user.id);
+  const installPath =
+    `/api/hermes-skill/install/${ticket}/notes-workspace-api.zip`;
+  response.json({
+    installUrl: new URL(installPath, `${publicBaseUrl}/`).toString(),
+  });
+}
+
+app.post(
+  "/api/hermes-skill/install-link",
+  (request: Request, response: Response) =>
+    respondWithHermesInstallLink(request, response, false),
+);
+
+app.post(
+  "/api/hermes-skill/install-link/reset",
+  (request: Request, response: Response) =>
+    respondWithHermesInstallLink(request, response, true),
+);
+
+app.head(
+  "/api/hermes-skill/install/:ticket/notes-workspace-api.zip",
+  async (request: Request<{ ticket: string }>, response: Response) => {
+    const token = await getSkillTokenForHermesInstallTicket(
+      request.params.ticket,
+    );
+
+    if (!token) {
+      response.setHeader("Cache-Control", "no-store");
+      response.setHeader("Pragma", "no-cache");
+      response.setHeader("X-Content-Type-Options", "nosniff");
+      response.status(410).end();
+      return;
+    }
+
+    applyHermesDownloadHeaders(response);
+    response.status(200).end();
+  },
+);
+
+app.get(
+  "/api/hermes-skill/install/:ticket/notes-workspace-api.zip",
+  async (request: Request<{ ticket: string }>, response: Response) => {
+    const { ticket } = request.params;
+    const token = await getSkillTokenForHermesInstallTicket(ticket);
+
+    if (!token) {
+      response.setHeader("Cache-Control", "no-store");
+      response.setHeader("Pragma", "no-cache");
+      response.setHeader("X-Content-Type-Options", "nosniff");
+      response.status(410).json({
+        error: "安装链接无效或已被重置，请在设置中复制当前链接。",
+      });
+      return;
+    }
+
+    try {
+      const zip = await buildHermesSkillPackage(request, token);
+      applyHermesDownloadHeaders(response);
+      response.send(zip);
+    } catch (error) {
+      console.error("Hermes Skill install link failed", error);
+      response.status(500).json({ error: "Hermes Skill 生成失败，请稍后重试。" });
+    }
+  },
+);
+
+app.post(
   "/api/auth/password",
   async (
     request: Request<Record<string, never>, unknown, ChangePasswordRequestBody>,
@@ -2481,6 +2840,7 @@ app.post(
         session.remember,
         passwordVersion,
       );
+      await notesDataStore.revokeHermesInstallLink(session.id);
       response.json({ ok: true });
     } catch (error) {
       const status =
@@ -2605,8 +2965,10 @@ app.post(
     }
 
     try {
+      const user = await notesDataStore.resetUserPassword(request.params.userId);
+      await notesDataStore.revokeHermesInstallLink(request.params.userId);
       response.json({
-        user: await notesDataStore.resetUserPassword(request.params.userId),
+        user,
       });
     } catch (error) {
       response
@@ -2619,7 +2981,7 @@ app.post(
 );
 
 app.get("/api/workspace", async (request: Request, response: Response) => {
-  const user = await requireNoteServiceUser(request, response);
+  const user = await requireWorkspaceUser(request, response);
 
   if (!user) {
     return;
@@ -2735,7 +3097,7 @@ app.put(
     request: Request<Record<string, never>, unknown, WorkspaceRequestBody>,
     response: Response,
   ) => {
-    const user = await requireNoteServiceUser(request, response);
+    const user = await requireWorkspaceUser(request, response);
 
     if (!user) {
       return;
@@ -2851,7 +3213,7 @@ app.post(
   ) => {
     try {
       const markdown = await resolveMarkdown(request.body || {});
-      const authenticatedUser = await getAuthenticatedUser(request);
+      const authenticatedUser = await getWorkspaceUser(request);
       response.json(
         await prepareWechatArticle(markdown, {
           footer: resolveFooterConfig(request.body || {}),

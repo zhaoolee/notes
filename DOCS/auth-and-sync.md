@@ -24,13 +24,15 @@
 SUPERADMIN=
 SUPERADMINPASSWORD=
 SESSION_SECRET=
+NOTES_PUBLIC_BASE_URL=https://notes.example.com
 ANONYMOUS_DAILY_UPLOAD_LIMIT=500
 ```
 
 这些变量只能由 Express 读取，不得添加 `VITE_` 前缀。生产环境必须使用部署平台
 Secret 注入，并为 `SESSION_SECRET` 配置独立的高熵随机值。未配置
 `SESSION_SECRET` 时，服务端会以管理员凭据派生会话密钥；若管理员凭据也不存在，
-会话密钥只在当前进程生命周期内有效。
+会话密钥只在当前进程生命周期内有效。`NOTES_PUBLIC_BASE_URL` 可选，用于反向代理
+无法传递正确公开协议或域名时，指定写入 Hermes Skill `.env` 的服务地址。
 
 普通用户名为 3–32 个中英文、数字、点、下划线或连字符；邮箱最长 254 个字符。
 普通用户初始密码由服务端使用加密安全随机数生成，只在创建响应中显示一次。持久
@@ -46,10 +48,45 @@ Secret 注入，并为 `SESSION_SECRET` 配置独立的高熵随机值。未配�
 - 每个普通账号保存递增的 `passwordVersion`。普通用户会话包含签发时的版本号，
   受保护 API 会同时校验账号 ID、用户名和密码版本；旧数据缺少该字段时按版本 1
   兼容读取。
+- 每个普通账号同时保存 `skillTokenVersion`。普通用户修改密码或管理员重置密码时，
+  `passwordVersion` 与 `skillTokenVersion` 一起递增，使此前下载或生成的 Skill
+  Token 立即失效。
+
+## Skill Token 与 Hermes 下载
+
+设置浮窗的“工具与扩展”类别提供 Hermes Skill：匿名用户看到登录引导，登录用户
+点击下载后调用 `POST /api/hermes-skill/download`，返回根目录为
+`notes-workspace-api/` 的 ZIP；包内 `.env` 已写入服务端公开基础地址和当前账号的
+`NOTES_API_TOKEN`，解压到 `~/.hermes/skills/` 后可直接使用。
+
+同一区域提供“复制链接”和“重置链接”。网页用登录 Cookie 调用
+`POST /api/hermes-skill/install-link` 获取当前账号的安装地址：首次调用创建地址，
+之后重复复制始终返回同一个地址，不会暗中轮换。Hermes Agent 无需 Cookie 即可
+多次 GET 该地址，因此同一个链接可用于多台电脑。只有用户主动调用
+`POST /api/hermes-skill/install-link/reset`，或修改、重置账号密码时，旧地址才会
+失效；已经下载并安装的 Skill 不受链接重置影响。
+
+安装地址仅包含随机票据，不包含长期 `NOTES_API_TOKEN`。当前票据保存在权限为
+`0600` 的 `notes-data.json` 中，因此服务重启后复制仍得到同一链接；链接本身仍是
+敏感凭据，不应公开发布。下载时服务端才根据当前账号版本生成 ZIP 内的 Token。
+
+Skill Token 由账号 ID、用户名、密码版本、Skill Token 版本和 `SESSION_SECRET`
+签名生成。同一账号在版本不变时重复申请得到同一个 Token；服务端不保存 Token
+明文。普通用户改密或重置、超级管理员凭据变化、`SESSION_SECRET` 轮换都会使旧
+Token 失效。
+
+`GET/PUT /api/workspace` 同时接受网页登录 Cookie 和
+`Authorization: Bearer <NOTES_API_TOKEN>`；`POST /api/wechat` 也用它识别长期图片
+上传账号。Bearer Token 不会被 `GET /api/auth/session` 识别为网页登录，也不能
+调用修改密码、用户管理或 AI 接口。
+`POST /api/auth/skill-token` 无 Token 时可接收一次性的用户名/邮箱和密码；两个
+仓库 Skill 成功申请后会原子更新目标 `.env`、移除账号密码并设置 `0600` 权限。
+如果 `.env` 不可写，本次命令继续使用内存中的 Token，但不会在终端输出 Token。
 
 ## 数据边界
 
-服务端文件默认是 `storage/data/notes-data.json`，权限为 `0600`，写入流程为：
+服务端文件默认是 `storage/data/notes-data.json`，包含账号、工作区、匿名额度与
+当前 Hermes 安装票据，权限为 `0600`，写入流程为：
 
 1. 在进程内串行执行修改。
 2. 把完整新状态写入同目录临时文件。
@@ -74,9 +111,10 @@ Secret 注入，并为 `SESSION_SECRET` 配置独立的高熵随机值。未配�
 保存变更时，每 15 秒读取一次云端版本，较新的 `updatedAt` 会替换当前页面状态。
 当前策略为服务端时间戳驱动的最后写入者优先，不提供逐便签合并。
 
-`skills/notes-export-api` 的工作区写操作会额外把读取到的时间戳作为
-`expectedUpdatedAt` 提交。服务端在原子写入队列中发现版本已变化时返回 HTTP
-409，Skill 重新读取最新工作区并再次应用目标便签的分类、星标、置顶或新增操作。
+`skills/notes-export-api` 与 `skills/notes-workspace-api` 的工作区写操作会额外把
+读取到的时间戳作为 `expectedUpdatedAt` 提交。服务端在原子写入队列中发现版本已
+变化时返回 HTTP 409，Skill 重新读取最新工作区并再次应用目标便签的分类、星标、
+置顶或新增操作。
 这可以防止 API 自动化静默覆盖并发保存，但不会改变尚未使用条件写入的网页端
 “最后写入者优先”策略。
 
@@ -110,5 +148,8 @@ Secret 注入，并为 `SESSION_SECRET` 配置独立的高熵随机值。未配�
 - `backend/tests/notes-export-api-skill-feedback.test.ts`：通过真实 Skill
   命令和显式账号密码验证便签增删改查、软删除、恢复、永久删除、文件夹分类、
   星标、置顶、公众号 HTML，以及过期 `expectedUpdatedAt` 返回 409。
+- `backend/tests/skill-token-feedback.test.ts`：验证账号密码首次换取 Token、稳定
+  Token、Bearer 工作区隔离、改密失效、`.env` 原子清理，以及网页登录下载的
+  Hermes ZIP 内容。
 - `frontend/tests/auth-ui.test.ts`：单一账号密码登录、浏览器密码管理语义、普通
   用户修改密码表单、管理员重置入口、管理员路由与云同步入口。

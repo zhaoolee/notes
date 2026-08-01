@@ -1,6 +1,6 @@
 ---
 name: notes-export-api
-description: 通过用户名或邮箱与密码连接调用方明确配置的锤子便签服务，管理当前账号的云端工作区并导出内容。支持便签列表与全文查询、新增、更新 Markdown、软删除、回收站恢复、显式永久删除、文件夹分类、星标、置顶、生成可粘贴到微信公众号的富文本 HTML，以及把 Markdown 或本地 .md 文件导出为带图的锤子便签长图 PNG；导出支持 default 暖白纸感、smartisan-dark 暗黑主题和自定义底部文案。用户提到锤子便签、用账号密码增删改查便签、便签查询或自动维护、分类、收藏、置顶、公众号复制格式、Markdown 转便签图片或批量长图导出时使用。服务地址没有默认值，调用方必须通过 .env 或命令行明确提供。
+description: 通过 Token 或首次使用的用户名与密码连接调用方明确配置的锤子便签服务，管理当前账号的云端工作区并导出内容。支持便签列表与全文查询、新增、更新 Markdown、软删除、回收站恢复、显式永久删除、文件夹分类、星标、置顶、生成可粘贴到微信公众号的富文本 HTML，以及把 Markdown 或本地 .md 文件导出为带图的锤子便签长图 PNG；导出支持 default 暖白纸感、smartisan-dark 暗黑主题和自定义底部文案。用户提到锤子便签、用 AI 增删改查便签、便签查询或自动维护、分类、收藏、置顶、公众号复制格式、Markdown 转便签图片或批量长图导出时使用。服务地址没有默认值，调用方必须通过 .env 或命令行明确提供。
 ---
 
 # 锤子便签 API
@@ -16,9 +16,12 @@ description: 通过用户名或邮箱与密码连接调用方明确配置的锤�
 
 ```dotenv
 NOTES_API_BASE_URL=http://127.0.0.1:18080
-NOTES_API_USERNAME=your-account
-NOTES_API_PASSWORD=your-password
+NOTES_API_TOKEN=notes_sk_v1.xxx
 ```
+
+没有 Token 时，可临时填写 `NOTES_API_USERNAME` 和 `NOTES_API_PASSWORD`。管理脚本
+首次运行会向 `/api/auth/skill-token` 申请 Token，原子更新 `.env`，并移除用户名和
+密码。Token 已存在时不再读取账号密码。
 
 如果服务部署在局域网主机或自有域名下，可改为实际地址，例如
 `http://192.168.1.20:18080` 或 `https://notes.example.com`。
@@ -62,8 +65,8 @@ scripts/export_note.sh \
 
 ## 管理云端便签
 
-1. 用 `NOTES_API_USERNAME` 和 `NOTES_API_PASSWORD` 提供账号凭据；账号可以是用户名
-   或邮箱。也可显式传 `--username` 和 `--password`，但优先用环境变量或
+1. 优先使用 `NOTES_API_TOKEN`。Token 缺失时，用 `NOTES_API_USERNAME` 和
+   `NOTES_API_PASSWORD` 完成一次性授权；账号可以是用户名或邮箱。优先用
    `--env-file`，避免密码进入 shell 历史和进程列表。
 2. 先执行 `list` 或 `folders`，取得真实的便签 ID 和文件夹 ID；不要猜测 ID。
 3. 对单张便签执行 `get`、`update`、`delete`、`restore`、`classify`、`star`、
@@ -77,8 +80,7 @@ scripts/export_note.sh \
 
 ```bash
 export NOTES_API_BASE_URL=http://127.0.0.1:18080
-export NOTES_API_USERNAME=your-account
-export NOTES_API_PASSWORD=your-password
+export NOTES_API_TOKEN=notes_sk_v1.xxx
 
 node scripts/notes_api.mjs list
 
@@ -162,9 +164,10 @@ scripts/export_note.sh \
 
 - 两个脚本统一使用 `NOTES_API_BASE_URL`、`--base-url` 和 `--env-file`。
 - 命令行参数覆盖 `.env`；显式 `--env-file` 优先于调用进程和 Skill 目录 `.env`。
-- 管理命令额外读取 `NOTES_API_USERNAME`、`NOTES_API_PASSWORD`，或对应的
-  `--username`、`--password`。
-- 服务地址或管理凭据缺失时直接报错，让调用方补充，不猜测默认值。
+- 管理命令优先读取 `NOTES_API_TOKEN` 或 `--token`。Token 缺失时才读取
+  `NOTES_API_USERNAME`、`NOTES_API_PASSWORD`，或对应的命令行参数，并在授权成功
+  后把 Token 写回 `.env`、移除账号密码。
+- 服务地址或认证信息缺失时直接报错，让调用方补充，不猜测默认值。
 
 不要输出、记录或提交密码。优先通过环境变量或已被 Git 忽略的 `.env` 提供
 凭据。
