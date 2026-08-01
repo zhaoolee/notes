@@ -1122,3 +1122,55 @@
 - 本次是前端修复，已知七牛上传外部网络故障未重复消耗额度验证；后端镜像没有变化，
   回滚本次前端也不会修复该问题。精确提交的 69 项前端 feedback、11 项后端 feedback
   和生产构建通过，构建只保留既有的单 chunk 超过 `500kB` 提示。
+
+## 2026-08-01：AI 审阅与便签完整 CRUD 生产发布
+
+- GitHub `dev` 和生产 detached HEAD 发布时均为精确提交
+  `73f5db4e097bfb6a7980cc20f1240600c426794c`；上一可回滚应用版本为
+  `8085d55c089caa058aee7b644d68066a058eed37`。后续 Skill Card / MEMORY 文档提交不需要
+  重建生产镜像，生产继续保持该应用提交。
+- 发布前仓库外备份位于
+  `/home/hermes/notes-deploy-backups/20260801T120306Z-8085d55-pre73f5db4`，约 53 MB，
+  包含 95 个图片文件和 2 个数据文件；受保护的 `notes-data.json` 通过后端容器只读
+  导出，源与备份 SHA-256 均为
+  `449385ef395e327fb20be8f5d977b34dfb7cda80a73edbe8bba81085561d6c09`。
+- 生产 GitHub fetch 因 GnuTLS 握手失败，改用本地完整 Git bundle 经 SSH 导入；bundle
+  两端 SHA-256 均为
+  `b47799f8e0f5b23c1635f99ed3c91c4126acfa150a2fb6e06cdb8af104b73195`，检出后已从
+  两端删除。生产仓库干净且精确位于目标提交。
+- 新前端镜像为 `5e323a50f7b9`，后端代码未变、镜像仍为 `47eb87df5d4b`。内外网
+  `/api/health` 均返回成功，AI 状态可用；首页 JS / CSS 与精确提交干净构建的 SHA-256
+  分别同为 `1887b3d1fb0f5bd2397628926565dd438cbd57ab0c9abc66a640444d6b851918`
+  和 `e624898fc5dfb189e245dc46b957ed0e9a851574d45898848312d58f7b6130d3`。
+- 纯文本 PNG、图片导入、带图 PNG、带图 ZIP、公开 HTTPS `X-Export-Url`、管理员登录、
+  `Secure / HttpOnly / SameSite=Lax` Cookie、云工作区读取和 `/superadmin` 全部通过。
+  收尾时数据仍为 2 个文件、1 个账号、2 个工作区、11 条便签；冒烟生成或导入了 4 个
+  正常图片文件，使图片数从 95 增至 99，没有删除用户数据。远端和本地测试临时文件
+  均已清理，生产备份保留。
+- 精确提交的 70 项前端 feedback、11 项后端 feedback、完整 TypeScript 检查、生产
+  构建和 Skill quick validation 通过。构建只保留既有的单 chunk 超过 `500kB` 提示；
+  `npm audit` 仍报告 9 项依赖漏洞（3 low、1 moderate、5 high），本次未做有破坏性的
+  自动升级。
+
+## 2026-08-01：notes-export-api ClawHub 0.3.0
+
+- `notes-export-api` 已用 ClawHub CLI 0.23.1 发布 `0.3.0` 并把 `latest` 指向该版本；
+  版本 ID 为 `k976mem6mj5mcqnd99pyw6exbs8bn59v`，公开页为
+  `https://clawhub.ai/zhaoolee/skills/notes-export-api`。旧全局 CLI 0.7.0 的 legacy 发布 API
+  会因单独的 MIT-0 许可状态拒绝发布，不应继续用它更新版本。
+- 新版发布器只打包 5 个核心文件，主动排除 `.env.example`、本地 `skill-card.md` 等
+  点文件或生成型元数据；服务地址、账号密码和单人部署映射说明已完整写在发布包内的
+  `SKILL.md`，源码仍保留 `.env.example`。服务端 Skill Card 是异步生成物，不计入核心
+  source fingerprint。
+- 0.3.0 source fingerprint 为
+  `d5c1067968052fbcce655dd69cf402539a1ba7b96b497fd5a9a30f21a03e09d7`；隔离安装成功，
+  安装后的 `SKILL.md`、`export_note.sh`、`notes_api.mjs` SHA-256 与发布记录一致。
+- 完整重扫的归一化安全结论为 `clean`，LLM verdict 为 `benign`、confidence 为
+  `high`，VirusTotal 65 个引擎均未检出。静态扫描会因读取账号环境变量标记
+  `suspicious.env_credential_access`，SkillSpector 会因凭据、远程写入和永久删除能力
+  给出高风险提示；这些能力已在 Skill 与 Skill Card 中披露。当前 `verify` 因服务端
+  `card.missing` 返回 fail，但该缺卡不阻止公开安装，独立 security 状态仍为 clean。
+- 隔离安装的第一次命令因 CLI 自动发现工作区而把 0.3.0 新装到
+  `~/.openclaw/workspace`；其创建时间确认属于本次测试后，已用官方 `uninstall --yes`
+  删除并清理锁记录。随后显式传 `--workdir` / `--dir` 的临时安装通过，临时目录也已
+  删除。

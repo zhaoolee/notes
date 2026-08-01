@@ -38,7 +38,7 @@ Mitigation: Mutating commands use expectedUpdatedAt and retry against the latest
 **Other Properties Related to Output:** [Commands can update the authenticated account workspace and write requested HTML or PNG files.] <br>
 
 ## Skill Version(s): <br>
-0.3.1 <br>
+0.3.0 <br>
 
 ## Ethical Considerations: <br>
 Users should only access workspaces they are authorized to manage, protect account credentials, review destructive requests before permanent deletion, and apply their organization's privacy, security, and retention requirements. <br>
