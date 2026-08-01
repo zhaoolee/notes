@@ -80,12 +80,19 @@ WebKit 可能忽略 viewport 的缩放上限，手机断点还必须在 `html / 
 小字号表单时自动把页面放大。
 
 iOS Safari / Chrome 展开顶部地址栏、恢复页面或显示软键盘时，
-`visualViewport.height` 会变化。移动端应用壳保持固定定位，只同步可视视口高度，
+`visualViewport.height` 会变化。iOS 26 在系统键盘、Emoji 键盘和第三方键盘之间
+切换时还会增大 `visualViewport.offsetTop`。移动端应用壳保持固定定位，同步可视
+视口高度和纵向偏移量，
 并在 `pageshow`、横竖屏切换以及可视视口尺寸变化时重新计算。应用壳的原点必须
-始终固定在 `top: 0; left: 0`：不得使用 `visualViewport.offsetTop` 平移整个
-页面，也不得在 `visualViewport.scroll` 中强制 `window.scrollTo(0, 0)`。iOS
-浏览器的地址栏动画会让这些值短暂变化，平移绘制层会导致浏览器的触控高亮、点击
-命中区域与肉眼看到的标签或便签行错位。
+始终固定在 `top: 0; left: 0`：不得把 `visualViewport.offsetTop` 写入 `top`、
+`transform` 或用它平移整个页面，也不得在 `visualViewport.scroll` 中强制
+`window.scrollTo(0, 0)`。应用壳使用 border-box 布局，把高度设为
+`visualViewport.height + visualViewport.offsetTop`，同时把同一个 offset 作为
+顶部内边距；这样实际内容高度仍等于可视视口高度，壳体底部也始终贴住键盘上方，
+而命中区域会随正常布局一起移动。若只同步 height，键盘二次切换后壳体会提前在
+可视视口中结束，快捷栏下方露出大块木纹，顶栏和正文还会逐步漂到屏幕上方。
+iOS 浏览器的地址栏动画会让 offset 短暂变化，因此只在既有的 resize、pageshow
+和横竖屏同步中更新，不新增 visualViewport scroll 追逐。
 
 水平方向必须始终以布局视口的 `left: 0; right: 0` 铺满，安全区交给
 `env(safe-area-inset-left/right)`。不得把 `visualViewport.offsetLeft / width`
@@ -302,6 +309,8 @@ Markdown 快捷键和插图操作复用，并同步唯一固定插入点的位�
   的表单自动放大。
 - 普通便签拖拽只移动便签本体，不带额外透明容器或装饰阴影。
 - 手机 Markdown 快捷栏只随软键盘显示，固定 `42.6667px` 高、五等分，点按后不得让编辑器失焦或收起键盘。
+- iOS 26 在系统、Emoji、拼音或第三方键盘之间反复切换时，顶栏、状态栏和正文仍
+  留在可视区内，快捷栏下方不得出现由 `visualViewport.offsetTop` 造成的大块木纹空带。
 - iOS Chrome 正文继续使用 textarea；不得用 `contenteditable` 规避浏览器原生 AutoFill 附件。
 - iOS 第一行、第二行、第三行及后续有字或空白行的折叠插入点都必须为 `22px`，
   不能回退为 `42px` 行框高度；正文仍保持 `16px/42px` 节奏。

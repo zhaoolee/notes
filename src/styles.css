@@ -4171,9 +4171,16 @@ body,
     left: 0;
     width: auto;
     max-width: none;
-    height: var(--mobile-visual-viewport-height, 100dvh);
-    max-height: var(--mobile-visual-viewport-height, 100dvh);
+    height: calc(
+      var(--mobile-visual-viewport-height, 100dvh) +
+        var(--mobile-visual-viewport-offset-top, 0px)
+    );
+    max-height: calc(
+      var(--mobile-visual-viewport-height, 100dvh) +
+        var(--mobile-visual-viewport-offset-top, 0px)
+    );
     min-height: 0;
+    padding-top: var(--mobile-visual-viewport-offset-top, 0px);
     padding-right: var(--mobile-safe-area-right);
     padding-bottom: var(--mobile-safe-area-bottom);
     padding-left: var(--mobile-safe-area-left);

@@ -246,7 +246,10 @@ export default function App() {
     const rootStyle = document.documentElement.style;
     const mobileQuery = window.matchMedia("(max-width: 640px)");
     const viewport = window.visualViewport;
-    const propertyNames = ["--mobile-visual-viewport-height"] as const;
+    const propertyNames = [
+      "--mobile-visual-viewport-height",
+      "--mobile-visual-viewport-offset-top",
+    ] as const;
 
     const clearViewportProperties = () => {
       for (const propertyName of propertyNames) {
@@ -261,8 +264,13 @@ export default function App() {
       }
 
       const height = Math.max(1, viewport?.height ?? window.innerHeight);
+      const offsetTop = Math.max(0, viewport?.offsetTop ?? 0);
 
       rootStyle.setProperty("--mobile-visual-viewport-height", `${height}px`);
+      rootStyle.setProperty(
+        "--mobile-visual-viewport-offset-top",
+        `${offsetTop}px`,
+      );
     };
 
     syncVisualViewport();

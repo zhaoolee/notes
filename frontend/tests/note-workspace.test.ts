@@ -475,11 +475,11 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
 
   assert.match(
     appSource,
-    /useLayoutEffect\(\(\) => \{[\s\S]*window\.visualViewport;[\s\S]*--mobile-visual-viewport-height[\s\S]*viewport\?\.addEventListener\("resize", syncVisualViewport\);[\s\S]*window\.addEventListener\("pageshow", syncVisualViewport\);/s,
+    /useLayoutEffect\(\(\) => \{[\s\S]*window\.visualViewport;[\s\S]*--mobile-visual-viewport-height[\s\S]*--mobile-visual-viewport-offset-top[\s\S]*viewport\?\.offsetTop[\s\S]*viewport\?\.addEventListener\("resize", syncVisualViewport\);[\s\S]*window\.addEventListener\("pageshow", syncVisualViewport\);/s,
   );
   assert.doesNotMatch(
     appSource,
-    /--mobile-visual-viewport-(?:top|left|width)|viewport\?\.offset(?:Top|Left)|viewport\?\.width|viewport\?\.addEventListener\("scroll", syncVisualViewport\)|window\.scrollTo\(0,\s*0\)/,
+    /--mobile-visual-viewport-(?:left|width)|viewport\?\.offsetLeft|viewport\?\.width|viewport\?\.addEventListener\("scroll", syncVisualViewport\)|window\.scrollTo\(0,\s*0\)/,
   );
   assert.match(appSource, /type MobileWorkspaceView = "notes" \| "editor" \| "preview";/);
   assert.match(appSource, /data-mobile-view=\{mobileWorkspaceView\}/);
@@ -493,7 +493,7 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     styles,
-    /@media \(max-width: 640px\)[\s\S]*\.app-layout\s*\{[^}]*position:\s*fixed;[^}]*top:\s*0;[^}]*right:\s*0;[^}]*left:\s*0;[^}]*width:\s*auto;[^}]*max-width:\s*none;[^}]*height:\s*var\(--mobile-visual-viewport-height,\s*100dvh\);[^}]*max-height:\s*var\(--mobile-visual-viewport-height,\s*100dvh\);[^}]*overflow:\s*hidden;/s,
+    /@media \(max-width: 640px\)[\s\S]*\.app-layout\s*\{[^}]*position:\s*fixed;[^}]*top:\s*0;[^}]*right:\s*0;[^}]*left:\s*0;[^}]*width:\s*auto;[^}]*max-width:\s*none;[^}]*height:\s*calc\([^}]*--mobile-visual-viewport-height,[^}]*--mobile-visual-viewport-offset-top,[^}]*\);[^}]*max-height:\s*calc\([^}]*--mobile-visual-viewport-height,[^}]*--mobile-visual-viewport-offset-top,[^}]*\);[^}]*padding-top:\s*var\(--mobile-visual-viewport-offset-top,\s*0px\);[^}]*overflow:\s*hidden;/s,
   );
   assert.match(
     styles,
