@@ -276,6 +276,7 @@ export default function App() {
     syncVisualViewport();
     mobileQuery.addEventListener("change", syncVisualViewport);
     viewport?.addEventListener("resize", syncVisualViewport);
+    viewport?.addEventListener("scroll", syncVisualViewport);
     window.addEventListener("orientationchange", syncVisualViewport);
     window.addEventListener("pageshow", syncVisualViewport);
     window.addEventListener("resize", syncVisualViewport);
@@ -283,6 +284,7 @@ export default function App() {
     return () => {
       mobileQuery.removeEventListener("change", syncVisualViewport);
       viewport?.removeEventListener("resize", syncVisualViewport);
+      viewport?.removeEventListener("scroll", syncVisualViewport);
       window.removeEventListener("orientationchange", syncVisualViewport);
       window.removeEventListener("pageshow", syncVisualViewport);
       window.removeEventListener("resize", syncVisualViewport);

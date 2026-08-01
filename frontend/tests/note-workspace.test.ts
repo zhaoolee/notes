@@ -475,11 +475,11 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
 
   assert.match(
     appSource,
-    /useLayoutEffect\(\(\) => \{[\s\S]*window\.visualViewport;[\s\S]*--mobile-visual-viewport-height[\s\S]*--mobile-visual-viewport-offset-top[\s\S]*viewport\?\.offsetTop[\s\S]*viewport\?\.addEventListener\("resize", syncVisualViewport\);[\s\S]*window\.addEventListener\("pageshow", syncVisualViewport\);/s,
+    /useLayoutEffect\(\(\) => \{[\s\S]*window\.visualViewport;[\s\S]*--mobile-visual-viewport-height[\s\S]*--mobile-visual-viewport-offset-top[\s\S]*viewport\?\.offsetTop[\s\S]*viewport\?\.addEventListener\("resize", syncVisualViewport\);[\s\S]*viewport\?\.addEventListener\("scroll", syncVisualViewport\);[\s\S]*window\.addEventListener\("pageshow", syncVisualViewport\);[\s\S]*viewport\?\.removeEventListener\("scroll", syncVisualViewport\);/s,
   );
   assert.doesNotMatch(
     appSource,
-    /--mobile-visual-viewport-(?:left|width)|viewport\?\.offsetLeft|viewport\?\.width|viewport\?\.addEventListener\("scroll", syncVisualViewport\)|window\.scrollTo\(0,\s*0\)/,
+    /--mobile-visual-viewport-(?:left|width)|viewport\?\.offsetLeft|viewport\?\.width|window\.scrollTo\(0,\s*0\)/,
   );
   assert.match(appSource, /type MobileWorkspaceView = "notes" \| "editor" \| "preview";/);
   assert.match(appSource, /data-mobile-view=\{mobileWorkspaceView\}/);

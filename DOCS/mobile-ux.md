@@ -91,8 +91,11 @@ iOS Safari / Chrome 展开顶部地址栏、恢复页面或显示软键盘时，
 顶部内边距；这样实际内容高度仍等于可视视口高度，壳体底部也始终贴住键盘上方，
 而命中区域会随正常布局一起移动。若只同步 height，键盘二次切换后壳体会提前在
 可视视口中结束，快捷栏下方露出大块木纹，顶栏和正文还会逐步漂到屏幕上方。
-iOS 浏览器的地址栏动画会让 offset 短暂变化，因此只在既有的 resize、pageshow
-和横竖屏同步中更新，不新增 visualViewport scroll 追逐。
+iOS 浏览器的地址栏动画会让 offset 短暂变化；短文和键盘类型切换主要触发
+`resize`，但至少 50 行的长文在点击中段或后段时，还会在 resize 之后通过
+`visualViewport.scroll` 完成第二阶段光标避让。因此 resize 和 scroll 都只同步
+上述两个 CSS 变量；scroll 处理不得调用 `window.scrollTo`、改写应用壳的
+`top / transform`，也不得主动移动编辑器滚动位置。
 
 水平方向必须始终以布局视口的 `left: 0; right: 0` 铺满，安全区交给
 `env(safe-area-inset-left/right)`。不得把 `visualViewport.offsetLeft / width`
@@ -311,6 +314,9 @@ Markdown 快捷键和插图操作复用，并同步唯一固定插入点的位�
 - 手机 Markdown 快捷栏只随软键盘显示，固定 `42.6667px` 高、五等分，点按后不得让编辑器失焦或收起键盘。
 - iOS 26 在系统、Emoji、拼音或第三方键盘之间反复切换时，顶栏、状态栏和正文仍
   留在可视区内，快捷栏下方不得出现由 `visualViewport.offsetTop` 造成的大块木纹空带。
+- 键盘验收不能只用一行短文：至少写满 50 行，分别滚到并点击靠前、中间和靠后的
+  可见行（基准为第 5、25、45 行）唤起键盘；当前行、顶栏、正文和快捷栏必须同时
+  留在可视区，不能只检查键盘是否出现。
 - iOS Chrome 正文继续使用 textarea；不得用 `contenteditable` 规避浏览器原生 AutoFill 附件。
 - iOS 第一行、第二行、第三行及后续有字或空白行的折叠插入点都必须为 `22px`，
   不能回退为 `42px` 行框高度；正文仍保持 `16px/42px` 节奏。
