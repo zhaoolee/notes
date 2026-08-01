@@ -1183,3 +1183,7 @@
 - 这次只修改文档和帮助文本，不给脚本增加默认地址；`.env` 与命令行均未配置时仍会
   直接报错。Skill quick validation、70 项前端 feedback 和沙箱外 11 项后端 feedback
   全部通过。
+- 该修正已发布为 ClawHub `0.3.1`，`latest` 已指向 0.3.1，source fingerprint 为
+  `714b22cbaff893eb44f489bc20a6a25665b690426dea1c4236c9b69385bd01ff`；公共目录的
+  Moderation 与 Security 均为 `CLEAN`，线上 `SKILL.md`、API 参考和导出脚本哈希与
+  本地提交一致。
