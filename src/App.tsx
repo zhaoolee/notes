@@ -159,6 +159,7 @@ export default function App() {
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
   const [isDesktopCategoryCollapsed, setIsDesktopCategoryCollapsed] =
     useState(false);
+  const [isDesktopFocusMode, setIsDesktopFocusMode] = useState(false);
   const [isDesktopSharePreview, setIsDesktopSharePreview] = useState(false);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authStatus, setAuthStatus] = useState<"loading" | "ready">("loading");
@@ -720,6 +721,94 @@ export default function App() {
     };
   }, [isCategorySidebarOpen]);
 
+  useEffect(() => {
+    if (isPlaywrightRender) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (
+        event.key !== "Escape" ||
+        !window.matchMedia("(min-width: 641px)").matches
+      ) {
+        return;
+      }
+
+      const target = event.target;
+
+      if (
+        !isDesktopFocusMode &&
+        target instanceof HTMLElement &&
+        (target.isContentEditable || target.matches("input, textarea, select"))
+      ) {
+        return;
+      }
+
+      const hasOpenOverlay =
+        isSettingsOpen ||
+        isAccountMenuOpen ||
+        isLoginOpen ||
+        isChangePasswordOpen ||
+        isShareOpen ||
+        isNoteSidebarOpen ||
+        isDesktopViewMenuOpen ||
+        isMoveDialogOpen ||
+        isCategorySidebarOpen ||
+        Boolean(aiReviewNoteId) ||
+        Boolean(pendingAction);
+
+      if (hasOpenOverlay) {
+        return;
+      }
+
+      if (isDesktopSharePreview) {
+        event.preventDefault();
+        setIsDesktopSharePreview(false);
+        setDesktopWorkspaceView(
+          activeCategoryId === "trash" ? "preview" : "editor",
+        );
+        return;
+      }
+
+      if (
+        desktopWorkspaceView === "preview" &&
+        activeCategoryId !== "trash"
+      ) {
+        event.preventDefault();
+        setDesktopWorkspaceView("editor");
+        return;
+      }
+
+      if (isDesktopFocusMode) {
+        event.preventDefault();
+        setIsDesktopFocusMode(false);
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [
+    activeCategoryId,
+    aiReviewNoteId,
+    desktopWorkspaceView,
+    isAccountMenuOpen,
+    isCategorySidebarOpen,
+    isChangePasswordOpen,
+    isDesktopFocusMode,
+    isDesktopSharePreview,
+    isDesktopViewMenuOpen,
+    isLoginOpen,
+    isMoveDialogOpen,
+    isNoteSidebarOpen,
+    isPlaywrightRender,
+    isSettingsOpen,
+    isShareOpen,
+    pendingAction,
+  ]);
+
   async function handleUserAuthenticated(user: AuthUser) {
     setCloudSyncState("syncing");
     setCloudSyncError("");
@@ -1174,6 +1263,7 @@ export default function App() {
         data-desktop-category-collapsed={
           isDesktopCategoryCollapsed ? "true" : "false"
         }
+        data-desktop-focus={isDesktopFocusMode ? "true" : "false"}
         data-desktop-share={isDesktopSharePreview ? "true" : "false"}
         data-category-open={isCategorySidebarOpen ? "true" : "false"}
         data-has-active-note={hasActiveCategoryNote ? "true" : "false"}
@@ -1492,6 +1582,16 @@ export default function App() {
           />
 
           <div className="desktop-workspace-toolbar" aria-label="桌面便签工作区状态">
+            <button
+              type="button"
+              className="desktop-focus-exit"
+              aria-label="退出专注编辑"
+              title="退出专注编辑"
+              onClick={() => setIsDesktopFocusMode(false)}
+            >
+              <span aria-hidden="true">←</span>
+            </button>
+
             <div className="desktop-view-switch" ref={desktopViewMenuRef}>
               <button
                 type="button"
@@ -1540,7 +1640,7 @@ export default function App() {
 
             <div className="desktop-note-status" aria-label="当前便签信息">
               <label className="desktop-note-folder">
-                <span aria-hidden="true">▧</span>
+                <span className="desktop-note-folder-icon" aria-hidden="true" />
                 <span className="visually-hidden">移动当前便签到文件夹</span>
                 <select
                   aria-label="移动当前便签到文件夹"
@@ -1557,11 +1657,36 @@ export default function App() {
                     </option>
                   ))}
                 </select>
+                <span className="desktop-note-folder-arrow" aria-hidden="true" />
               </label>
               <span aria-hidden="true">|</span>
               <span>{formatMobileNoteUpdatedAt(activeCategoryNote?.updatedAt)}</span>
               <span aria-hidden="true">|</span>
               <span>{mobileNoteCharacterCount} 字</span>
+              <span aria-hidden="true">|</span>
+              <button
+                type="button"
+                className="desktop-focus-toggle"
+                aria-label={
+                  isDesktopFocusMode ? "退出专注编辑" : "进入专注编辑"
+                }
+                aria-pressed={isDesktopFocusMode}
+                title={isDesktopFocusMode ? "退出专注编辑" : "进入专注编辑"}
+                onClick={() => {
+                  setIsDesktopFocusMode((isFocused) => {
+                    if (!isFocused) {
+                      setDesktopWorkspaceView("editor");
+                      setIsDesktopViewMenuOpen(false);
+                      setIsCategorySidebarOpen(false);
+                      setIsNoteSidebarOpen(false);
+                    }
+
+                    return !isFocused;
+                  });
+                }}
+              >
+                <span className="desktop-focus-toggle-icon" aria-hidden="true" />
+              </button>
             </div>
           </div>
 

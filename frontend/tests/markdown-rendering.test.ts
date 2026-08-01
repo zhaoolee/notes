@@ -118,6 +118,30 @@ test("splitSections 以二级标题拆分便签区块", () => {
   ]);
 });
 
+test("splitSections 将 H2 边界空行交给标题间距而不渲染在标题下方", () => {
+  const sections = splitSections(
+    [
+      "标题前正文",
+      "",
+      "",
+      "## 第一节",
+      "",
+      "",
+      "第一节正文",
+      "",
+      "## 第二节",
+      "",
+      "第二节正文",
+    ].join("\n"),
+  );
+
+  assert.deepEqual(sections, [
+    { heading: "", content: "标题前正文" },
+    { heading: "第一节", content: "第一节正文" },
+    { heading: "第二节", content: "第二节正文" },
+  ]);
+});
+
 test("splitSections 将首个方括号整行标记为仅居中的正文行", () => {
   const sections = splitSections(
     [

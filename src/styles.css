@@ -1675,9 +1675,35 @@ body,
 }
 
 .desktop-note-folder {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
+}
+
+.desktop-note-folder-icon,
+.desktop-focus-toggle-icon {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  background-image: url("/smartisan/web/all_icons_ab3d0991b9.png");
+  background-repeat: no-repeat;
+}
+
+.desktop-note-folder-icon {
+  background-position: -715px -39px;
+}
+
+.desktop-note-folder-arrow {
+  width: 0;
+  height: 0;
+  margin-left: -12px;
+  flex: 0 0 auto;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 .desktop-note-folder select {
@@ -1695,6 +1721,48 @@ body,
 
 .desktop-note-folder select:disabled {
   opacity: 0.52;
+}
+
+.desktop-focus-toggle {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  flex: 0 0 24px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+}
+
+.desktop-focus-toggle-icon {
+  display: block;
+  background-position: -819px -39px;
+}
+
+.desktop-focus-toggle:hover .desktop-focus-toggle-icon,
+.desktop-focus-toggle:focus-visible .desktop-focus-toggle-icon {
+  filter: brightness(0.82);
+}
+
+.desktop-focus-exit {
+  display: none;
+  width: 48px;
+  height: 32px;
+  padding: 0;
+  flex: 0 0 48px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--note-list-divider);
+  border-radius: 5px;
+  background: var(--note-list-surface);
+  color: var(--note-list-time);
+  font-size: 21px;
+  line-height: 1;
+}
+
+.desktop-focus-exit:hover,
+.desktop-focus-exit:focus-visible {
+  border-color: var(--column-divider);
+  color: var(--note-list-title);
 }
 
 .app-layout[data-render-mode="playwright"] .desktop-workspace-toolbar {
@@ -1729,6 +1797,31 @@ body,
 
   .app-layout[data-desktop-category-collapsed="true"] .category-sidebar {
     display: none;
+  }
+
+  .app-layout[data-desktop-focus="true"] {
+    --category-sidebar-width: 0px;
+    --note-sidebar-width: 0px;
+  }
+
+  .app-layout[data-desktop-focus="true"] .app-topbar,
+  .app-layout[data-desktop-focus="true"] .category-sidebar,
+  .app-layout[data-desktop-focus="true"] .note-sidebar {
+    display: none;
+  }
+
+  .app-layout[data-desktop-focus="true"] .app-shell {
+    height: 100vh;
+    max-height: 100vh;
+  }
+
+  .app-layout[data-desktop-focus="true"] .desktop-workspace-toolbar {
+    padding-left: 17px;
+    gap: 14px;
+  }
+
+  .app-layout[data-desktop-focus="true"] .desktop-focus-exit {
+    display: inline-flex;
   }
 
   .app-layout:not([data-render-mode="playwright"]) .note-sidebar-header {
@@ -2875,8 +2968,16 @@ body,
   min-height: auto;
 }
 
+.note-section.has-heading {
+  margin-top: calc(18px * var(--note-scale));
+}
+
+.note-section.has-heading:first-child {
+  margin-top: 0;
+}
+
 .note-index {
-  margin-bottom: calc(9px * var(--note-scale));
+  margin-bottom: calc(6px * var(--note-scale));
 }
 
 .note-index h2,
@@ -5363,7 +5464,9 @@ body,
   .note-search-icon,
   .note-list-star,
   .note-list-image-indicator,
-  .mobile-note-folder > span:first-child {
+  .mobile-note-folder > span:first-child,
+  .desktop-note-folder-icon,
+  .desktop-focus-toggle-icon {
     background-image: url("/smartisan/web/all_icons_ab3d0991b9@2x.png");
     background-size: 1000px 440px;
   }

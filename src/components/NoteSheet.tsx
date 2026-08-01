@@ -29,7 +29,14 @@ export function NoteSheet({
 
       <div className="sheet-inner">
         {notes.map((note, index) => (
-          <article className="note-section" key={`${note.heading}-${index}`}>
+          <article
+            className={`note-section${
+              note.heading && note.headingAlignment !== "center"
+                ? " has-heading"
+                : ""
+            }`}
+            key={`${note.heading}-${index}`}
+          >
             {note.heading && note.headingAlignment !== "center" ? (
               <header className="note-index">
                 <h2>

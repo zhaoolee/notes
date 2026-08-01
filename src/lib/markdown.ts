@@ -6,6 +6,16 @@ interface RawSection {
   lines: string[];
 }
 
+function trimTrailingBlankLines(lines: string[]): string[] {
+  let end = lines.length;
+
+  while (end > 0 && !lines[end - 1].trim()) {
+    end -= 1;
+  }
+
+  return lines.slice(0, end);
+}
+
 export const MARKDOWN_BLANK_LINE = "\u00A0";
 
 export function detachUnindentedImagesFromLists(markdown: string): string {
@@ -96,13 +106,20 @@ export function splitSections(markdown: string): NoteSection[] {
   for (const line of lines.slice(startIndex)) {
     if (/^##\s+/.test(line)) {
       if (current) {
-        sections.push(current);
+        sections.push({
+          ...current,
+          lines: trimTrailingBlankLines(current.lines),
+        });
       }
 
       current = {
         heading: line.replace(/^##\s+/, "").trim(),
         lines: [],
       };
+      continue;
+    }
+
+    if (current?.heading && current.lines.length === 0 && !line.trim()) {
       continue;
     }
 

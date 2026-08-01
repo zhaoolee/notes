@@ -926,12 +926,50 @@ test("桌面工作区使用锤子便签网页版的纸面、细线和栏宽比�
   assert.match(appSource, /data-desktop-share=\{isDesktopSharePreview \? "true" : "false"\}/);
   assert.match(appSource, /className="desktop-share-preview-actions"/);
   assert.match(
+    appSource,
+    /event\.key !== "Escape"[\s\S]*target\.matches\("input, textarea, select"\)[\s\S]*const hasOpenOverlay =[\s\S]*if \(isDesktopSharePreview\)[\s\S]*setIsDesktopSharePreview\(false\);[\s\S]*activeCategoryId === "trash" \? "preview" : "editor"[\s\S]*desktopWorkspaceView === "preview"[\s\S]*setDesktopWorkspaceView\("editor"\);/s,
+  );
+  assert.match(
     styles,
     /\.app-layout\[data-desktop-share="true"\] \.preview-panel\s*\{[^}]*grid-row:\s*1 \/ -1 !important;[^}]*display:\s*flex !important;/s,
   );
   assert.match(
     styles,
     /\.app-layout\[data-desktop-share="true"\] \.preview-stage\s*\{[^}]*padding:\s*20px 0;[^}]*justify-content:\s*center;[^}]*background:\s*var\(--app-background\);/s,
+  );
+  assert.match(
+    styles,
+    /\.note-section\.has-heading\s*\{[^}]*margin-top:\s*calc\(18px \* var\(--note-scale\)\);[^}]*\}[\s\S]*\.note-index\s*\{[^}]*margin-bottom:\s*calc\(6px \* var\(--note-scale\)\);/s,
+  );
+  assert.match(
+    appSource,
+    /const \[isDesktopFocusMode, setIsDesktopFocusMode\] = useState\(false\);/,
+  );
+  assert.match(appSource, /className="desktop-note-folder-icon"/);
+  assert.match(appSource, /className="desktop-focus-toggle"/);
+  assert.match(
+    appSource,
+    /data-desktop-focus=\{isDesktopFocusMode \? "true" : "false"\}/,
+  );
+  assert.match(
+    appSource,
+    /setDesktopWorkspaceView\("editor"\);[\s\S]*return !isFocused;/,
+  );
+  assert.match(
+    styles,
+    /\.desktop-note-folder-icon\s*\{[^}]*background-position:\s*-715px -39px;/s,
+  );
+  assert.match(
+    styles,
+    /\.desktop-focus-toggle-icon\s*\{[^}]*background-position:\s*-819px -39px;/s,
+  );
+  assert.match(
+    styles,
+    /\.app-layout\[data-desktop-focus="true"\]\s*\{[^}]*--category-sidebar-width:\s*0px;[^}]*--note-sidebar-width:\s*0px;/s,
+  );
+  assert.match(
+    styles,
+    /data-desktop-focus="true"[^}]*\.category-sidebar,[\s\S]*data-desktop-focus="true"[^}]*\.note-sidebar\s*\{[^}]*display:\s*none;/s,
   );
 });
 
