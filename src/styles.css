@@ -3331,6 +3331,10 @@ body,
   margin-top: 0;
 }
 
+.note-section.is-document-title {
+  margin-top: calc(-24px * var(--note-scale));
+}
+
 .note-index {
   margin-bottom: calc(6px * var(--note-scale));
 }
@@ -3362,6 +3366,10 @@ body,
 
 .note-centered-line {
   text-align: center;
+}
+
+.note-section.is-document-title .note-centered-line {
+  margin-bottom: calc(10px * var(--note-scale));
 }
 
 .note-copy p {

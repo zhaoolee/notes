@@ -369,6 +369,30 @@ test("NoteSheet 移除方括号并只对该正文行应用居中", () => {
   );
 });
 
+test("NoteSheet 为首个居中 H1 使用上窄下宽的文档标题间距", () => {
+  const html = renderToStaticMarkup(
+    createElement(NoteSheet, {
+      notes: splitSections("[# **主标题**]\n正文\n\n## 小标题"),
+      footerBrand: createElement("span", null, "由测试发送"),
+      footerVia: createElement("span", null, "via Feedback"),
+    }),
+  );
+  const styles = readFileSync("src/styles.css", "utf8");
+
+  assert.match(
+    html,
+    /<article class="note-section is-document-title">[\s\S]*?<div class="note-centered-line"><h1><strong>主标题<\/strong><\/h1><\/div><p>正文<\/p>/,
+  );
+  assert.match(
+    styles,
+    /\.note-section\.is-document-title\s*\{[^}]*margin-top:\s*calc\(-24px \* var\(--note-scale\)\);/s,
+  );
+  assert.match(
+    styles,
+    /\.note-section\.is-document-title \.note-centered-line\s*\{[^}]*margin-bottom:\s*calc\(10px \* var\(--note-scale\)\);/s,
+  );
+});
+
 test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   const html = renderToStaticMarkup(
     createElement(WechatArticle, {

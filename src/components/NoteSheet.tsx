@@ -10,6 +10,14 @@ interface NoteSheetProps {
   footerVia: ReactNode;
 }
 
+function isDocumentTitle(note: NoteSection, index: number) {
+  return (
+    index === 0 &&
+    note.headingAlignment === "center" &&
+    /^#(?!#)\s+/.test(note.heading.trim())
+  );
+}
+
 export function NoteSheet({
   notes,
   footerBrand,
@@ -34,7 +42,7 @@ export function NoteSheet({
               note.heading && note.headingAlignment !== "center"
                 ? " has-heading"
                 : ""
-            }`}
+            }${isDocumentTitle(note, index) ? " is-document-title" : ""}`}
             key={`${note.heading}-${index}`}
           >
             {note.heading && note.headingAlignment !== "center" ? (
