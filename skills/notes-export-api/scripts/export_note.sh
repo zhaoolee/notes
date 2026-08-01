@@ -78,7 +78,7 @@ Options:
   --env-file PATH         Read NOTES_API_BASE_URL from this .env file
 
 .env:
-  NOTES_API_BASE_URL=https://notes.fangyuanxiaozhan.com
+  NOTES_API_BASE_URL=http://127.0.0.1:18080
 EOF
 }
 

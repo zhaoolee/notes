@@ -4,7 +4,8 @@
 
 - 便签管理与长图导出统一使用 `NOTES_API_BASE_URL` 或 `--base-url`。
 - 地址填写服务基础地址，不附加 `/api`，例如
-  `NOTES_API_BASE_URL=https://notes.fangyuanxiaozhan.com`。
+  `NOTES_API_BASE_URL=http://127.0.0.1:18080`；使用自有域名时可写为
+  `NOTES_API_BASE_URL=https://notes.example.com`。
 - 指定 `--env-file` 时，文件中的 `NOTES_API_*` 优先于进程环境变量；命令行
   `--base-url/--username/--password` 仍具有最高优先级。
 - 单人部署可把项目 `.env` 中 `SUPERADMIN`、`SUPERADMINPASSWORD` 的实际值复制为

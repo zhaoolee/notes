@@ -15,10 +15,13 @@ description: 通过用户名或邮箱与密码连接调用方明确配置的锤�
 到版本库的 `.env`：
 
 ```dotenv
-NOTES_API_BASE_URL=https://notes.fangyuanxiaozhan.com
+NOTES_API_BASE_URL=http://127.0.0.1:18080
 NOTES_API_USERNAME=your-account
 NOTES_API_PASSWORD=your-password
 ```
+
+如果服务部署在局域网主机或自有域名下，可改为实际地址，例如
+`http://192.168.1.20:18080` 或 `https://notes.example.com`。
 
 单人部署时，把项目根目录 `.env` 中 `SUPERADMIN` 和 `SUPERADMINPASSWORD` 的实际值
 分别复制到 `NOTES_API_USERNAME` 和 `NOTES_API_PASSWORD`；不要写成变量引用。
@@ -38,12 +41,12 @@ scripts/export_note.sh \
 
 ```bash
 node scripts/notes_api.mjs list \
-  --base-url https://notes.fangyuanxiaozhan.com \
+  --base-url https://notes.example.com \
   --username your-account \
   --password your-password
 
 scripts/export_note.sh \
-  --base-url https://notes.fangyuanxiaozhan.com \
+  --base-url https://notes.example.com \
   --markdown '正文' \
   --output /abs/path/note.png
 ```
