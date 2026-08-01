@@ -45,6 +45,12 @@ test("生产反向代理保留外层 HTTPS 协议", async () => {
   );
 });
 
+test("生产反向代理为 20MB 单图保留请求封装空间", async () => {
+  const nginxConfig = await readFile("docker/nginx/default.conf", "utf8");
+
+  assert.match(nginxConfig, /client_max_body_size 25m;/);
+});
+
 test("生产镜像包含归档 HTML 的背景和默认页脚 Logo", async () => {
   const [backendDockerfile, appDockerfile] = await Promise.all([
     readFile("Dockerfile.backend", "utf8"),
