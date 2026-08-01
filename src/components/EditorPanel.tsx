@@ -440,49 +440,89 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     };
   }, []);
 
+  const resizeEditorContent = useCallback((): void => {
+    const scroller = editorScrollRef.current;
+
+    if (!scroller || scroller.clientWidth === 0) {
+      return;
+    }
+
+    const scrollTop = scroller.scrollTop;
+    const textareas: HTMLTextAreaElement[] = [];
+
+    for (const [blockIndex, textarea] of textareaRefs.current) {
+      const block = editorContent[blockIndex];
+
+      if (!block || block.kind !== "text") {
+        continue;
+      }
+
+      textarea.style.height = "0px";
+      textareas.push(textarea);
+    }
+
+    for (const textarea of textareas) {
+      textarea.style.height = `${Math.max(
+        textarea.scrollHeight,
+        Number.parseFloat(
+          getComputedStyle(textarea).getPropertyValue("--editor-line-height"),
+        ) || 42,
+      )}px`;
+    }
+
+    // A tall textarea can make the flow scrollbar appear and narrow the text
+    // after the first measurement. Settle that second wrapping pass as well.
+    for (const textarea of textareas) {
+      if (textarea.scrollHeight > textarea.clientHeight) {
+        textarea.style.height = `${textarea.scrollHeight}px`;
+      }
+    }
+
+    for (const imageBlock of scroller.querySelectorAll<HTMLElement>(
+      ".editor-image-block",
+    )) {
+      snapImageBlockToLineGrid(imageBlock);
+    }
+
+    scroller.scrollTop = scrollTop;
+    editorFrameRef.current?.style.setProperty(
+      "--editor-paper-scroll-y",
+      `${-scroller.scrollTop}px`,
+    );
+  }, [editorContent]);
+
   useLayoutEffect(() => {
-    const resizeTextareas = (): void => {
-      const scroller = editorScrollRef.current;
-      const scrollTop = scroller?.scrollTop ?? 0;
-
-      for (const [blockIndex, textarea] of textareaRefs.current) {
-        const block = editorContent[blockIndex];
-
-        if (!block || block.kind !== "text") {
-          continue;
-        }
-
-        textarea.style.height = "0px";
-        textarea.style.height = `${Math.max(
-          textarea.scrollHeight,
-          Number.parseFloat(
-            getComputedStyle(textarea).getPropertyValue("--editor-line-height"),
-          ) || 42,
-        )}px`;
-      }
-
-      for (const imageBlock of editorScrollRef.current?.querySelectorAll<HTMLElement>(
-        ".editor-image-block",
-      ) ?? []) {
-        snapImageBlockToLineGrid(imageBlock);
-      }
-
-      if (scroller) {
-        scroller.scrollTop = scrollTop;
-        editorFrameRef.current?.style.setProperty(
-          "--editor-paper-scroll-y",
-          `${-scroller.scrollTop}px`,
-        );
-      }
-    };
-
-    resizeTextareas();
-    const animationFrame = window.requestAnimationFrame(resizeTextareas);
+    resizeEditorContent();
+    const animationFrame = window.requestAnimationFrame(resizeEditorContent);
 
     return () => {
       window.cancelAnimationFrame(animationFrame);
     };
-  }, [editorContent]);
+  }, [resizeEditorContent]);
+
+  useEffect(() => {
+    const scroller = editorScrollRef.current;
+
+    if (!scroller) {
+      return;
+    }
+
+    let animationFrame = 0;
+    const resizeObserver = new ResizeObserver(() => {
+      resizeEditorContent();
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(resizeEditorContent);
+    });
+
+    resizeObserver.observe(scroller);
+    window.addEventListener("resize", resizeEditorContent);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", resizeEditorContent);
+    };
+  }, [resizeEditorContent]);
 
   useEffect(() => {
     const syncImageGrid = (): void => {

@@ -155,6 +155,19 @@ test("便签详情 URL hash 同时记录便签 ID 与编辑预览状态", () => 
   );
 });
 
+test("直达手机编辑页时会在隐藏面板恢复可见后重算正文高度", () => {
+  const editorSource = readFileSync("src/components/EditorPanel.tsx", "utf8");
+
+  assert.match(
+    editorSource,
+    /const resizeEditorContent = useCallback\(\(\): void => \{[\s\S]*if \(!scroller \|\| scroller\.clientWidth === 0\) \{[\s\S]*textarea\.style\.height = "0px";[\s\S]*textarea\.scrollHeight > textarea\.clientHeight[\s\S]*textarea\.style\.height = `\$\{textarea\.scrollHeight\}px`;/s,
+  );
+  assert.match(
+    editorSource,
+    /const resizeObserver = new ResizeObserver\(\(\) => \{[\s\S]*resizeEditorContent\(\);[\s\S]*window\.requestAnimationFrame\(resizeEditorContent\);[\s\S]*\}\);[\s\S]*resizeObserver\.observe\(scroller\);[\s\S]*resizeObserver\.disconnect\(\);/s,
+  );
+});
+
 test("空白新建便签返回列表时丢弃草稿并选中真实下一条", () => {
   const firstNote = createNoteDocument("# 第一条", 1_000, 0);
   const secondNote = createNoteDocument("# 第二条", 2_000, 1);
@@ -709,7 +722,7 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     editorSource,
-    /const scrollTop = scroller\?\.scrollTop \?\? 0;[\s\S]*textarea\.style\.height = "0px";[\s\S]*scroller\.scrollTop = scrollTop;/s,
+    /const scrollTop = scroller\.scrollTop;[\s\S]*textarea\.style\.height = "0px";[\s\S]*scroller\.scrollTop = scrollTop;/s,
   );
   assert.match(
     styles,
