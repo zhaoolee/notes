@@ -2632,6 +2632,7 @@ body,
   flex-direction: column;
   overflow-x: hidden;
   overflow-y: auto;
+  overflow-anchor: none;
   background: #fbf7ed url("/smartisan/web/grid_6e4a41eefc.png") repeat;
   background-attachment: local;
   overscroll-behavior: contain;
@@ -2878,11 +2879,12 @@ body,
   margin-bottom: calc(9px * var(--note-scale));
 }
 
-.note-index p,
-.note-index strong {
+.note-index h2,
+.note-index h2 strong {
   margin: 0;
   font-size: calc(0.92rem * var(--note-scale));
   font-weight: 700;
+  line-height: 1.35;
   color: var(--note-heading);
 }
 

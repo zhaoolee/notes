@@ -10,6 +10,10 @@ interface MarkdownTextProps {
   children: string;
 }
 
+interface MarkdownInlineTextProps {
+  children: string;
+}
+
 const markdownComponents: Components = {
   p: ({ children, className }) => {
     const isBlankLine = Array.isArray(children)
@@ -42,6 +46,18 @@ const markdownComponents: Components = {
   code: ({ children, className }) => <code className={className}>{children}</code>,
   blockquote: ({ children }) => <blockquote>{children}</blockquote>,
 };
+
+const inlineMarkdownComponents: Components = {
+  ...markdownComponents,
+  p: ({ children }) => <>{children}</>,
+};
+
+function escapeLeadingBlockMarkdown(markdown: string): string {
+  return markdown
+    .replace(/^(\s*)(\d+)([.)])(?=\s)/, "$1$2\\$3")
+    .replace(/^(\s*)([-+*>])(?=\s)/, "$1\\$2")
+    .replace(/^(\s*)(#{1,6})(?=\s)/, "$1\\$2");
+}
 
 type MarkdownAstNode = {
   type?: string;
@@ -146,6 +162,17 @@ export function MarkdownText({ children }: MarkdownTextProps) {
       components={markdownComponents}
     >
       {detachUnindentedImagesFromLists(preserveMarkdownBlankLines(children))}
+    </ReactMarkdown>
+  );
+}
+
+export function MarkdownInlineText({ children }: MarkdownInlineTextProps) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={inlineMarkdownComponents}
+    >
+      {escapeLeadingBlockMarkdown(children)}
     </ReactMarkdown>
   );
 }

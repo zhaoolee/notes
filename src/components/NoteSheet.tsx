@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { DEFAULT_FOOTER_LOGO_URL } from "../lib/footer.js";
 import type { NoteSection } from "../types/app.js";
-import { MarkdownText } from "./MarkdownText.js";
+import { MarkdownInlineText, MarkdownText } from "./MarkdownText.js";
 
 interface NoteSheetProps {
   notes: NoteSection[];
@@ -32,7 +32,9 @@ export function NoteSheet({
           <article className="note-section" key={`${note.heading}-${index}`}>
             {note.heading && note.headingAlignment !== "center" ? (
               <header className="note-index">
-                <MarkdownText>{note.heading}</MarkdownText>
+                <h2>
+                  <MarkdownInlineText>{note.heading}</MarkdownInlineText>
+                </h2>
               </header>
             ) : null}
 

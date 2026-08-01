@@ -90,6 +90,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
   },
   ref,
 ) {
+  const editorFrameRef = useRef<HTMLDivElement | null>(null);
   const editorScrollRef = useRef<HTMLDivElement | null>(null);
   const textareaRefs = useRef(new Map<number, HTMLTextAreaElement>());
   const imageInputRef = useRef<HTMLInputElement | null>(null);
@@ -240,7 +241,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     const scroller = editorScrollRef.current;
 
     if (scroller) {
-      scroller.style.setProperty(
+      editorFrameRef.current?.style.setProperty(
         "--editor-paper-scroll-y",
         `${-scroller.scrollTop}px`,
       );
@@ -308,6 +309,9 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
 
   useLayoutEffect(() => {
     const resizeTextareas = (): void => {
+      const scroller = editorScrollRef.current;
+      const scrollTop = scroller?.scrollTop ?? 0;
+
       for (const [blockIndex, textarea] of textareaRefs.current) {
         const block = editorContent[blockIndex];
 
@@ -328,6 +332,14 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
         ".editor-image-block",
       ) ?? []) {
         snapImageBlockToLineGrid(imageBlock);
+      }
+
+      if (scroller) {
+        scroller.scrollTop = scrollTop;
+        editorFrameRef.current?.style.setProperty(
+          "--editor-paper-scroll-y",
+          `${-scroller.scrollTop}px`,
+        );
       }
     };
 
@@ -748,6 +760,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
       {imageImportError ? <p className="image-import-status error">{imageImportError}</p> : null}
       {isImportingImage ? <p className="image-import-status">正在导入图片...</p> : null}
       <div
+        ref={editorFrameRef}
         className={`markdown-editor-frame${
           isDropTargetActive ? " drag-active" : ""
         }`}

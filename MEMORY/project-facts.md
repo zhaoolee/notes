@@ -828,3 +828,16 @@
   Android Chrome 通过 CDP 读取三行几何：`top = 109 / 151 / 193px`，相邻行严格
   相差 `42px`，三行 `height` 均严格为 `22px`；第二行模拟器截图也确认短插入点与
   文字等高。
+## 2026-08-01：PC 长便签滚动与二级标题回归
+
+- 分段 textarea 的自动高度计算曾在每次输入时先把高度
+  设为 `0`，导致滚动容器内容瞬时收缩并把 `scrollTop` 从下方位置钳制到顶部。
+  高度调整现在必须保存并恢复外层 `.markdown-editor-flow.scrollTop`，同时关闭滚动
+  锚定；本地 `1536 × 900` 实测下方输入前后均保持 `331px`，焦点继续留在原 textarea。
+- 左纸轨由 `.markdown-editor-frame::before` 绘制，因此 `--editor-paper-scroll-y` 必须
+  写在 frame 祖先本身，不能只写到后代 flow。修复后在 `scrollTop = 662px` 时 frame、
+  flow 和伪元素背景纵坐标都为 `-662px`，左右 `50px` 横线保持同相位。
+- `splitSections` 会移除 `##` 并把后续内容存入 `NoteSection.heading`。`NoteSheet` 必须
+  把非居中 section heading 显式渲染为 `h2`，并只按行内 Markdown 解析；数字开头的
+  `## 1. 标题` 不得降级为 `<ol>`。当前 H2 为 `0.92rem × note-scale / 700`，正文为
+  `0.76rem × note-scale / 400`；桌面实测字号分别为 `29.44px` 和 `24.32px`。

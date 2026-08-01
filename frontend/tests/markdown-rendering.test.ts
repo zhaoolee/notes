@@ -197,6 +197,22 @@ test("NoteSheet 服务端渲染复用前端 Markdown 结构", () => {
   assert.doesNotMatch(html, /is-default-footer-logo/);
 });
 
+test("二级标题保持 H2 语义且数字开头不会误判为有序列表", () => {
+  const html = renderToStaticMarkup(
+    createElement(NoteSheet, {
+      notes: splitSections("正文\n## 1. **开发了自己的 APP**\n标题后正文"),
+      footerBrand: createElement("span", null, "由测试发送"),
+      footerVia: createElement("span", null, "via Feedback"),
+    }),
+  );
+
+  assert.match(
+    html,
+    /<header class="note-index"><h2>1\. <strong>开发了自己的 APP<\/strong><\/h2><\/header>/,
+  );
+  assert.doesNotMatch(html, /<header class="note-index"><ol>/);
+});
+
 test("暗黑主题只降低内置便签 Logo 的亮度，不强制改色自定义 Logo", () => {
   const defaultHtml = renderToStaticMarkup(
     createElement(NoteSheet, {

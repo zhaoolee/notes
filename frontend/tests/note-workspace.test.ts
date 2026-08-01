@@ -631,7 +631,11 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
   );
   assert.match(
     editorSource,
-    /style\.setProperty\(\s*"--editor-paper-scroll-y",\s*`\$\{-scroller\.scrollTop\}px`,\s*\);/,
+    /editorFrameRef\.current\?\.style\.setProperty\(\s*"--editor-paper-scroll-y",\s*`\$\{-scroller\.scrollTop\}px`,\s*\);/,
+  );
+  assert.match(
+    editorSource,
+    /const scrollTop = scroller\?\.scrollTop \?\? 0;[\s\S]*textarea\.style\.height = "0px";[\s\S]*scroller\.scrollTop = scrollTop;/s,
   );
   assert.match(
     styles,
@@ -779,7 +783,11 @@ test("桌面工作区使用锤子便签网页版的纸面、细线和栏宽比�
   );
   assert.match(
     styles,
-    /\.markdown-editor-flow\s*\{[^}]*grid_6e4a41eefc\.png[^}]*background-attachment:\s*local;[^}]*\}[\s\S]*\.markdown-editor\s*\{[^}]*font-weight:\s*400;[^}]*padding:\s*0 30px 0 50px;[^}]*background:\s*transparent;[\s\S]*\.editor-text-segment:last-child\s*\{[^}]*padding-bottom:\s*100px;/s,
+    /\.markdown-editor-flow\s*\{[^}]*overflow-anchor:\s*none;[^}]*grid_6e4a41eefc\.png[^}]*background-attachment:\s*local;[^}]*\}[\s\S]*\.markdown-editor\s*\{[^}]*font-weight:\s*400;[^}]*padding:\s*0 30px 0 50px;[^}]*background:\s*transparent;[\s\S]*\.editor-text-segment:last-child\s*\{[^}]*padding-bottom:\s*100px;/s,
+  );
+  assert.match(
+    styles,
+    /\.note-index h2,\s*\.note-index h2 strong\s*\{[^}]*font-size:\s*calc\(0\.92rem \* var\(--note-scale\)\);[^}]*font-weight:\s*700;[^}]*line-height:\s*1\.35;/s,
   );
   assert.match(
     styles,
