@@ -39,6 +39,11 @@ import {
   MOBILE_NOTE_SWIPE_OPEN_OFFSET,
   shouldOpenMobileNoteSwipe,
 } from "../../src/lib/mobile-note-swipe.js";
+import {
+  buildNoteRouteHash,
+  getUrlWithNoteRoute,
+  parseNoteRouteHash,
+} from "../../src/lib/note-route.js";
 
 test("便签标题与摘要从 Markdown 内容自动提取", () => {
   const markdown = [
@@ -88,6 +93,68 @@ test("持久化工作区校验便签集合并修复失效的当前 ID", () => {
   assert.equal(parseNoteWorkspace("not-json"), null);
 });
 
+test("便签详情 URL hash 同时记录便签 ID 与编辑预览状态", () => {
+  const editorRoute = {
+    noteId: "smartisan-web-02",
+    view: "editor" as const,
+  };
+  const encodedRoute = {
+    noteId: "便签/with space",
+    view: "preview" as const,
+  };
+
+  assert.equal(
+    buildNoteRouteHash(editorRoute),
+    "#note=smartisan-web-02&view=editor",
+  );
+  assert.deepEqual(
+    parseNoteRouteHash("#note=smartisan-web-02&view=preview"),
+    { noteId: "smartisan-web-02", view: "preview" },
+  );
+  assert.deepEqual(
+    parseNoteRouteHash(buildNoteRouteHash(encodedRoute)),
+    encodedRoute,
+  );
+  assert.equal(parseNoteRouteHash("#note=smartisan-web-02"), null);
+  assert.equal(parseNoteRouteHash("#view=editor"), null);
+  assert.equal(
+    parseNoteRouteHash("#note=smartisan-web-02&view=unknown"),
+    null,
+  );
+  assert.equal(
+    getUrlWithNoteRoute(
+      "https://notes.example.test/?testData=smartisan-web-20#old",
+      editorRoute,
+    ),
+    "/?testData=smartisan-web-20#note=smartisan-web-02&view=editor",
+  );
+  assert.equal(
+    getUrlWithNoteRoute(
+      "https://notes.example.test/?testData=smartisan-web-20#old",
+      null,
+    ),
+    "/?testData=smartisan-web-20",
+  );
+
+  const appSource = readFileSync("src/App.tsx", "utf8");
+  assert.match(
+    appSource,
+    /window\.addEventListener\("hashchange", handleLocationNavigation\);[\s\S]*window\.addEventListener\("popstate", handleLocationNavigation\);/,
+  );
+  assert.match(
+    appSource,
+    /const routedNote = noteDocuments\.find\(\(note\) => note\.id === route\.noteId\);[\s\S]*selectNote\(routedNote\.id\);[\s\S]*setDesktopWorkspaceView\(routedView\);[\s\S]*setMobileWorkspaceView\(routedView\);/,
+  );
+  assert.match(
+    appSource,
+    /function handleSelectNote\(noteId: string\)[\s\S]*writeCurrentNoteRoute\(\{ noteId, view: selectedView \}, "push"\);/,
+  );
+  assert.match(
+    appSource,
+    /function handleMobileWorkspaceViewChange\(view: NoteRouteView\)[\s\S]*writeCurrentNoteRoute\(\{ noteId: activeNoteId, view \}\);/,
+  );
+});
+
 test("空白新建便签返回列表时丢弃草稿并选中真实下一条", () => {
   const firstNote = createNoteDocument("# 第一条", 1_000, 0);
   const secondNote = createNoteDocument("# 第二条", 2_000, 1);
@@ -115,7 +182,7 @@ test("空白新建便签返回列表时丢弃草稿并选中真实下一条", ()
 
   assert.match(
     appSource,
-    /mobileDraftNoteIdRef\.current = createNote\("", folderId, shouldStar\);/,
+    /const createdNoteId = createNote\("", folderId, shouldStar\);[\s\S]*mobileDraftNoteIdRef\.current = createdNoteId;/,
   );
   assert.match(
     appSource,

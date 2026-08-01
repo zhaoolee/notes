@@ -50,6 +50,12 @@ import {
   getFolderIdFromCategory,
   orderNoteDocuments,
 } from "./lib/notes";
+import {
+  parseNoteRouteHash,
+  writeCurrentNoteRoute,
+  type NoteRoute,
+  type NoteRouteView,
+} from "./lib/note-route";
 import { copyMarkdownForWechat } from "./lib/wechat";
 import { useAppStore } from "./store/useAppStore";
 import type {
@@ -62,6 +68,11 @@ import type {
 type MobileWorkspaceView = "notes" | "editor" | "preview";
 type DesktopWorkspaceView = "editor" | "preview";
 type WechatCopyState = "idle" | "preparing" | "copied" | "failed";
+
+interface NoteRouteNavigation {
+  revision: number;
+  route: NoteRoute | null;
+}
 
 const NOTE_REFRESH_DELAY_MS = 650;
 const CLOUD_SAVE_DELAY_MS = 650;
@@ -181,6 +192,14 @@ export default function App() {
     useState<MobileWorkspaceView>("notes");
   const [desktopWorkspaceView, setDesktopWorkspaceView] =
     useState<DesktopWorkspaceView>("editor");
+  const [noteRouteNavigation, setNoteRouteNavigation] =
+    useState<NoteRouteNavigation>(() => ({
+      revision: 0,
+      route:
+        typeof window === "undefined"
+          ? null
+          : parseNoteRouteHash(window.location.hash),
+    }));
   const editorPanelRef = useRef<EditorPanelHandle | null>(null);
   const refreshTimeoutRef = useRef<number | null>(null);
   const settingsContainerRef = useRef<HTMLDivElement | null>(null);
@@ -195,6 +214,7 @@ export default function App() {
   const cloudRevisionRef = useRef(0);
   const cloudHydratedUserIdRef = useRef<string | null>(null);
   const skipNextCloudSaveRef = useRef(false);
+  const restoredNoteRouteRevisionRef = useRef(-1);
   const activeNoteId = useAppStore((state) => state.activeNoteId);
   const folders = useAppStore((state) => state.folders);
   const noteDocuments = useAppStore((state) => state.notes);
@@ -499,6 +519,78 @@ export default function App() {
   );
 
   useEffect(() => {
+    function handleLocationNavigation() {
+      setNoteRouteNavigation((current) => ({
+        revision: current.revision + 1,
+        route: parseNoteRouteHash(window.location.hash),
+      }));
+    }
+
+    window.addEventListener("hashchange", handleLocationNavigation);
+    window.addEventListener("popstate", handleLocationNavigation);
+
+    return () => {
+      window.removeEventListener("hashchange", handleLocationNavigation);
+      window.removeEventListener("popstate", handleLocationNavigation);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (
+      restoredNoteRouteRevisionRef.current === noteRouteNavigation.revision
+    ) {
+      return;
+    }
+
+    const route = noteRouteNavigation.route;
+
+    if (!route) {
+      restoredNoteRouteRevisionRef.current = noteRouteNavigation.revision;
+      setMobileWorkspaceView("notes");
+      return;
+    }
+
+    if (authStatus !== "ready") {
+      return;
+    }
+
+    const routedNote = noteDocuments.find((note) => note.id === route.noteId);
+
+    if (!routedNote) {
+      restoredNoteRouteRevisionRef.current = noteRouteNavigation.revision;
+      setActiveCategoryId("all");
+      setMobileWorkspaceView("notes");
+      writeCurrentNoteRoute(null);
+      return;
+    }
+
+    const routedView: NoteRouteView = routedNote.deletedAt
+      ? "preview"
+      : route.view;
+
+    restoredNoteRouteRevisionRef.current = noteRouteNavigation.revision;
+    setAiReviewNoteId(null);
+    setActiveCategoryId(routedNote.deletedAt ? "trash" : "all");
+    selectNote(routedNote.id);
+    setDesktopWorkspaceView(routedView);
+    setMobileWorkspaceView(routedView);
+    setIsDesktopViewMenuOpen(false);
+    setIsDesktopSharePreview(false);
+    setIsShareOpen(false);
+    setIsNoteSidebarOpen(false);
+    setIsCategorySidebarOpen(false);
+
+    if (routedView !== route.view) {
+      writeCurrentNoteRoute({ noteId: routedNote.id, view: routedView });
+    }
+  }, [
+    authStatus,
+    noteDocuments,
+    noteRouteNavigation,
+    selectNote,
+  ]);
+
+  useEffect(() => {
     if (
       categoryNoteDocuments.length > 0 &&
       !categoryNoteDocuments.some((note) => note.id === activeNoteId)
@@ -794,6 +886,7 @@ export default function App() {
       ) {
         event.preventDefault();
         setDesktopWorkspaceView("editor");
+        writeCurrentNoteRoute({ noteId: activeNoteId, view: "editor" });
         return;
       }
 
@@ -888,6 +981,8 @@ export default function App() {
     setCloudSyncState("local");
     setIsAccountMenuOpen(false);
     replaceWorkspace(getInitialNoteWorkspace());
+    setMobileWorkspaceView("notes");
+    writeCurrentNoteRoute(null);
   }
 
   async function handleExport() {
@@ -980,11 +1075,16 @@ export default function App() {
       setActiveCategoryId("all");
     }
 
-    mobileDraftNoteIdRef.current = createNote("", folderId, shouldStar);
+    const createdNoteId = createNote("", folderId, shouldStar);
+    mobileDraftNoteIdRef.current = createdNoteId;
     setDesktopWorkspaceView("editor");
     setMobileWorkspaceView("editor");
     setIsDesktopViewMenuOpen(false);
     setIsDesktopSharePreview(false);
+    writeCurrentNoteRoute(
+      { noteId: createdNoteId, view: "editor" },
+      "push",
+    );
   }
 
   function handleReturnToNoteList() {
@@ -1002,6 +1102,23 @@ export default function App() {
     }
 
     setMobileWorkspaceView("notes");
+    writeCurrentNoteRoute(null);
+  }
+
+  function handleMobileWorkspaceViewChange(view: NoteRouteView) {
+    setMobileWorkspaceView(view);
+
+    if (activeNoteId) {
+      writeCurrentNoteRoute({ noteId: activeNoteId, view });
+    }
+  }
+
+  function handleDesktopWorkspaceViewChange(view: NoteRouteView) {
+    setDesktopWorkspaceView(view);
+
+    if (activeNoteId) {
+      writeCurrentNoteRoute({ noteId: activeNoteId, view });
+    }
   }
 
   function handleOpenAiReview() {
@@ -1041,15 +1158,26 @@ export default function App() {
   }
 
   function handleSelectNote(noteId: string) {
+    const selectedNote = noteDocuments.find((note) => note.id === noteId);
+
+    if (!selectedNote) {
+      return;
+    }
+
+    const selectedView: NoteRouteView = selectedNote.deletedAt
+      ? "preview"
+      : "editor";
+
     setAiReviewNoteId(null);
     selectNote(noteId);
     setIsShareOpen(false);
     setIsNoteSidebarOpen(false);
     setIsCategorySidebarOpen(false);
-    setDesktopWorkspaceView(activeCategoryId === "trash" ? "preview" : "editor");
-    setMobileWorkspaceView(activeCategoryId === "trash" ? "preview" : "editor");
+    setDesktopWorkspaceView(selectedView);
+    setMobileWorkspaceView(selectedView);
     setIsDesktopViewMenuOpen(false);
     setIsDesktopSharePreview(false);
+    writeCurrentNoteRoute({ noteId, view: selectedView }, "push");
   }
 
   function handleSelectCategory(categoryId: NoteCategoryId) {
@@ -1064,6 +1192,61 @@ export default function App() {
     if (firstNote) {
       selectNote(firstNote.id);
     }
+
+    if (
+      firstNote &&
+      window.matchMedia("(min-width: 641px)").matches
+    ) {
+      const selectedView: NoteRouteView =
+        firstNote.deletedAt === null ? "editor" : "preview";
+      setDesktopWorkspaceView(selectedView);
+      writeCurrentNoteRoute({ noteId: firstNote.id, view: selectedView });
+      return;
+    }
+
+    writeCurrentNoteRoute(null);
+  }
+
+  function handleConfirmPendingAction() {
+    const confirmedAction = pendingAction;
+    confirmPendingAction();
+
+    if (
+      confirmedAction?.kind !== "delete-note" &&
+      confirmedAction?.kind !== "permanently-delete-note"
+    ) {
+      return;
+    }
+
+    if (
+      window.matchMedia("(max-width: 640px)").matches &&
+      mobileWorkspaceView === "notes"
+    ) {
+      writeCurrentNoteRoute(null);
+      return;
+    }
+
+    const nextState = useAppStore.getState();
+    const nextActiveNote = getCategoryNoteDocuments(
+      nextState.notes,
+      activeCategoryId,
+    ).find((note) => note.id === nextState.activeNoteId);
+
+    if (!nextActiveNote) {
+      setMobileWorkspaceView("notes");
+      writeCurrentNoteRoute(null);
+      return;
+    }
+
+    const nextView: NoteRouteView = nextActiveNote.deletedAt
+      ? "preview"
+      : window.matchMedia("(max-width: 640px)").matches
+        ? mobileWorkspaceView === "preview"
+          ? "preview"
+          : "editor"
+        : desktopWorkspaceView;
+
+    writeCurrentNoteRoute({ noteId: nextActiveNote.id, view: nextView });
   }
 
   function handleDeleteFolder(folderId: string) {
@@ -1418,7 +1601,7 @@ export default function App() {
                   type="button"
                   className="mobile-detail-action mobile-edit-done"
                   aria-label="完成编辑并预览"
-                  onClick={() => setMobileWorkspaceView("preview")}
+                  onClick={() => handleMobileWorkspaceViewChange("preview")}
                 >
                   <span className="smartisan-toolbar-icon icon-create" aria-hidden="true" />
                 </button>
@@ -1642,7 +1825,7 @@ export default function App() {
                         desktopWorkspaceView === view ? "is-active" : undefined
                       }
                       onClick={() => {
-                        setDesktopWorkspaceView(view);
+                        handleDesktopWorkspaceViewChange(view);
                         setIsDesktopViewMenuOpen(false);
                       }}
                     >
@@ -1693,7 +1876,7 @@ export default function App() {
                 onClick={() => {
                   setIsDesktopFocusMode((isFocused) => {
                     if (!isFocused) {
-                      setDesktopWorkspaceView("editor");
+                      handleDesktopWorkspaceViewChange("editor");
                       setIsDesktopViewMenuOpen(false);
                       setIsCategorySidebarOpen(false);
                       setIsNoteSidebarOpen(false);
@@ -1748,8 +1931,8 @@ export default function App() {
                   : "切换到便签预览"
               }
               onClick={() =>
-                setMobileWorkspaceView((currentView) =>
-                  currentView === "preview" ? "editor" : "preview",
+                handleMobileWorkspaceViewChange(
+                  mobileWorkspaceView === "preview" ? "editor" : "preview",
                 )
               }
             >
@@ -1818,7 +2001,7 @@ export default function App() {
       <ConfirmDialog
         pendingAction={pendingAction}
         onClose={clearPendingAction}
-        onConfirm={confirmPendingAction}
+        onConfirm={handleConfirmPendingAction}
       />
 
       {isMoveDialogOpen ? (
