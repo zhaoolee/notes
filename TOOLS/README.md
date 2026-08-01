@@ -94,6 +94,7 @@ curl -fsS http://127.0.0.1:3001/api/wechat \
 
 ```bash
 skills/notes-export-api/scripts/export_note.sh \
+  --base-url http://127.0.0.1:18080 \
   --markdown-file /absolute/path/to/note.md \
   --output /absolute/path/to/note.png
 ```

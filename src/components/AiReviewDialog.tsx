@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { reviewMarkdownWithAi } from "../lib/ai";
 import {
+  buildSuggestionTextDiff,
   buildMarkdownFromAcceptedSuggestions,
   getAcceptedSuggestionIdsAfterAcceptAll,
   type AiSuggestion,
+  type TextDiffPart,
 } from "../lib/ai-suggestions";
 
 interface AiReviewDialogProps {
@@ -43,6 +45,69 @@ const QUICK_REVIEW_MODES = [
     label: "让公众更易读",
   },
 ] as const;
+
+function renderTextDiffParts(parts: TextDiffPart[]) {
+  return parts.map((part, index) => {
+    if (part.type === "removed") {
+      return (
+        <del
+          key={`${part.type}-${index}`}
+          className="ai-diff-removed"
+          aria-label={`删除：${part.value}`}
+        >
+          {part.value}
+        </del>
+      );
+    }
+
+    if (part.type === "added") {
+      return (
+        <ins
+          key={`${part.type}-${index}`}
+          className="ai-diff-added"
+          aria-label={`新增：${part.value}`}
+        >
+          {part.value}
+        </ins>
+      );
+    }
+
+    return (
+      <span key={`${part.type}-${index}`} className="ai-diff-unchanged">
+        {part.value}
+      </span>
+    );
+  });
+}
+
+function SuggestionDiff({
+  original,
+  replacement,
+}: Pick<AiSuggestion, "original" | "replacement">) {
+  const textDiff = useMemo(
+    () => buildSuggestionTextDiff(original, replacement),
+    [original, replacement],
+  );
+
+  return (
+    <div className="ai-suggestion-diff">
+      <div>
+        <div className="ai-suggestion-diff-label">
+          <span>原文</span>
+          <small>删除</small>
+        </div>
+        <pre>{renderTextDiffParts(textDiff.original)}</pre>
+      </div>
+      <div>
+        <div className="ai-suggestion-diff-label">
+          <span>建议改为</span>
+          <small>新增 · {textDiff.changeCount} 处修改</small>
+        </div>
+        <pre>{renderTextDiffParts(textDiff.replacement)}</pre>
+      </div>
+    </div>
+  );
+}
 
 export function AiReviewDialog({
   currentMarkdown,
@@ -226,7 +291,7 @@ export function AiReviewDialog({
         <header className="ai-review-header">
           <div>
             <h2 id="ai-review-title">AI 辅助审阅</h2>
-            <p>支持逐条确认，也可以一键同意所有待处理建议。</p>
+            <p>支持逐条确认，也可以一键接受剩余待处理建议。</p>
           </div>
           <button type="button" aria-label="关闭 AI 审阅" onClick={onClose}>
             ×
@@ -285,14 +350,6 @@ export function AiReviewDialog({
                       共 {session.suggestions.length} 条建议，尚有{" "}
                       {pendingSuggestionCount} 条等待确认
                     </p>
-                    <button
-                      type="button"
-                      className="is-primary"
-                      disabled={pendingSuggestionCount === 0}
-                      onClick={handleAcceptAll}
-                    >
-                      同意所有
-                    </button>
                   </div>
 
                   {session.suggestions.map((suggestion, index) => {
@@ -324,16 +381,10 @@ export function AiReviewDialog({
                         <p className="ai-suggestion-reason">
                           {suggestion.reason}
                         </p>
-                        <div className="ai-suggestion-diff">
-                          <div>
-                            <span>原文</span>
-                            <pre>{suggestion.original}</pre>
-                          </div>
-                          <div>
-                            <span>建议改为</span>
-                            <pre>{suggestion.replacement}</pre>
-                          </div>
-                        </div>
+                        <SuggestionDiff
+                          original={suggestion.original}
+                          replacement={suggestion.replacement}
+                        />
                         <div className="ai-suggestion-actions">
                           <button
                             type="button"
@@ -363,6 +414,26 @@ export function AiReviewDialog({
             </div>
           ) : null}
         </div>
+
+        {session && session.suggestions.length > 0 ? (
+          <footer className="ai-review-footer">
+            <p aria-live="polite">
+              {pendingSuggestionCount > 0
+                ? `尚有 ${pendingSuggestionCount} 条等待确认`
+                : "全部建议已处理"}
+            </p>
+            <button
+              type="button"
+              className="is-primary"
+              disabled={pendingSuggestionCount === 0}
+              onClick={handleAcceptAll}
+            >
+              {pendingSuggestionCount > 0
+                ? `接受剩余 ${pendingSuggestionCount} 条`
+                : "全部建议已处理"}
+            </button>
+          </footer>
+        ) : null}
       </section>
     </div>,
     document.body,

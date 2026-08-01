@@ -8,13 +8,11 @@ import { fileURLToPath } from "node:url";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SKILL_DIR = path.resolve(SCRIPT_DIR, "..");
-const PROJECT_ROOT = path.resolve(SKILL_DIR, "../..");
-const LOCAL_BASE_URL = "http://127.0.0.1:18080";
-const REMOTE_BASE_URL = "https://notes.fangyuanxiaozhan.com";
 const MAX_MUTATION_ATTEMPTS = 4;
 const BOOLEAN_OPTIONS = new Set([
   "help",
   "include-markdown",
+  "permanent",
   "pinned",
   "starred",
 ]);
@@ -84,7 +82,7 @@ function unquoteEnvValue(value) {
   return trimmed;
 }
 
-async function readEnvFile(filename) {
+async function readEnvFile(filename, { required = false } = {}) {
   try {
     const content = await fs.readFile(filename, "utf8");
     const values = {};
@@ -116,6 +114,10 @@ async function readEnvFile(filename) {
     return values;
   } catch (error) {
     if (error && typeof error === "object" && error.code === "ENOENT") {
+      if (required) {
+        throw new Error(`配置文件不存在：${filename}`);
+      }
+
       return {};
     }
 
@@ -137,53 +139,39 @@ function normalizeBaseUrl(value) {
   return url.toString().replace(/\/$/, "");
 }
 
-async function isHealthy(baseUrl) {
-  try {
-    const response = await fetch(`${baseUrl}/api/health`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
 async function resolveConfig(options) {
   const explicitEnv = options["env-file"]
-    ? await readEnvFile(path.resolve(String(options["env-file"])))
+    ? await readEnvFile(path.resolve(String(options["env-file"])), {
+        required: true,
+      })
     : {};
   const skillEnv = await readEnvFile(path.join(SKILL_DIR, ".env"));
-  const projectEnv = await readEnvFile(path.join(PROJECT_ROOT, ".env"));
   const getConfigValue = (key) =>
-    firstNonEmpty(
-      process.env[key],
-      explicitEnv[key],
-      skillEnv[key],
-      projectEnv[key],
-    );
+    firstNonEmpty(explicitEnv[key], process.env[key], skillEnv[key]);
   const configuredBaseUrl = firstNonEmpty(
     options["base-url"],
     getConfigValue("NOTES_API_BASE_URL"),
   );
-  const baseUrl = configuredBaseUrl
-    ? normalizeBaseUrl(configuredBaseUrl)
-    : (await isHealthy(LOCAL_BASE_URL))
-      ? LOCAL_BASE_URL
-      : REMOTE_BASE_URL;
+
+  if (!configuredBaseUrl) {
+    throw new Error(
+      "缺少服务地址。请在 .env 中设置 NOTES_API_BASE_URL，或显式传入 --base-url。",
+    );
+  }
+
+  const baseUrl = normalizeBaseUrl(configuredBaseUrl);
   const username = firstNonEmpty(
     options.username,
     getConfigValue("NOTES_API_USERNAME"),
-    getConfigValue("SUPERADMIN"),
   );
   const password = firstNonEmpty(
     options.password,
     getConfigValue("NOTES_API_PASSWORD"),
-    getConfigValue("SUPERADMINPASSWORD"),
   );
 
   if (!username || !password) {
     throw new Error(
-      "缺少账号凭据。请设置 NOTES_API_USERNAME/NOTES_API_PASSWORD，或在项目 .env 中配置 SUPERADMIN/SUPERADMINPASSWORD。",
+      "缺少账号凭据。请在 .env 中设置 NOTES_API_USERNAME/NOTES_API_PASSWORD，或显式传入 --username/--password。",
     );
   }
 
@@ -302,7 +290,7 @@ function requireMutableNote(workspace, noteId) {
   const note = requireNote(workspace, noteId);
 
   if (note.deletedAt !== null) {
-    throw new Error("回收站中的便签不能分类、加星或置顶。");
+    throw new Error("回收站中的便签不能修改、分类、加星或置顶。");
   }
 
   return note;
@@ -359,6 +347,45 @@ function getNotePreview(markdown) {
   return preview.length <= 88
     ? preview
     : `${preview.slice(0, 87).trimEnd()}…`;
+}
+
+function createWorkspaceNote(
+  workspace,
+  {
+    folderId = null,
+    isStarred = false,
+    markdown = "",
+    now = Date.now(),
+    pinned = false,
+  } = {},
+) {
+  const firstNormalOrder = workspace.notes.reduce(
+    (smallest, note) => Math.min(smallest, note.normalOrder),
+    0,
+  );
+  const newestPinnedAt = workspace.notes.reduce(
+    (latest, note) => Math.max(latest, note.pinnedAt ?? 0),
+    0,
+  );
+
+  return {
+    id: randomUUID(),
+    markdown,
+    createdAt: now,
+    updatedAt: now,
+    normalOrder: firstNormalOrder - 1,
+    pinnedAt: pinned ? Math.max(now, newestPinnedAt + 1) : null,
+    folderId,
+    isStarred,
+    deletedAt: null,
+  };
+}
+
+function addBlankLiveNote(workspace) {
+  const note = createWorkspaceNote(workspace);
+  workspace.activeNoteId = note.id;
+  workspace.notes = [note, ...workspace.notes];
+  return note;
 }
 
 function orderNotes(notes) {
@@ -597,25 +624,13 @@ async function commandAdd(config, cookie, options) {
       folderOption === undefined
         ? null
         : resolveFolder(workspace, folderOption, true);
-    const firstNormalOrder = workspace.notes.reduce(
-      (smallest, note) => Math.min(smallest, note.normalOrder),
-      0,
-    );
-    const newestPinnedAt = workspace.notes.reduce(
-      (latest, note) => Math.max(latest, note.pinnedAt ?? 0),
-      0,
-    );
-    const note = {
-      id: randomUUID(),
-      markdown,
-      createdAt: now,
-      updatedAt: now,
-      normalOrder: firstNormalOrder - 1,
-      pinnedAt: pinned ? Math.max(now, newestPinnedAt + 1) : null,
+    const note = createWorkspaceNote(workspace, {
       folderId: folder?.id ?? null,
       isStarred: starred,
-      deletedAt: null,
-    };
+      markdown,
+      now,
+      pinned,
+    });
 
     workspace.activeNoteId = note.id;
     workspace.notes = [note, ...workspace.notes];
@@ -623,6 +638,128 @@ async function commandAdd(config, cookie, options) {
     return {
       select: (storedWorkspace) =>
         presentNote(requireNote(storedWorkspace, note.id), storedWorkspace),
+      workspace,
+    };
+  });
+
+  return { note: result.value, updatedAt: result.updatedAt };
+}
+
+async function commandUpdate(config, cookie, options) {
+  const noteId = requireStringOption(options, "note-id");
+  const markdown = await readMarkdownOption(options);
+  const result = await mutateWorkspace(config, cookie, (current) => {
+    const workspace = requireWorkspace({ workspace: current });
+    const note = requireMutableNote(workspace, noteId);
+
+    if (note.markdown === markdown) {
+      return {
+        unchanged: true,
+        value: presentNote(note, workspace),
+      };
+    }
+
+    note.markdown = markdown;
+    note.updatedAt = Date.now();
+    return {
+      select: (storedWorkspace) =>
+        presentNote(requireNote(storedWorkspace, noteId), storedWorkspace),
+      workspace,
+    };
+  });
+
+  return { note: result.value, updatedAt: result.updatedAt };
+}
+
+async function commandDelete(config, cookie, options) {
+  const noteId = requireStringOption(options, "note-id");
+  const permanent = options.permanent === true;
+  const result = await mutateWorkspace(config, cookie, (current) => {
+    const workspace = requireWorkspace({ workspace: current });
+    const note = requireNote(workspace, noteId);
+
+    if (!permanent) {
+      if (note.deletedAt !== null) {
+        return {
+          unchanged: true,
+          value: presentNote(note, workspace),
+        };
+      }
+
+      note.deletedAt = Date.now();
+      note.pinnedAt = null;
+
+      if (!workspace.notes.some((candidate) => candidate.deletedAt === null)) {
+        addBlankLiveNote(workspace);
+      } else if (workspace.activeNoteId === noteId) {
+        workspace.activeNoteId = workspace.notes.find(
+          (candidate) => candidate.deletedAt === null,
+        ).id;
+      }
+
+      return {
+        select: (storedWorkspace) =>
+          presentNote(requireNote(storedWorkspace, noteId), storedWorkspace),
+        workspace,
+      };
+    }
+
+    if (note.deletedAt === null) {
+      throw new Error(
+        "永久删除只允许回收站中的便签。请先执行 delete 软删除，再显式传入 --permanent。",
+      );
+    }
+
+    const noteIndex = workspace.notes.findIndex(
+      (candidate) => candidate.id === noteId,
+    );
+    workspace.notes = workspace.notes.filter(
+      (candidate) => candidate.id !== noteId,
+    );
+
+    if (!workspace.notes.some((candidate) => candidate.deletedAt === null)) {
+      addBlankLiveNote(workspace);
+    } else if (workspace.activeNoteId === noteId) {
+      workspace.activeNoteId =
+        workspace.notes.find((candidate) => candidate.deletedAt === null)?.id ??
+        workspace.notes[
+          Math.min(Math.max(noteIndex, 0), workspace.notes.length - 1)
+        ].id;
+    }
+
+    return {
+      select: (storedWorkspace) => ({
+        activeNoteId: storedWorkspace.activeNoteId,
+        id: noteId,
+        permanent: true,
+      }),
+      workspace,
+    };
+  });
+
+  return permanent
+    ? { deleted: result.value, updatedAt: result.updatedAt }
+    : { note: result.value, updatedAt: result.updatedAt };
+}
+
+async function commandRestore(config, cookie, options) {
+  const noteId = requireStringOption(options, "note-id");
+  const result = await mutateWorkspace(config, cookie, (current) => {
+    const workspace = requireWorkspace({ workspace: current });
+    const note = requireNote(workspace, noteId);
+
+    if (note.deletedAt === null) {
+      return {
+        unchanged: true,
+        value: presentNote(note, workspace),
+      };
+    }
+
+    note.deletedAt = null;
+    note.pinnedAt = null;
+    return {
+      select: (storedWorkspace) =>
+        presentNote(requireNote(storedWorkspace, noteId), storedWorkspace),
       workspace,
     };
   });
@@ -818,6 +955,9 @@ Usage:
   notes_api.mjs list [--category all|starred|trash|folder] [--query TEXT]
   notes_api.mjs get --note-id ID
   notes_api.mjs add (--markdown TEXT | --markdown-file PATH) [--folder NAME_OR_ID] [--starred] [--pinned]
+  notes_api.mjs update --note-id ID (--markdown TEXT | --markdown-file PATH)
+  notes_api.mjs delete --note-id ID [--permanent]
+  notes_api.mjs restore --note-id ID
   notes_api.mjs folders
   notes_api.mjs folder-create --name NAME
   notes_api.mjs classify --note-id ID --folder NAME_OR_ID|none
@@ -846,12 +986,15 @@ async function main() {
   const handlers = {
     add: commandAdd,
     classify: commandClassify,
+    delete: commandDelete,
     "folder-create": commandFolderCreate,
     folders: commandFolders,
     get: commandGet,
     list: commandList,
     pin: commandPin,
+    restore: commandRestore,
     star: commandStar,
+    update: commandUpdate,
     wechat: commandWechat,
   };
   const handler = handlers[command];

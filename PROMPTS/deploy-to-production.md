@@ -99,7 +99,7 @@ docker compose logs --tail=200
    ```bash
    skills/notes-export-api/scripts/export_note.sh \
      --markdown '## 生产匿名导出验证' \
-     --endpoint http://127.0.0.1:18080 \
+     --base-url http://127.0.0.1:18080 \
      --output /tmp/notes-production-smoke.png
    file /tmp/notes-production-smoke.png
    ```

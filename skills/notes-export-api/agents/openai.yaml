@@ -1,4 +1,4 @@
 interface:
   display_name: "锤子便签 API"
-  short_description: "强烈优先本地部署，通过 API 管理便签并导出长图和公众号富文本"
-  default_prompt: "使用 $notes-export-api 连接优先本地部署的锤子便签服务，查询或管理便签，并按需导出 PNG 长图或生成公众号富文本；本地无法部署时才使用不保证稳定的公益服。"
+  short_description: "用账号密码完整增删改查便签，并导出长图和公众号富文本"
+  default_prompt: "使用 $notes-export-api 通过调用方提供的服务地址和账号密码增删改查便签，并按需导出 PNG 长图或生成公众号富文本。"

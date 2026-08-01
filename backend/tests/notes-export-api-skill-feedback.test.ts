@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -14,6 +21,9 @@ import type { NoteWorkspace } from "../../src/types/app.js";
 const execFileAsync = promisify(execFile);
 const skillScript = path.resolve(
   "skills/notes-export-api/scripts/notes_api.mjs",
+);
+const exportScript = path.resolve(
+  "skills/notes-export-api/scripts/export_note.sh",
 );
 
 async function getUnusedPort(): Promise<number> {
@@ -93,13 +103,15 @@ async function runSkill(
       ...args,
       "--base-url",
       baseUrl,
+      "--username",
+      "feedback-admin",
+      "--password",
+      "feedback-admin-password",
     ],
     {
       cwd: process.cwd(),
       env: {
         ...process.env,
-        NOTES_API_PASSWORD: "feedback-admin-password",
-        NOTES_API_USERNAME: "feedback-admin",
       },
       maxBuffer: 4 * 1024 * 1024,
     },
@@ -108,7 +120,7 @@ async function runSkill(
   return JSON.parse(result.stdout) as Record<string, unknown>;
 }
 
-test("便签管理 Skill 可查询、新增、分类、星标、置顶并生成公众号格式", async (context) => {
+test("便签管理 Skill 可用账号密码完成增删改查、分类和公众号格式", async (context) => {
   const port = await getUnusedPort();
   const dataDir = await mkdtemp(path.join(tmpdir(), "notes-skill-data-"));
   const imageDir = await mkdtemp(path.join(tmpdir(), "notes-skill-images-"));
@@ -151,6 +163,170 @@ test("便签管理 Skill 可查询、新增、分类、星标、置顶并生成�
   try {
     await waitForHealth(baseUrl, child);
 
+    const envFile = path.join(outputDir, "notes-api.env");
+    await writeFile(
+      envFile,
+      [
+        `NOTES_API_BASE_URL=${baseUrl}`,
+        "NOTES_API_USERNAME=feedback-admin",
+        "NOTES_API_PASSWORD=feedback-admin-password",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    const configuredByFile = await execFileAsync(
+      process.execPath,
+      [skillScript, "list", "--env-file", envFile],
+      {
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          NOTES_API_BASE_URL: "http://127.0.0.1:1",
+          NOTES_API_PASSWORD: "wrong-ambient-password",
+          NOTES_API_USERNAME: "wrong-ambient-user",
+        },
+        maxBuffer: 4 * 1024 * 1024,
+      },
+    );
+    const envFileList = JSON.parse(configuredByFile.stdout) as {
+      notes: unknown[];
+      total: number;
+    };
+    assert.equal(envFileList.total, 0);
+    assert.deepEqual(envFileList.notes, []);
+
+    const fakeBinDir = path.join(outputDir, "fake-bin");
+    const fakeCurl = path.join(fakeBinDir, "curl");
+    const fakeCurlLog = path.join(outputDir, "fake-curl-url.txt");
+    await mkdir(fakeBinDir);
+    await writeFile(
+      fakeCurl,
+      `#!/usr/bin/env bash
+set -euo pipefail
+output=""
+url=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --output)
+      output="$2"
+      shift 2
+      ;;
+    -H|--data-binary)
+      shift 2
+      ;;
+    -sS)
+      shift
+      ;;
+    *)
+      url="$1"
+      shift
+      ;;
+  esac
+done
+printf 'fake-png' > "$output"
+printf '%s' "$url" > "$FAKE_CURL_LOG"
+`,
+      "utf8",
+    );
+    await chmod(fakeCurl, 0o755);
+    const exportOutput = path.join(outputDir, "configured-by-env.png");
+    await execFileAsync(
+      exportScript,
+      [
+        "--env-file",
+        envFile,
+        "--markdown",
+        "# 统一地址测试",
+        "--output",
+        exportOutput,
+      ],
+      {
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          FAKE_CURL_LOG: fakeCurlLog,
+          NOTES_API_BASE_URL: "http://127.0.0.1:1",
+          PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+    assert.equal(
+      await readFile(fakeCurlLog, "utf8"),
+      `${baseUrl}/api/export`,
+    );
+    assert.equal(await readFile(exportOutput, "utf8"), "fake-png");
+
+    const commandLineBaseUrl = "http://127.0.0.1:29999";
+    await execFileAsync(
+      exportScript,
+      [
+        "--env-file",
+        envFile,
+        "--base-url",
+        commandLineBaseUrl,
+        "--markdown",
+        "# 命令行地址覆盖测试",
+        "--output",
+        path.join(outputDir, "configured-by-argument.png"),
+      ],
+      {
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          FAKE_CURL_LOG: fakeCurlLog,
+          PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+    assert.equal(
+      await readFile(fakeCurlLog, "utf8"),
+      `${commandLineBaseUrl}/api/export`,
+    );
+
+    const missingBaseUrlEnv = path.join(outputDir, "missing-base-url.env");
+    await writeFile(
+      missingBaseUrlEnv,
+      [
+        "NOTES_API_USERNAME=feedback-admin",
+        "NOTES_API_PASSWORD=feedback-admin-password",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    const missingBaseUrlProcessEnv = {
+      ...process.env,
+      NOTES_API_BASE_URL: "",
+    };
+    await assert.rejects(
+      execFileAsync(
+        process.execPath,
+        [skillScript, "list", "--env-file", missingBaseUrlEnv],
+        {
+          cwd: process.cwd(),
+          env: missingBaseUrlProcessEnv,
+        },
+      ),
+      /缺少服务地址/,
+    );
+    await assert.rejects(
+      execFileAsync(
+        exportScript,
+        [
+          "--env-file",
+          missingBaseUrlEnv,
+          "--markdown",
+          "# 缺少服务地址",
+          "--output",
+          path.join(outputDir, "missing-base-url.png"),
+        ],
+        {
+          cwd: process.cwd(),
+          env: missingBaseUrlProcessEnv,
+        },
+      ),
+      /缺少服务地址/,
+    );
+
     const emptyList = await runSkill(baseUrl, ["list"]);
     assert.equal(emptyList.total, 0);
     assert.deepEqual(emptyList.notes, []);
@@ -165,6 +341,7 @@ test("便签管理 Skill 可查询、新增、分类、星标、置顶并生成�
       isPinned: boolean;
       isStarred: boolean;
       markdown: string;
+      updatedAt: number;
     };
     assert.match(addedNote.id, /^[0-9a-f-]{36}$/);
     assert.equal(addedNote.isPinned, false);
@@ -243,6 +420,22 @@ test("便签管理 Skill 可查询、新增、分类、星标、置顶并生成�
     assert.equal(fetchedNote.isStarred, true);
     assert.match(fetchedNote.markdown, /Skill 新增便签/);
 
+    const updated = await runSkill(baseUrl, [
+      "update",
+      "--note-id",
+      addedNote.id,
+      "--markdown",
+      "# Skill 修改便签\n\n正文已通过 API 更新。",
+    ]);
+    const updatedNote = updated.note as {
+      id: string;
+      markdown: string;
+      updatedAt: number;
+    };
+    assert.equal(updatedNote.id, addedNote.id);
+    assert.match(updatedNote.markdown, /正文已通过 API 更新/);
+    assert.ok(updatedNote.updatedAt >= addedNote.updatedAt);
+
     const htmlPath = path.join(outputDir, "wechat.html");
     const wechat = await runSkill(baseUrl, [
       "wechat",
@@ -255,8 +448,79 @@ test("便签管理 Skill 可查询、新增、分类、星标、置顶并生成�
     assert.equal(wechat.htmlPath, htmlPath);
     assert.equal(wechat.imageCount, 0);
     const wechatHtml = await readFile(htmlPath, "utf8");
-    assert.match(wechatHtml, /Skill 新增便签/);
+    assert.match(wechatHtml, /Skill 修改便签/);
     assert.match(wechatHtml, /via Smartisan Notes/);
+
+    await assert.rejects(
+      runSkill(baseUrl, [
+        "delete",
+        "--note-id",
+        addedNote.id,
+        "--permanent",
+      ]),
+      /永久删除只允许回收站中的便签/,
+    );
+
+    const movedToTrash = await runSkill(baseUrl, [
+      "delete",
+      "--note-id",
+      addedNote.id,
+    ]);
+    const trashedNote = movedToTrash.note as {
+      deletedAt: number;
+      id: string;
+      isPinned: boolean;
+    };
+    assert.equal(trashedNote.id, addedNote.id);
+    assert.equal(trashedNote.isPinned, false);
+    assert.equal(typeof trashedNote.deletedAt, "number");
+
+    const liveAfterDelete = await runSkill(baseUrl, ["list"]);
+    assert.equal(
+      (liveAfterDelete.notes as Array<{ id: string }>).some(
+        (note) => note.id === addedNote.id,
+      ),
+      false,
+    );
+    const trashAfterDelete = await runSkill(baseUrl, [
+      "list",
+      "--category",
+      "trash",
+    ]);
+    assert.equal(trashAfterDelete.total, 1);
+    assert.equal(
+      (trashAfterDelete.notes as Array<{ id: string }>)[0].id,
+      addedNote.id,
+    );
+
+    const restored = await runSkill(baseUrl, [
+      "restore",
+      "--note-id",
+      addedNote.id,
+    ]);
+    assert.equal((restored.note as { deletedAt: null }).deletedAt, null);
+
+    await runSkill(baseUrl, ["delete", "--note-id", addedNote.id]);
+    const permanentlyDeleted = await runSkill(baseUrl, [
+      "delete",
+      "--note-id",
+      addedNote.id,
+      "--permanent",
+    ]);
+    const deleted = permanentlyDeleted.deleted as {
+      activeNoteId: string;
+      id: string;
+      permanent: boolean;
+    };
+    assert.match(deleted.activeNoteId, /^[0-9a-f-]{36}$/);
+    assert.equal(deleted.id, addedNote.id);
+    assert.equal(deleted.permanent, true);
+    const trashAfterPermanentDelete = await runSkill(baseUrl, [
+      "list",
+      "--category",
+      "trash",
+    ]);
+    assert.equal(trashAfterPermanentDelete.total, 0);
 
     const login = await fetch(`${baseUrl}/api/auth/login`, {
       method: "POST",

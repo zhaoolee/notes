@@ -65,7 +65,7 @@ test("AI 服务可用时才显示开启选项，并明确逐条确认", () => {
   assert.match(availableHtml, /AI 辅助审阅/);
   assert.match(availableHtml, /role="switch"/);
   assert.match(availableHtml, /aria-checked="true"/);
-  assert.match(availableHtml, /逐条确认或同意所有，修改前由你决定/);
+  assert.match(availableHtml, /逐条确认或接受剩余建议，修改前由你决定/);
 });
 
 test("底部显示设置提供四角格、Logo 上传、双文本编辑、恢复默认与持久化", () => {

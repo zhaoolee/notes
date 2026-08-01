@@ -571,13 +571,16 @@
 ## 2026-07-30～31：iOS 可视视口与触控命中基线
 
 - iOS Safari / Chrome 展开顶部地址栏、从页面缓存恢复或显示软键盘时，
-  `visualViewport.height` 会变化；应用壳继续同步这个高度，使列表、编辑器和
-  预览区只占用键盘上方的实际可见空间。
-- 不得用 `visualViewport.offsetTop` 平移固定定位的 `.app-layout`，也不得监听
-  `visualViewport.scroll` 后强制 `window.scrollTo(0, 0)`。iOS 地址栏动画会让
-  纵向原点短暂变化，绘制层被移动后，浏览器原生触控高亮和实际命中区域可能仍按
-  原坐标计算，表现为标签需要偏着点、点击第一条却命中第二条。应用壳固定
-  `top: 0; left: 0; right: 0`，仅在 resize、pageshow 和横竖屏切换时同步高度。
+  `visualViewport.height` 会变化；iOS 26 切换不同高度的系统或第三方键盘时，
+  `visualViewport.offsetTop` 也会增大。应用壳同步两者，使列表、编辑器和预览区
+  只占用键盘上方的实际可见空间。
+- 不得用 `visualViewport.offsetTop` 改写固定定位 `.app-layout` 的 `top` 或
+  `transform`，也不得在 `visualViewport.scroll` 中强制
+  `window.scrollTo(0, 0)`。应用壳继续固定 `top: 0; left: 0; right: 0`，但以
+  border-box 的 `height = visualViewport.height + offsetTop` 和
+  `padding-top = offsetTop` 做正常布局补偿；这样内容和触控命中一起移动，底部
+  始终贴住键盘。resize 负责键盘尺寸变化，visualViewport scroll 负责长文光标在
+  resize 之后的第二阶段避让；两者都只能同步 CSS 变量，不能主动滚动 window 或正文。
 - iOS 26 Safari 真机录屏中，应用壳右边界从 `1320px` 移到 `1232px`，按设备
   `3×` 比例恰好对应 `440px → 410.7px`，并在右侧露出约 `29.3px` 空带。旧实现
   唯一的横向动态输入正是 `visualViewport.width`，注入同一异常值可稳定复现；
@@ -909,3 +912,213 @@
 - 本地桌面实时预览在 `note-scale=2` 下实测：内框到 H1 顶部为 `18.67px`，H1
   底部到首段正文为 `20px`，关系已经从原先的“上方约 67px、下方 0px”改为
   “上窄下宽”。
+
+## 2026-08-01：AI 审阅差异标注与底部批量操作
+
+- AI 批量接受入口位于滚动正文之外的弹窗底部栏，文案随状态显示为
+  “接受剩余 N 条”；处理完成后按钮禁用并显示“全部建议已处理”。批量逻辑继续
+  跳过已忽略项并从审阅源快照重建正文。
+- 原文与建议改为使用字符级 Diff。删除内容使用语义化 `del`、红色背景与删除线，
+  新增内容使用 `ins`、绿色背景与下划线，标签同时显示“删除 / 新增”和修改处数，
+  不能只用颜色传达差异。
+- 常见短建议通过最长公共子序列定位多处细粒度改动；超长片段限制 Diff 矩阵规模，
+  超出预算时保留共同前后文并整体标出变化中段，避免审阅弹窗因极端输入卡顿。
+- 68 项前端 feedback、10 项后端 feedback、完整 TypeScript 检查与生产构建通过；
+  构建只保留既有的单 chunk 超过 `500kB` 提示。
+
+## 2026-08-01：正文图片两段式安全删除
+
+- 编辑态光标位于图片相邻边界时，第一次按 `Backspace` 或 `Delete` 只激活图片：
+  图片进入 `blur(12px)` 模糊态并显示删除、标注、下载、放大和裁剪五个操作按钮，
+  不改写 Markdown。
+- 对同一张已激活图片再次按删除键才打开确认框；图片操作浮层中的删除按钮也复用
+  同一确认流程，不能绕过确认直接删除图片标记。
+- 取消确认后图片、Markdown 和激活操作态全部保留，并把编辑焦点恢复到原来的图片
+  相邻边界；只有明确点击“删除图片”才移除对应 Markdown / HTML 图片标记。
+- 本地真实浏览器验证首次删除后图片数量仍为 1 且滤镜为 `blur(12px)`，二次删除
+  出现确认框，取消后图片数量仍为 1。68 项前端 feedback、10 项后端 feedback、
+  完整类型检查和生产构建通过。后端 feedback 改为单并发执行，并把四个真实服务
+  的健康检查启动预算从 15 秒统一为 30 秒，避免冷启动资源争用造成门禁假失败。
+
+## 2026-08-01：图片安全删除生产发布
+
+- 生产主机 `hermes-v2fy` 已以 detached HEAD 部署精确 commit
+  `ba873048de26f03dc5fdbb75aabc0c0b18ae7f94`；GitHub 远端为 `dev` 分支。
+  上一可回滚版本为 `7b64d83fb56a9868b7ef59c4974693aac661d7d5`。
+- 发布前备份位于
+  `/home/hermes/backups/notes/predeploy-20260801T060918Z-7b64d83`，约 45 MB，
+  包含 79 个图片文件与完整 `storage/data`。备份时生产数据文件与副本 SHA-256
+  一致；容器重建后发布前后均为 schema v1、1 个账号、2 个工作区、9 张云便签。
+- 新生产镜像 ID 为 backend `47eb87df5d4b`、frontend `cad512255fd0`。
+  内网和公网 `/api/health` 均返回成功，AI 状态均为可用；日志无重启、Playwright
+  或存储权限错误。
+- 匿名纯文本 PNG、图片导入、带图片 ZIP、带图片 PNG 与公网 HTTPS
+  `X-Export-Url` 均通过。超级管理员公网登录、`Secure / HttpOnly /
+  SameSite=Lax` Cookie、`/superadmin` 和云工作区读取通过；未写入真实工作区。
+- 生产隔离测试工作区浏览器实测：首次 Delete 后图片数量仍为 1、滤镜为
+  `blur(12px)` 且显示五个按钮；二次 Delete 才显示确认框；取消后图片仍保留。
+- 当前锁文件的生产依赖 `npm audit --omit=dev` 仍报告 4 项已存在公告（1 low、
+  1 moderate、2 high，集中在 body-parser、multer、path-to-regexp 和 qs）。本次
+  发布未自动执行依赖升级，后续应单独升级、完整回归并再次发布。
+
+## 2026-08-01：iOS 26 多键盘切换的编辑区空带
+
+- 用户真机 `1320 × 2868` 录屏确认：iOS 26 Safari 在正文聚焦后切到 Typeless
+  第三方键盘，Markdown 快捷栏先正确出现，随后顶栏和正文逐步漂出屏幕，快捷栏
+  下方扩大为占据数百像素的木纹空带。
+- 本地 iPhone 17 Pro / iOS 26.1 模拟器用拼音、Emoji 和英文键盘连续切换可复现
+  同一累计漂移：切换前顶栏完整，切换后状态栏乃至正文被推到可视区上方，木纹空带
+  随 `visualViewport.offsetTop` 增大。iOS 17 系统键盘不会复现同等幅度。
+- 根因是旧实现只把 `.app-layout` 高度设为 `visualViewport.height`，却没有补偿
+  纵向可视视口偏移；壳体在布局视口中过早结束。修复保留固定 `top: 0`，不写
+  `offsetLeft / width`，不强制 window 滚动；
+  改为 `height/max-height = height + offsetTop`，并用同值作为 `padding-top`。
+- 同一模拟器在修复后按“拼音 → Emoji → 英文”反复切换，顶栏、状态栏、正文和
+  快捷栏位置保持稳定，快捷栏下只保留 Safari 自身控件间距。68 项前端 feedback、
+  11 项后端 feedback、完整 TypeScript 检查和生产构建通过；后端测试首次在沙箱内
+  因禁止绑定 `127.0.0.1` 得到 EPERM，按既有权限在沙箱外重跑后全部通过。
+
+## 2026-08-01：iOS 26 长文光标的第二阶段可视视口滚动
+
+- 一行短文与键盘切换用例不足以覆盖正文滚动。iPhone 17 Pro / iOS 26.1 模拟器
+  使用精确 50 行正文，在第 25 行聚焦并显示软件键盘时，上一版修复仍会把顶栏和
+  大部分正文推到屏幕外，快捷栏下方留下明显木纹空带。
+- 原因是长文光标避让在 visualViewport resize 之后还会触发 scroll；只监听
+  resize 会遗漏最终 offsetTop。应用壳现在同时监听 visualViewport resize 和
+  scroll，但 scroll 回调仍只同步 height/offsetTop CSS 变量，不调用 window.scrollTo，
+  不改 top/transform，也不主动改正文 scrollTop。
+- 同一份 50 行正文在修复后分别验证第 5、25、45 行：三处当前行都留在正文可视区，
+  顶栏完整，快捷栏贴住正文底部，没有大块空带。移动端键盘回归以后必须至少包含
+  这三个位置，不能再用一行内容代替长文验收。
+
+## 2026-08-01：便签详情 URL 深链接
+
+- 便签详情使用 `#note=<便签 ID>&view=editor|preview` 记录唯一 ID 和视图状态；
+  hash 与查询参数隔离，测试工作区、主题和页脚查询配置不会被覆盖。
+- 选择或新建便签使用 `pushState` 形成可返回的历史节点；编辑 / 预览切换和返回列表
+  使用 `replaceState`，避免每次切换堆积历史。浏览器 `hashchange / popstate` 会重新
+  选择便签并恢复两端视图。
+- 启动恢复必须等待登录态与云工作区初始化完成后再判定 ID 是否失效，避免本地初始
+  工作区里暂时找不到云便签时误清 URL。回收站便签只恢复为预览；不存在的 ID 安全
+  回到全部便签列表并清理 hash。
+- 本地 `390 × 844` 隔离工作区实测：`smartisan-web-02` 写入精确 50 行后，编辑态
+  刷新仍恢复 50 行；切到预览态后刷新仍渲染 50 段；浏览器后退回列表、前进恢复
+  同一便签预览，`?testData=smartisan-web-20` 全程保留且页面无控制台错误。
+- 69 项前端 feedback、11 项后端 feedback、完整 TypeScript 检查和生产构建通过；
+  后端测试在沙箱内因禁止绑定 `127.0.0.1` 返回 EPERM，按既有权限在沙箱外重跑
+  11 项全部通过。构建只保留既有的单 chunk 超过 `500kB` 提示。
+
+## 2026-08-01：便签 URL 深链接生产发布
+
+- GitHub `dev` 与生产 detached HEAD 均为精确提交
+  `cc44d61c5ec04607b353a2a205f4a6217e6a0386`；可回滚应用版本为
+  `76f829710eaa6ee62589d0297ae43cdf180eab92`。
+- 发布前仓库外备份位于
+  `/home/hermes/notes-deploy-backups/20260801-164813-cc44d61`，包含 85 个图片文件和
+  2 个数据文件，共约 46 MB；受保护的 `notes-data.json` 通过后端容器只读导出，
+  与线上源文件 SHA-256 一致。
+- 新生产前端镜像为 `4ff18eb6cec4`；后端代码与镜像未变化，仍为
+  `47eb87df5d4b`。公开和本机健康检查均成功，AI 状态可用；后端重启前后数据哈希
+  一致，账号仍为 1 个、工作区仍为 2 个。
+- 生产首页加载的 `index-DWMkIOk3.js` 与精确提交的干净构建产物 SHA-256 同为
+  `479eb6d82b12e8d3cca9e272a856869a18bb0f4dee96a5472f271cae5c8fbdb4`。
+  生产 UI 自动化因浏览器安全策略拒绝访问该域名而未执行；同一字节构建在本地
+  `390 × 844`、精确 50 行编辑/预览刷新和前进后退用例中已通过。
+- 纯文本 PNG、图片导入、带图 PNG、带图 ZIP、HTTPS `X-Export-Url`、管理员公网
+  登录、`Secure / HttpOnly / SameSite=Lax` Cookie、云工作区只读及
+  `/superadmin` 均通过；所有临时管理员登录文件和传输 bundle 已删除。
+- 公众号七牛冒烟失败：同源图片可读取，但七牛上传在服务端三次重试后仍报网络
+  `fetch failed` 并返回 502。后端镜像与上一版本相同，回滚本次前端不会修复该外部
+  网络故障，因此未回滚。失败测试使当日匿名额度从 1 增至 2，账号与工作区未变；
+  `QINIU_UPLOAD_URL` 和 `QINIU_UPLOAD_TIMEOUT_MS` 均已配置。
+- 生产机直连 GitHub 两次遇到 TLS 握手中断，发布改用本地校验的完整 Git bundle
+  经 SSH 导入同一 SHA；bundle 在检出和校验后已从生产机与本机删除。
+
+## 2026-08-01：notes-export-api 账号密码与便签完整 CRUD
+
+- `skills/notes-export-api/scripts/notes_api.mjs` 每次命令都通过
+  `/api/auth/login` 使用用户名/邮箱和密码换取 HttpOnly 会话；凭据支持
+  `--username/--password`、`NOTES_API_USERNAME/NOTES_API_PASSWORD`、指定
+  `--env-file` 或 Skill/项目 `.env`，其中环境变量或 env 文件优先用于日常调用，
+  避免密码进入 shell 历史和进程列表。
+- 便签命令已覆盖 `add/list/get/update/delete/restore`。`update` 只替换目标
+  Markdown 并刷新便签 `updatedAt`；普通 `delete` 是保留内容、分类和星标的软删除，
+  同时取消置顶；`restore` 不会自动重新置顶。
+- 永久删除必须先把便签放入回收站，再显式执行 `delete --permanent`。删除最后一张
+  正常便签时会创建空白便签，保持服务端工作区满足至少一张便签的数据约束并可继续
+  编辑。
+- 新增、更新、软删除、恢复和永久删除都继续使用 `expectedUpdatedAt` 条件保存；
+  冲突时重读最新工作区并最多重做目标操作 4 次，不覆盖并发修改。
+- 隔离 feedback 已通过显式 `--username/--password` 完成“新增 → 分类/星标/置顶 →
+  查询 → 更新 → 公众号 HTML → 软删除 → 回收站查询 → 恢复 → 永久删除”闭环；
+  `skill-creator` quick validation、feedback TypeScript 检查和完整 11 项后端
+  feedback 同时通过。
+
+## 2026-08-01：notes-export-api Hermes 实测与服务地址配置
+
+- Hermes 0.19.0 已在隔离后端完成便签“新增 → 列表定位 → 详情 → 更新 → 软删除 →
+  回收站确认 → 恢复 → 再次软删除 → 永久删除”闭环，测试只连接
+  `127.0.0.1:19281`，未触达公网服务；目标测试便签与回收站记录均已清除。永久删除
+  最后一张正常便签后，工作区按既有约束保留一张新的空白便签。
+- Hermes 的 SSH 终端不会自动拥有 macOS 宿主机的 Skill 路径或环境变量。直接调用
+  本机 Skill 应使用 `local` 终端后端；SSH、Docker 等隔离后端必须先同步脚本与 env
+  文件，并传入对应环境中的路径。测试中的首次远程尝试因路径不可见而安全退出，
+  没有回退到公益服。
+- 当时管理脚本使用 `--base-url` / `NOTES_API_BASE_URL`，长图脚本仍使用独立的
+  `--endpoint` / `NOTES_EXPORT_API_BASE_URL`；该双配置随后按下一节收敛。
+- 显式 `--env-file` 现在优先于调用进程已有的 `NOTES_API_*`，防止隔离测试被宿主
+  环境残留的生产地址或账号覆盖；命令行参数仍具有最高优先级。
+
+## 2026-08-01：notes-export-api 统一服务地址
+
+- 便签管理和长图导出现在只使用一套服务配置：`.env` 中的
+  `NOTES_API_BASE_URL`，或命令行 `--base-url`；两个脚本均支持 `--env-file`。
+  `NOTES_EXPORT_API_BASE_URL` 与 `--endpoint` 已移除，不再维护导出专用地址。
+- 两个脚本都取消本地端口健康探测和公益服自动回退。`.env` 与命令行都没有地址时，
+  会在发出网络请求前明确报“缺少服务地址”，由调用方补充，避免误连其他环境。
+- 长图脚本根据同一个基础地址固定调用 `/api/export`，本地 Markdown 图片固定调用
+  同源 `/api/images/import`。feedback 使用假 curl 验证 `.env` 地址、命令行覆盖和
+  缺失配置三条路径，不需要接触生产导出服务。
+- Skill `.env.example` 明确区分普通用户和单人部署：单人部署把项目 `.env` 的
+  `SUPERADMIN`、`SUPERADMINPASSWORD` 实际值分别复制为 `NOTES_API_USERNAME`、
+  `NOTES_API_PASSWORD`。脚本不展开 `${SUPERADMIN}` 一类变量引用。
+
+## 2026-08-01：手机直达编辑页偶发只显示首行
+
+- 可稳定复现的入口是手机断点下直达
+  `?testData=smartisan-web-20#note=smartisan-web-01&view=editor`：工作区和路由恢复前
+  编辑面板以 `display: none` 挂载，textarea 在零宽容器内得到 `scrollHeight = 0`，
+  旧逻辑因此把 644 字、24 个逻辑行的正文写成 `42px` 高，只显示首行；Markdown
+  数据从未丢失。
+- 自动高度现在跳过零宽编辑器，并以 `ResizeObserver` 监听编辑滚动区从隐藏到可见
+  的尺寸变化。第一次展开后还要做第二次高度稳定：纵向滚动条出现可能缩窄正文，
+  产生新的折行；只使用第一次 `scrollHeight` 仍会裁掉末尾若干行。
+- 同一移动浏览器路由在修复前为 `clientHeight 42 / scrollHeight 1848`，修复后为
+  `clientHeight 1974 / scrollHeight 1974`、隐藏像素 0。重算继续保存并恢复
+  `scrollTop`。
+- 新增直达编辑页回归约束；精确提交的 69 项前端 feedback、11 项后端 feedback、完整
+  TypeScript 检查和生产构建通过。后端测试首次在沙箱内因禁止监听
+  `127.0.0.1` 返回 EPERM，获准在沙箱外重跑后全部通过；构建只保留既有的单 chunk
+  超过 `500kB` 提示。
+
+## 2026-08-01：手机正文高度修复生产发布
+
+- GitHub `dev` 与生产 detached HEAD 均为精确提交
+  `8085d55c089caa058aee7b644d68066a058eed37`；上一可回滚版本为
+  `cc44d61c5ec04607b353a2a205f4a6217e6a0386`。
+- 发布前仓库外备份位于
+  `/home/hermes/notes-deploy-backups/20260801T094832Z-cc44d61-to-8085d55`，约 47 MB，
+  包含 88 个图片文件和 2 个数据文件。生产 `notes-data.json` 与备份的 SHA-256
+  同为 `adc9d05ec8d2b9b3c18a8264b0ad272548eb369e1cf116f4c42e775cea997da8`。
+- 新生产前端镜像为 `374bf040a90d`；后端未变化，仍为 `47eb87df5d4b`。
+  两个容器均为 running、重启次数为 0，内外网健康检查成功，AI 状态均为可用。
+- 精确提交干净构建与生产容器的 JS / CSS 校验和分别一致：
+  `index-CUpcC8fU.js` 为 `7fc12ec8ce86a5ec6f2657eef784ac434001c386177b3f22ce02efa58e705435`，
+  `index-5kRKseHp.css` 为 `5482950890d71fb724226bf43a3b826aa73967d4ac6d926b71307e0be6c4e294`。
+- 生产移动端 `390 × 844` 首次直达与刷新后均为
+  `clientHeight 1974 / scrollHeight 1974`、隐藏像素 0，实际加载新 JS 且无控制台错误。
+  纯文本 PNG、图片导入、带图 PNG、包含图片资源的 ZIP、HTTPS `X-Export-Url`、
+  `/superadmin`、管理员安全 Cookie 和云工作区只读检查均通过。
+- 本次是前端修复，已知七牛上传外部网络故障未重复消耗额度验证；后端镜像没有变化，
+  回滚本次前端也不会修复该问题。精确提交的 69 项前端 feedback、11 项后端 feedback
+  和生产构建通过，构建只保留既有的单 chunk 超过 `500kB` 提示。

@@ -3726,6 +3726,7 @@ body,
 }
 
 .ai-review-body {
+  flex: 1 1 auto;
   min-height: 0;
   padding: 18px 20px 22px;
   display: grid;
@@ -3767,7 +3768,7 @@ body,
 
 .ai-review-quick-actions button,
 .ai-suggestion-actions button,
-.ai-suggestion-summary button {
+.ai-review-footer button {
   min-height: 34px;
   padding: 0 12px;
   border: 1px solid var(--toolbar-border);
@@ -3805,7 +3806,7 @@ body,
 
 .ai-review-submit:disabled,
 .ai-suggestion-actions button:disabled,
-.ai-suggestion-summary button:disabled {
+.ai-review-footer button:disabled {
   cursor: default;
   opacity: 0.48;
 }
@@ -3907,12 +3908,21 @@ body,
   background: color-mix(in srgb, var(--dialog-bg) 86%, var(--panel-border));
 }
 
-.ai-suggestion-diff span {
+.ai-suggestion-diff-label {
   padding: 6px 9px;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   border-bottom: 1px solid var(--panel-border);
   color: var(--muted);
   font-size: 0.7rem;
+}
+
+.ai-suggestion-diff-label small {
+  color: color-mix(in srgb, var(--muted) 82%, transparent);
+  font: inherit;
+  white-space: nowrap;
 }
 
 .ai-suggestion-diff pre {
@@ -3925,6 +3935,37 @@ body,
   overflow-wrap: anywhere;
 }
 
+.ai-diff-unchanged {
+  color: color-mix(in srgb, var(--ink) 78%, var(--muted));
+}
+
+.ai-diff-removed,
+.ai-diff-added {
+  margin: 0 1px;
+  padding: 1px 2px;
+  border-radius: 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  font: inherit;
+}
+
+.ai-diff-removed {
+  background: color-mix(in srgb, #c65349 18%, transparent);
+  color: color-mix(in srgb, #c65349 82%, var(--ink));
+  text-decoration-color: currentColor;
+  text-decoration-line: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
+.ai-diff-added {
+  background: color-mix(in srgb, #78962f 22%, transparent);
+  color: color-mix(in srgb, #78962f 82%, var(--ink));
+  text-decoration-color: currentColor;
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
 .ai-suggestion-actions {
   display: flex;
   justify-content: flex-end;
@@ -3932,7 +3973,7 @@ body,
 }
 
 .ai-suggestion-actions .is-primary,
-.ai-suggestion-summary .is-primary {
+.ai-review-footer .is-primary {
   border-color: var(--export-button-border);
   background: var(--export-button-bg);
   color: var(--export-button-text);
@@ -3940,8 +3981,35 @@ body,
 }
 
 .ai-suggestion-actions .is-primary:hover:not(:disabled),
-.ai-suggestion-summary .is-primary:hover:not(:disabled) {
+.ai-review-footer .is-primary:hover:not(:disabled) {
   background: var(--export-button-hover-bg);
+}
+
+.ai-review-footer {
+  position: relative;
+  z-index: 2;
+  min-height: 58px;
+  padding: 10px 20px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--panel-border);
+  background: var(--dialog-bg);
+  box-shadow: 0 -10px 22px color-mix(in srgb, var(--dialog-backdrop) 45%, transparent);
+}
+
+.ai-review-footer p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.ai-review-footer button {
+  min-width: 138px;
+  min-height: 38px;
+  font-weight: 600;
 }
 
 .confirm-dialog {
@@ -7392,7 +7460,15 @@ body,
     padding:
       14px
       max(14px, env(safe-area-inset-right))
-      max(18px, env(safe-area-inset-bottom))
+      14px
+      max(14px, env(safe-area-inset-left));
+  }
+
+  .ai-review-footer {
+    padding:
+      10px
+      max(14px, env(safe-area-inset-right))
+      max(10px, env(safe-area-inset-bottom))
       max(14px, env(safe-area-inset-left));
   }
 

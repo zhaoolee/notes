@@ -108,7 +108,7 @@ Secret 注入，并为 `SESSION_SECRET` 配置独立的高熵随机值。未配�
 - `backend/tests/api-feedback.test.ts`：匿名临时上传策略，以及普通用户和超级
   管理员的长期上传、无限额分支。
 - `backend/tests/notes-export-api-skill-feedback.test.ts`：通过真实 Skill
-  命令验证管理员查询、新增、文件夹分类、星标、置顶、公众号 HTML，以及过期
-  `expectedUpdatedAt` 返回 409。
+  命令和显式账号密码验证便签增删改查、软删除、恢复、永久删除、文件夹分类、
+  星标、置顶、公众号 HTML，以及过期 `expectedUpdatedAt` 返回 409。
 - `frontend/tests/auth-ui.test.ts`：单一账号密码登录、浏览器密码管理语义、普通
   用户修改密码表单、管理员重置入口、管理员路由与云同步入口。

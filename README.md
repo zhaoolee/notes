@@ -57,11 +57,13 @@ clawhub地址 https://clawhub.ai/zhaoolee/notes-export-api
 
 
 
-## Skill去域名依赖说明
+## Skill 服务地址说明
 
 - Web 应用本体可完全本地自托管，不依赖 `notes.fangyuanxiaozhan.com`
-- 现有 `notes-export-api` skill 脚本会优先探测本地生产入口 `18080`，再回退到线上演示地址
-- 如果你希望 skill 固定走自建服务，可在 `skills/notes-export-api/.env` 中设置 `NOTES_EXPORT_API_BASE_URL=http://127.0.0.1:18080`
+- 便签管理和长图导出统一使用 `NOTES_API_BASE_URL`
+- 可在 `skills/notes-export-api/.env` 中设置
+  `NOTES_API_BASE_URL=http://127.0.0.1:18080`，或给两个脚本传 `--base-url`
+- 未提供服务地址时脚本直接报错，不自动探测或回退线上地址
 
 
 ## 使用 Docker Hub 镜像部署本项目

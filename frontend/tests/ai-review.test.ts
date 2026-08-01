@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  buildSuggestionTextDiff,
   buildMarkdownFromAcceptedSuggestions,
   getAcceptedSuggestionIdsAfterAcceptAll,
   validateAiSuggestions,
@@ -67,7 +68,7 @@ test("任意顺序确认多个建议都按源快照稳定应用", () => {
   );
 });
 
-test("同意所有只接受仍待处理的建议并保留已忽略项", () => {
+test("接受剩余建议只处理仍待确认项并保留已忽略项", () => {
   const acceptedIds = getAcceptedSuggestionIdsAfterAcceptAll(
     suggestions,
     new Set(["typo"]),
@@ -82,6 +83,31 @@ test("同意所有只接受仍待处理的建议并保留已忽略项", () => {
       acceptedIds,
     ),
     "这里有一个别字。\n这行应该加粗。",
+  );
+});
+
+test("AI 建议以字符级差异标注删除、新增和修改次数", () => {
+  const diff = buildSuggestionTextDiff(
+    "我非常喜欢这款应用，**UI 漂亮**。",
+    "我非常喜欢这款应用。**UI 漂亮**。",
+  );
+
+  assert.equal(diff.changeCount, 1);
+  assert.deepEqual(
+    diff.original.filter((part) => part.type === "removed"),
+    [{ type: "removed", value: "，" }],
+  );
+  assert.deepEqual(
+    diff.replacement.filter((part) => part.type === "added"),
+    [{ type: "added", value: "。" }],
+  );
+  assert.equal(
+    diff.original.map((part) => part.value).join(""),
+    "我非常喜欢这款应用，**UI 漂亮**。",
+  );
+  assert.equal(
+    diff.replacement.map((part) => part.value).join(""),
+    "我非常喜欢这款应用。**UI 漂亮**。",
   );
 });
 
@@ -114,19 +140,37 @@ test("越界、原文不符和重叠建议会被拒绝", () => {
   );
 });
 
-test("AI 审阅支持三种快捷模式、逐条确认和安全的同意所有", () => {
+test("AI 审阅支持三种快捷模式、逐条确认和底部接受剩余建议", () => {
   const source = readFileSync("src/components/AiReviewDialog.tsx", "utf8");
   const appSource = readFileSync("src/App.tsx", "utf8");
+  const styles = readFileSync("src/styles.css", "utf8");
 
   assert.match(source, /纠正标点语法/);
   assert.match(source, /重点加粗/);
   assert.match(source, /让公众更易读/);
   assert.match(source, /把过长、信息过密的句子拆成自然、易读的短句/);
   assert.match(source, /保持原意、语气和 Markdown 结构/);
-  assert.match(source, /支持逐条确认，也可以一键同意所有待处理建议/);
+  assert.match(source, /支持逐条确认，也可以一键接受剩余待处理建议/);
   assert.match(source, /确认修改/);
   assert.match(source, /忽略/);
-  assert.match(source, /同意所有/);
+  assert.match(source, /className="ai-review-footer"/);
+  assert.match(source, /接受剩余 \$\{pendingSuggestionCount\} 条/);
+  assert.match(source, /全部建议已处理/);
+  assert.match(source, /className="ai-diff-removed"/);
+  assert.match(source, /className="ai-diff-added"/);
+  assert.match(source, /新增 · \{textDiff\.changeCount\} 处修改/);
+  assert.match(
+    styles,
+    /\.ai-review-footer\s*\{[^}]*flex:\s*0 0 auto;[^}]*border-top:/s,
+  );
+  assert.match(
+    styles,
+    /\.ai-diff-removed\s*\{[^}]*text-decoration-line:\s*line-through;/s,
+  );
+  assert.match(
+    styles,
+    /\.ai-diff-added\s*\{[^}]*text-decoration-line:\s*underline;/s,
+  );
   assert.match(
     source,
     /function handleAccept\(suggestion: AiSuggestion\)[\s\S]*onMarkdownChange\(nextMarkdown\)/,
@@ -175,7 +219,7 @@ test("AI 主要操作复用主题按钮色，不出现大面积荧光绿", () =>
   );
   assert.match(
     styles,
-    /\.ai-suggestion-actions \.is-primary,\s*\.ai-suggestion-summary \.is-primary\s*\{[\s\S]*?background:\s*var\(--export-button-bg\)/,
+    /\.ai-suggestion-actions \.is-primary,\s*\.ai-review-footer \.is-primary\s*\{[\s\S]*?background:\s*var\(--export-button-bg\)/,
   );
   assert.doesNotMatch(
     styles,
