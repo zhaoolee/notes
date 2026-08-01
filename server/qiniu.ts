@@ -9,6 +9,7 @@ interface LegacyQiniuConfig {
   QINIU_BUCKET?: string;
   QINIU_DOMAIN?: string;
   QINIU_PREFIX?: string;
+  QINIU_UPLOAD_TIMEOUT_MS?: number | string;
   QINIU_UPLOAD_URL?: string;
 }
 
@@ -18,6 +19,7 @@ export interface QiniuConfig {
   bucket: string;
   domain: string;
   prefix: string;
+  uploadTimeoutMs: number;
   uploadUrl: string;
 }
 
@@ -52,7 +54,31 @@ export class QiniuUploadError extends Error {
 const resolvedUploadUrls = new Map<string, string>();
 const QINIU_NETWORK_UPLOAD_ATTEMPTS = 3;
 const QINIU_NETWORK_RETRY_DELAY_MS = 150;
-const QINIU_UPLOAD_TIMEOUT_MS = 6_000;
+const DEFAULT_QINIU_UPLOAD_TIMEOUT_MS = 30_000;
+const MIN_QINIU_UPLOAD_TIMEOUT_MS = 10_000;
+const MAX_QINIU_UPLOAD_TIMEOUT_MS = 300_000;
+
+export function parseQiniuUploadTimeoutMs(value?: string): number {
+  const normalized = value?.trim();
+
+  if (!normalized) {
+    return DEFAULT_QINIU_UPLOAD_TIMEOUT_MS;
+  }
+
+  const parsed = Number(normalized);
+
+  if (
+    !Number.isSafeInteger(parsed) ||
+    parsed < MIN_QINIU_UPLOAD_TIMEOUT_MS ||
+    parsed > MAX_QINIU_UPLOAD_TIMEOUT_MS
+  ) {
+    throw new QiniuConfigurationError(
+      `QINIU_UPLOAD_TIMEOUT_MS 必须是 ${MIN_QINIU_UPLOAD_TIMEOUT_MS} 到 ${MAX_QINIU_UPLOAD_TIMEOUT_MS} 之间的整数毫秒值。`,
+    );
+  }
+
+  return parsed;
+}
 
 function normalizeDomain(value: string): string {
   const trimmed = value.trim().replace(/\/+$/, "");
@@ -87,6 +113,9 @@ function readEnvironmentConfig(): QiniuConfig | null {
     bucket,
     domain: normalizeDomain(domain),
     prefix: process.env.QINIU_PREFIX?.trim().replace(/^\/+|\/+$/g, "") || "",
+    uploadTimeoutMs: parseQiniuUploadTimeoutMs(
+      process.env.QINIU_UPLOAD_TIMEOUT_MS,
+    ),
     uploadUrl:
       process.env.QINIU_UPLOAD_URL?.trim() || "https://upload.qiniup.com",
   };
@@ -110,6 +139,12 @@ function parseLegacyConfig(data: LegacyQiniuConfig, configPath: string): QiniuCo
     bucket,
     domain: normalizeDomain(domain),
     prefix: data.QINIU_PREFIX?.trim().replace(/^\/+|\/+$/g, "") || "",
+    uploadTimeoutMs: parseQiniuUploadTimeoutMs(
+      process.env.QINIU_UPLOAD_TIMEOUT_MS ||
+        (data.QINIU_UPLOAD_TIMEOUT_MS == null
+          ? undefined
+          : String(data.QINIU_UPLOAD_TIMEOUT_MS)),
+    ),
     uploadUrl:
       process.env.QINIU_UPLOAD_URL?.trim() ||
       data.QINIU_UPLOAD_URL?.trim() ||
@@ -308,7 +343,7 @@ export async function uploadImageBufferToQiniu(
         return await fetch(uploadUrl, {
           method: "POST",
           body: form,
-          signal: AbortSignal.timeout(QINIU_UPLOAD_TIMEOUT_MS),
+          signal: AbortSignal.timeout(config.uploadTimeoutMs),
         });
       } catch (error) {
         lastError = error;
@@ -320,7 +355,7 @@ export async function uploadImageBufferToQiniu(
     }
 
     throw new QiniuUploadError(
-      `七牛图片上传网络失败（已重试 ${QINIU_NETWORK_UPLOAD_ATTEMPTS} 次）：${
+      `七牛图片上传网络失败（单次超时 ${config.uploadTimeoutMs}ms，已重试 ${QINIU_NETWORK_UPLOAD_ATTEMPTS} 次）：${
         lastError instanceof Error ? lastError.message : "未知网络错误"
       }`,
     );

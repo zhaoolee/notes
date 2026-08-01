@@ -8,6 +8,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
+import {
+  parseQiniuUploadTimeoutMs,
+  QiniuConfigurationError,
+} from "../../server/qiniu.js";
 
 interface ImportedImage {
   hash: string;
@@ -99,7 +103,7 @@ async function stopChild(child: ChildProcess): Promise<void> {
 test("Express 提供健康检查和内容寻址图片存储", async (context) => {
   assert.match(
     await readFile("server/qiniu.ts", "utf8"),
-    /signal:\s*AbortSignal\.timeout\(QINIU_UPLOAD_TIMEOUT_MS\)/,
+    /signal:\s*AbortSignal\.timeout\(config\.uploadTimeoutMs\)/,
   );
 
   const port = await getUnusedPort();
@@ -152,6 +156,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
         QINIU_BUCKET: "feedback-bucket",
         QINIU_DOMAIN: "https://cdn.example.test",
         QINIU_PREFIX: "wechat-test",
+        QINIU_UPLOAD_TIMEOUT_MS: "30000",
         QINIU_UPLOAD_URL: `http://127.0.0.1:${qiniuUploadAddress.port}`,
         SESSION_SECRET: "wechat-feedback-session-secret",
         SUPERADMIN: "wechat-feedback-admin",
@@ -519,4 +524,17 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
         .join("\n"),
     );
   }
+});
+
+test("七牛上传为完整 TLS 和请求链路保留可配置超时预算", () => {
+  assert.equal(parseQiniuUploadTimeoutMs(), 30_000);
+  assert.equal(parseQiniuUploadTimeoutMs("45000"), 45_000);
+  assert.throws(
+    () => parseQiniuUploadTimeoutMs("6000"),
+    QiniuConfigurationError,
+  );
+  assert.throws(
+    () => parseQiniuUploadTimeoutMs("not-a-number"),
+    QiniuConfigurationError,
+  );
 });

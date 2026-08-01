@@ -53,7 +53,8 @@ mkdir -p storage/images storage/data
 - `SUPERADMIN`、`SUPERADMINPASSWORD`
 - 独立、高熵且非空的 `SESSION_SECRET`
 - `ANONYMOUS_DAILY_UPLOAD_LIMIT`，默认 `500`
-- 使用公众号图片功能时所需的 `QINIU_*` 变量
+- 使用公众号图片功能时所需的 `QINIU_*` 变量；`QINIU_UPLOAD_URL` 应直接使用
+  Bucket 区域查询返回的优先上传域名，`QINIU_UPLOAD_TIMEOUT_MS` 默认 `30000`
 - 使用 AI 审阅时所需的 `OPENAI_API_KEY`、`OPENAI_BASE_URL` 和
   `OPENAI_MODEL`
 

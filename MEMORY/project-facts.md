@@ -336,6 +336,18 @@
   `ECONNRESET`；七牛表单上传仅在没有收到任何 HTTP 响应的网络异常时原请求最多
   重试三次，每次等待响应不超过 6 秒。公开图片仍返回既定的七牛 HTTP 域名，
   不切换代理或改写 Markdown。
+- 2026-08-01 使用七牛区域查询接口核验，生产 Bucket 属于 `z2`（华南），返回的
+  上传域名依次为 `upload-z2.qiniup.com`、`up-z2.qiniup.com`。当时生产环境未设置
+  `QINIU_UPLOAD_URL`，服务先请求只适用于华东的默认 `upload.qiniup.com`，再依赖
+  400 区域提示切换到 `up-z2.qiniup.com`。
+- 同次生产诊断中，服务器到 `up-z2.qiniup.com` 各 IP 的 TCP 建连只需约
+  `1-3ms`，但 TLS 握手实测从 `1.8s` 到 `9.2s` 不等，另有节点超过 `10s`；应用
+  的 `6s` 超时包含 DNS、TCP、TLS、上传请求体和响应，因而会在 TLS 阶段主动中止
+  健康但偏慢的连接。生产堆栈同时记录了区域切换后的上传超时和复用已缓存区域
+  入口后的上传超时。对应代码修复把单次完整上传预算改为默认 `30s`、允许通过
+  `QINIU_UPLOAD_TIMEOUT_MS` 在 `10s-300s` 内配置并校验；生产部署还应直接指定
+  Bucket 区域查询返回的优先 `QINIU_UPLOAD_URL`，不能只增加对同一短超时入口的
+  重试次数。
 - 真实图床验收上传了现有测试图片，接口返回 `imageCount = 1`、
   `uploadedImageCount = 1`，公开 URL 返回 `200 image/jpeg`；现有图床域名配置
   是 HTTP；这是当前公众号正文图片的明确产品约定，不能自行替换为本站 HTTPS

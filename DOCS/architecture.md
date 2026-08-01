@@ -143,8 +143,11 @@ Markdown 便签、文件夹分类、加星、置顶以及生成公众号 HTML。
 后端把它与正文图片一起按内容哈希去重并上传。按当前产品约定，公众号正文和
 自定义 Logo 的七牛对象直接使用 `QINIU_DOMAIN` 返回的公开地址；生产配置明确为
 `http://tmp-blog.fangyuanxiaozhan.com`，不再改写成本站 `/qiniu/` HTTPS 代理。
-七牛上传连接若在 6 秒内没有响应或发生临时网络错误，同一上传请求最多重试三次；
-返回给公众号的公开 HTTP 地址和对象键保持不变。
+七牛上传连接发生临时网络错误时，同一上传请求最多重试三次；单次完整上传默认
+保留 30 秒，可通过 `QINIU_UPLOAD_TIMEOUT_MS` 在 10 秒到 5 分钟之间调整。生产
+环境应通过 `QINIU_UPLOAD_URL` 直接指定 Bucket 区域查询返回的优先上传域名，
+避免先访问错误区域再等待 400 提示。返回给公众号的公开 HTTP 地址和对象键保持
+不变。
 内置页脚锤子图和编辑器、预览、同步使用的普通图片仍保留
 `https://notes.fangyuanxiaozhan.com/images/...`。复制结果不包含微信会拒绝的
 Data URL。
@@ -232,7 +235,8 @@ PNG 导出、离线归档和公众号复制共同复用。顶层图片装裱容�
 七牛配置按以下顺序读取：
 
 1. 环境变量 `QINIU_ACCESS_KEY`、`QINIU_SECRET_KEY`、`QINIU_BUCKET`、
-   `QINIU_DOMAIN`，可选 `QINIU_PREFIX` 和 `QINIU_UPLOAD_URL`。
+   `QINIU_DOMAIN`，可选 `QINIU_PREFIX`、`QINIU_UPLOAD_URL` 和
+   `QINIU_UPLOAD_TIMEOUT_MS`。
 2. `QINIU_CONFIG_PATH` 指向的 JSON。
 3. 仓库根目录 `qiniu.json`。
 4. 本地相邻项目 `../upload-local-image-to-qiniu/qiniu.json`。
