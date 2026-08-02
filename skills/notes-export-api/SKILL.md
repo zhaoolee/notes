@@ -1,93 +1,173 @@
 ---
 name: notes-export-api
-description: 通过可配置的 notes-export-api 导出接口，把 Markdown 内容导出为锤子便签风格的长图 PNG。脚本会优先探测本地生产入口 `http://127.0.0.1:18080`，探测不到时再回退到 `https://notes.fangyuanxiaozhan.com/api/export`；如果存在 `skills/notes-export-api/.env`，则读取其中的 `NOTES_EXPORT_API_BASE_URL` 作为最高优先级。支持 `default` 暖白纸感和 `smartisan-dark` 锤子暗黑两种主题；如果调用方没有主动声明主题，默认使用 `default`，不要强制用户选择。支持通过 `--footer-brand` 和 `--footer-via` 自定义底部文案，不传时使用服务端默认值。若本地 Markdown 文件里包含相对路径或绝对路径图片，脚本会先调用同源后端的 `/api/images/import` 上传图片并回填 URL，再调用导出接口生成带图便签。用户提到“便签导出”“锤子便签”、Markdown 转图片、把本地 .md 文件渲染成便签长图、或需要用脚本批量导出便签图片时使用。
+description: 通过 Token 或首次使用的用户名与密码连接调用方明确配置的锤子便签服务，管理当前账号的云端工作区并导出内容。支持便签列表与全文查询、新增、更新 Markdown、软删除、回收站恢复、显式永久删除、文件夹分类、星标、置顶、生成可粘贴到微信公众号的富文本 HTML，以及把 Markdown 或本地 .md 文件导出为带图的锤子便签长图 PNG；导出支持 default 暖白纸感、smartisan-dark 暗黑主题和自定义底部文案。用户提到锤子便签、用 AI 增删改查便签、便签查询或自动维护、分类、收藏、置顶、公众号复制格式、Markdown 转便签图片或批量长图导出时使用。服务地址没有默认值，调用方必须通过 .env 或命令行明确提供。
 ---
 
-# 便签导出 API
+# 锤子便签 API
 
-直接调用导出 API 做便签导出，不在本地重写渲染逻辑。
+直接调用项目 API，不在本地重写工作区、公众号排版或长图渲染逻辑。
 
 开源地址：`https://github.com/zhaoolee/notes`
 
-## 工作流
+## 配置服务
 
-1. 使用 `scripts/export_note.sh`。
+便签管理和长图导出统一使用同一个服务基础地址。推荐写入调用方自己保管、未提交
+到版本库的 `.env`：
+
+```dotenv
+NOTES_API_BASE_URL=http://127.0.0.1:18080
+NOTES_API_TOKEN=notes_sk_v1.xxx
+```
+
+没有 Token 时，可临时填写 `NOTES_API_USERNAME` 和 `NOTES_API_PASSWORD`。管理脚本
+首次运行会向 `/api/auth/skill-token` 申请 Token，原子更新 `.env`，并移除用户名和
+密码。Token 已存在时不再读取账号密码。
+
+如果服务部署在局域网主机或自有域名下，可改为实际地址，例如
+`http://192.168.1.20:18080` 或 `https://notes.example.com`。
+
+单人部署时，把项目根目录 `.env` 中 `SUPERADMIN` 和 `SUPERADMINPASSWORD` 的实际值
+分别复制到 `NOTES_API_USERNAME` 和 `NOTES_API_PASSWORD`；不要写成变量引用。
+普通多用户部署则填写目标普通用户的用户名/邮箱和密码。
+
+两个脚本都可以读取该文件：
+
+```bash
+node scripts/notes_api.mjs list --env-file /abs/path/notes-api.env
+scripts/export_note.sh \
+  --env-file /abs/path/notes-api.env \
+  --markdown '正文' \
+  --output /abs/path/note.png
+```
+
+没有 `.env` 时，给命令显式传入同名参数：
+
+```bash
+node scripts/notes_api.mjs list \
+  --base-url https://notes.example.com \
+  --username your-account \
+  --password your-password
+
+scripts/export_note.sh \
+  --base-url https://notes.example.com \
+  --markdown '正文' \
+  --output /abs/path/note.png
+```
+
+如果 `.env` 和命令行都没有服务地址，停止执行并请调用方补充；不得自动探测本地
+端口，也不得回退到任何公网服务。
+
+## 选择工作流
+
+- 查询、新增、分类、星标、置顶或生成公众号格式：使用
+  `scripts/notes_api.mjs`。
+- 把 Markdown 导出为锤子便签长图 PNG：使用 `scripts/export_note.sh`。
+
+## 管理云端便签
+
+1. 优先使用 `NOTES_API_TOKEN`。Token 缺失时，用 `NOTES_API_USERNAME` 和
+   `NOTES_API_PASSWORD` 完成一次性授权；账号可以是用户名或邮箱。优先用
+   `--env-file`，避免密码进入 shell 历史和进程列表。
+2. 先执行 `list` 或 `folders`，取得真实的便签 ID 和文件夹 ID；不要猜测 ID。
+3. 对单张便签执行 `get`、`update`、`delete`、`restore`、`classify`、`star`、
+   `pin` 或 `wechat`。
+4. 新增或更新便签时优先使用 `--markdown-file`，避免多行 Markdown 的命令行转义
+   问题。
+5. 普通 `delete` 只移入回收站。仅在调用方明确要求不可恢复地删除时，才对回收站
+   便签再次执行 `delete --permanent`。
+6. 读取脚本输出的 JSON；失败时把标准错误中的 `error` 原样反馈。
+7. 遇到同时写入冲突时允许脚本自动重读并重试，不要盲目覆盖整个工作区。
+
+```bash
+export NOTES_API_BASE_URL=http://127.0.0.1:18080
+export NOTES_API_TOKEN=notes_sk_v1.xxx
+
+node scripts/notes_api.mjs list
+
+node scripts/notes_api.mjs list --category trash
+
+node scripts/notes_api.mjs get --note-id NOTE_ID
+
+node scripts/notes_api.mjs add \
+  --markdown-file /abs/path/note.md
+
+node scripts/notes_api.mjs update \
+  --note-id NOTE_ID \
+  --markdown-file /abs/path/note.md
+
+node scripts/notes_api.mjs delete --note-id NOTE_ID
+
+node scripts/notes_api.mjs restore --note-id NOTE_ID
+
+node scripts/notes_api.mjs delete \
+  --note-id NOTE_ID \
+  --permanent
+
+node scripts/notes_api.mjs folders
+
+node scripts/notes_api.mjs folder-create --name 工作
+
+node scripts/notes_api.mjs classify \
+  --note-id NOTE_ID \
+  --folder 工作
+
+node scripts/notes_api.mjs star \
+  --note-id NOTE_ID \
+  --state on
+
+node scripts/notes_api.mjs pin \
+  --note-id NOTE_ID \
+  --state off
+
+node scripts/notes_api.mjs wechat \
+  --note-id NOTE_ID \
+  --output-html /abs/path/article.html
+```
+
+`--folder` 接受文件夹 ID 或精确名称；传 `none` 可移出自定义分类。
+`--state` 接受 `on`、`off`、`toggle`，省略时为 `on`。详细参数和数据边界见
+[references/workspace-api.md](references/workspace-api.md)。
+
+Hermes 使用本 Skill 时，终端后端必须能看到 Skill 脚本和配置文件。`local` 后端可
+直接使用本机路径；SSH、Docker 等隔离后端需要先把 Skill 与 env 文件同步到对应
+执行环境，并使用该环境中的路径。不要假定 Hermes 会把宿主机环境变量自动转发到
+远程终端。
+
+## 导出便签长图
+
+1. 使用与便签管理相同的 `NOTES_API_BASE_URL` 或 `--base-url`。
 2. 传入 `--markdown-file` 或 `--markdown`。
-3. 若使用 `--markdown-file`，脚本会自动扫描 Markdown 内的本地图片引用：
-   - `![alt](./image.png)`
-   - `![alt](../assets/demo.jpg "title")`
-   - `<img src="./image.png" />`
-4. 对本地图片调用同源后端 `/api/images/import` 获取 URL，并把 Markdown 中的图片路径替换成可访问 URL。
-5. 再把替换后的 Markdown 提交到 `/api/export`。
-6. 传入 `--output`。
-7. 只有在调用方明确指定主题时才传 `--theme`；否则直接使用默认的 `default`（暖白纸感），不要为了主题再追问用户。
-8. 如果调用方要求自定义底部文案，传入 `--footer-brand` 和/或 `--footer-via`；不传时使用服务端默认值。
-9. 默认优先使用本地生产入口 `http://127.0.0.1:18080/api/export`；探测不到时回退到 `https://notes.fangyuanxiaozhan.com/api/export`。
-10. 若需切换导出服务地址，可在 `skills/notes-export-api/.env` 中设置：
+3. 传入绝对输出路径 `--output`。
+4. 使用 `--markdown-file` 时，让脚本自动扫描并上传相对路径、绝对路径或
+   `file://` 本地图片，再回填同源 `/api/images/import` 返回的 URL。
+5. 只有调用方明确要求暗色时才传 `--theme smartisan-dark`；否则使用默认
+   `default` 暖白纸感，不要为主题额外追问。
+6. 只有调用方要求自定义署名时才传 `--footer-brand` 或 `--footer-via`。
 
 ```bash
-NOTES_EXPORT_API_BASE_URL=http://127.0.0.1:18080
-# 或显式指定线上地址
-NOTES_EXPORT_API_BASE_URL=https://notes.fangyuanxiaozhan.com
-```
+scripts/export_note.sh \
+  --markdown-file /abs/path/note.md \
+  --output /abs/path/note.png
 
-## 主题约定
-
-- `default`: 暖白纸感。默认主题；调用方未声明时使用它。
-- `smartisan-dark`: 锤子暗黑。仅在调用方明确要求暗色或暗黑主题时使用。
-
-## 脚本用法
-
-```bash
-skills/notes-export-api/scripts/export_note.sh \
-  --markdown-file /abs/path/to/note.md \
-  --output /abs/path/to/note.png
-```
-
-如果 `note.md` 中包含本地图片，例如：
-
-```md
-## **0x01**
-
-配图如下：
-
-![示意图](./images/demo.png)
-```
-
-脚本会先上传 `./images/demo.png`，再把 Markdown 中的图片链接替换成后端返回的 URL，最后导出 PNG。
-
-```bash
-skills/notes-export-api/scripts/export_note.sh \
+scripts/export_note.sh \
   --markdown '## **0x01**\n正文内容' \
-  --output /abs/path/to/note.png
-```
-
-```bash
-skills/notes-export-api/scripts/export_note.sh \
-  --markdown-file /abs/path/to/note.md \
   --theme smartisan-dark \
-  --output /abs/path/to/note-dark.png
-```
-
-```bash
-skills/notes-export-api/scripts/export_note.sh \
-  --markdown-file /abs/path/to/note.md \
   --footer-brand '由方圆小站发送' \
   --footer-via 'via Notes API' \
-  --output /abs/path/to/note-custom-footer.png
+  --output /abs/path/note-dark.png
 ```
 
-## 注意事项
+内联 `--markdown` 不解析本地相对路径图片；此模式只使用可访问 URL。文件模式若
+发现本地图片不存在，应直接报错，不继续生成不完整长图。
 
-- 本地 Markdown 文件按 UTF-8 读取。
-- `--markdown-file` 模式会自动处理本地图片；`--markdown` 内联文本模式不会解析相对路径图片，内联模式下请直接传可访问 URL。
-- `--theme` 是可选参数；不传时默认使用 `default`。
-- `--footer-brand` 和 `--footer-via` 是可选参数；不传时服务端默认使用 `由锤子便签发送` 和 `via Smartisan Notes`。
-- 默认优先探测本地生产入口 `http://127.0.0.1:18080/api/export`；若本地服务不可用，则回退到 `https://notes.fangyuanxiaozhan.com/api/export`。
-- `skills/notes-export-api/.env` 中的 `NOTES_EXPORT_API_BASE_URL` 优先级高于自动探测结果。
-- 命令行 `--endpoint` 优先级仍然最高。
-- 若 `.env` 提供的是站点根地址，脚本会自动补上 `/api/export`。
-- 图片导入接口会从同一个后端地址推导得到：若导出地址是 `/api/export`，图片导入地址会自动改为 `/api/images/import`。
-- 本地图片路径支持相对 `Markdown` 文件的相对路径、绝对路径，以及 `file://` 路径。
-- 若 Markdown 中引用的本地图片不存在，脚本会直接报错并停止导出。
-- 遇到非 200 响应时，直接把错误返回给调用方。
+## 配置规则
+
+- 两个脚本统一使用 `NOTES_API_BASE_URL`、`--base-url` 和 `--env-file`。
+- 命令行参数覆盖 `.env`；显式 `--env-file` 优先于调用进程和 Skill 目录 `.env`。
+- 管理命令优先读取 `NOTES_API_TOKEN` 或 `--token`。Token 缺失时才读取
+  `NOTES_API_USERNAME`、`NOTES_API_PASSWORD`，或对应的命令行参数，并在授权成功
+  后把 Token 写回 `.env`、移除账号密码。
+- 服务地址或认证信息缺失时直接报错，让调用方补充，不猜测默认值。
+
+不要输出、记录或提交密码。优先通过环境变量或已被 Git 忽略的 `.env` 提供
+凭据。

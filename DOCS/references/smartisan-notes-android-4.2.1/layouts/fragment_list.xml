@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.smartisanos.notes.v2.list.ListFragmentView android:layout_width="fill_parent" android:layout_height="fill_parent" android:layout_marginTop="@dimen/notes_content_margin_top"
+  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:notes="http://schemas.android.com/apk/res-auto">
+    <com.smartisanos.notes.sync.SyncRefreshView android:gravity="center_horizontal" android:orientation="horizontal" android:id="@id/pull_to_refresh_head" android:layout_width="fill_parent" android:layout_height="@dimen/pull_sync_header_height">
+        <ImageView android:id="@id/refresh_icon" android:background="@drawable/pull_refresh_anim_01" android:layout_width="wrap_content" android:layout_height="wrap_content" android:alpha="0.0" />
+        <TextView android:textSize="15.0sp" android:textColor="#ff9a7f6b" android:gravity="center_vertical" android:layout_gravity="center_vertical" android:id="@id/refresh_text" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginLeft="10.0dip" android:text="@string/pull_to_refresh" android:alpha="0.0" />
+    </com.smartisanos.notes.sync.SyncRefreshView>
+    <com.smartisanos.notes.v2.list.NotesListView android:id="@id/listview_notes" android:scrollbars="vertical" android:layout_width="fill_parent" android:layout_height="fill_parent" android:listSelector="@android:color/transparent" android:divider="@null" android:overScrollMode="always" notes:adjust_item_animation_duration="@integer/note_list_adjust_item_animation_duration" notes:drag_enabled="true" notes:drag_in_detail="false" notes:drag_scroll_start="0.25" notes:left_btns_id="@id/delete_operation_root" notes:max_drag_scroll_speed="0.8" notes:over_scroll_down_max="100" notes:over_scroll_enable="true" notes:over_scroll_up_max="10" notes:scroll_enabled="true" notes:scroll_handle_id="@id/linearlayout_detail" notes:use_default_controller="false" />
+    <ViewStub android:id="@id/empty_note_view" android:layout="@layout/notes_list_empty_smartisanos" android:layout_width="fill_parent" android:layout_height="fill_parent" />
+    <com.smartisanos.notes.widget.NoteListViewAnimCache android:id="@id/anim_list" android:visibility="gone" android:layout_width="fill_parent" android:layout_height="fill_parent" android:divider="@null" />
+</com.smartisanos.notes.v2.list.ListFragmentView>

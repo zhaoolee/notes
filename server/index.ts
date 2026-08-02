@@ -13,7 +13,48 @@ import { chromium, type Browser, type Locator, type Page } from "playwright";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NoteSheet } from "../src/components/NoteSheet.js";
+import { WechatArticle } from "../src/components/WechatArticle.js";
+import {
+  DEFAULT_FOOTER_LOGO_URL,
+  FOOTER_LOGO_URL_MAX_LENGTH,
+} from "../src/lib/footer.js";
 import { splitSections } from "../src/lib/markdown.js";
+import {
+  isQiniuUrl,
+  loadQiniuConfig,
+  QiniuConfigurationError,
+  QiniuUploadError,
+  uploadImageBufferToQiniu,
+} from "./qiniu.js";
+import {
+  AccountNotFoundError,
+  AnonymousQuotaExceededError,
+  createExpiredSessionCookie,
+  createSessionCookie,
+  createSessionToken,
+  createSkillToken,
+  DuplicateUsernameError,
+  getShanghaiDateKey,
+  InvalidCurrentPasswordError,
+  InvalidNewPasswordError,
+  InvalidUsernameError,
+  normalizeUsername,
+  NotesDataStore,
+  readSessionToken,
+  safeStringEqual,
+  verifySessionToken,
+  verifySkillToken,
+  WorkspaceConflictError,
+  type AnonymousQuotaStatus,
+  type AuthRole,
+  type AuthSession,
+  type AuthUser,
+} from "./auth.js";
+import {
+  checkAiAvailability,
+  createAiSuggestions,
+  isAiAvailable,
+} from "./ai.js";
 
 type ThemeId = "default" | "smartisan-dark";
 
@@ -23,6 +64,7 @@ interface ExportRequestBody {
   theme?: string;
   filename?: string;
   footerBrand?: string;
+  footerLogoUrl?: string;
   footerVia?: string;
 }
 
@@ -34,7 +76,41 @@ interface ArchiveRequestBody {
   markdown?: string;
   markdownPath?: string;
   footerBrand?: string;
+  footerLogoUrl?: string;
   footerVia?: string;
+}
+
+interface WechatRequestBody {
+  markdown?: string;
+  markdownPath?: string;
+  footerBrand?: string;
+  footerLogoUrl?: string;
+  footerVia?: string;
+}
+
+interface LoginRequestBody {
+  password?: string;
+  remember?: boolean;
+  username?: string;
+}
+
+interface CreateUserRequestBody {
+  username?: string;
+}
+
+interface ChangePasswordRequestBody {
+  currentPassword?: string;
+  newPassword?: string;
+}
+
+interface WorkspaceRequestBody {
+  expectedUpdatedAt?: number | null;
+  workspace?: unknown;
+}
+
+interface AiSuggestionsRequestBody {
+  instruction?: unknown;
+  markdown?: unknown;
 }
 
 interface StoredImage {
@@ -58,6 +134,7 @@ interface StoredExport {
 
 interface FooterConfig {
   brand?: string;
+  logoUrl?: string;
   via?: string;
 }
 
@@ -70,6 +147,7 @@ interface ArchiveImage {
 interface ZipEntry {
   path: string;
   data: Buffer;
+  mode?: number;
 }
 
 interface ArchiveFont {
@@ -86,10 +164,22 @@ const rootDir =
     : path.resolve(__dirname, "..");
 const distDir = path.join(rootDir, "dist");
 const publicDir = path.join(rootDir, "public");
+const workspaceSkillDir = path.join(rootDir, "skills", "notes-workspace-api");
 const imagesDir = process.env.IMAGE_STORAGE_DIR || path.join(rootDir, "storage", "images");
+const dataDirectory =
+  process.env.DATA_STORAGE_DIR || path.join(rootDir, "storage", "data");
 const port = Number(process.env.PORT || 3001);
+const anonymousDailyUploadLimit = Math.max(
+  1,
+  Number.parseInt(process.env.ANONYMOUS_DAILY_UPLOAD_LIMIT || "500", 10) ||
+    500,
+);
 const supportedThemes = new Set<ThemeId>(["default", "smartisan-dark"]);
 const maxImageSizeBytes = 20 * 1024 * 1024;
+const maxAiMarkdownLength = 100_000;
+const maxAiInstructionLength = 2_000;
+const aiRequestWindowMs = 10 * 60 * 1_000;
+const maxAiRequestsPerWindow = 10;
 const exportDeviceScaleFactor = 3;
 const maxSafeScreenshotDimension = 30_000;
 const maxScreenshotChunkHeight = Math.min(
@@ -104,7 +194,12 @@ const imageUpload = multer({
 });
 
 let browserPromise: Promise<Browser> | undefined;
+const activeAiUsers = new Set<string>();
+const aiRequestHistory = new Map<string, number[]>();
+const notesDataStore = new NotesDataStore(dataDirectory);
 const execFileAsync = promisify(execFile);
+const defaultWechatFooterHammerUrl =
+  "https://notes.fangyuanxiaozhan.com/images/b5d3bd9587fa9a1226b25a0709ff61a450df29d96ca2f127c6afc0b8e193a60e.png";
 const archiveFonts: ArchiveFont[] = [
   {
     sourceName: "OPPOSans-R.ttf",
@@ -147,6 +242,10 @@ function buildRenderUrl(baseUrl: string, theme: ThemeId, footer?: FooterConfig):
     url.searchParams.set("footerBrand", footer.brand);
   }
 
+  if (footer?.logoUrl != null) {
+    url.searchParams.set("footerLogoUrl", footer.logoUrl);
+  }
+
   if (footer?.via != null) {
     url.searchParams.set("footerVia", footer.via);
   }
@@ -169,9 +268,66 @@ function getPublicBaseUrl(request: Request): string {
   return `${protocol}://${host}`;
 }
 
+function getNotesPublicBaseUrl(request: Request): string {
+  const configured = process.env.NOTES_PUBLIC_BASE_URL?.trim();
+  const url = new URL(configured || getPublicBaseUrl(request));
+
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("NOTES_PUBLIC_BASE_URL 只支持 HTTP 或 HTTPS 地址。");
+  }
+
+  url.hash = "";
+  url.pathname = "";
+  url.search = "";
+  return url.toString().replace(/\/$/, "");
+}
+
+async function buildHermesSkillPackage(
+  request: Request,
+  token: string,
+): Promise<Buffer> {
+  const packageRoot = "notes-workspace-api";
+  const templateFiles = [
+    { mode: 0o100644, relativePath: "SKILL.md" },
+    { mode: 0o100755, relativePath: "scripts/notes_api.mjs" },
+    { mode: 0o100644, relativePath: "references/workspace-api.md" },
+  ];
+  const entries = await Promise.all(
+    templateFiles.map(async ({ mode, relativePath }) => ({
+      data: await fs.readFile(path.join(workspaceSkillDir, relativePath)),
+      mode,
+      path: `${packageRoot}/${relativePath}`,
+    })),
+  );
+  const env = [
+    `NOTES_API_BASE_URL=${getNotesPublicBaseUrl(request)}`,
+    `NOTES_API_TOKEN=${token}`,
+    "",
+  ].join("\n");
+
+  entries.push({
+    data: Buffer.from(env, "utf8"),
+    mode: 0o100600,
+    path: `${packageRoot}/.env`,
+  });
+
+  return createZip(entries);
+}
+
+function applyHermesDownloadHeaders(response: Response): void {
+  response.setHeader("Cache-Control", "no-store");
+  response.setHeader("Pragma", "no-cache");
+  response.setHeader("X-Content-Type-Options", "nosniff");
+  response.setHeader("Content-Type", "application/zip");
+  response.setHeader(
+    "Content-Disposition",
+    'attachment; filename="notes-workspace-api.zip"',
+  );
+}
+
 function applyCorsHeaders(request: Request, response: Response): void {
   response.setHeader("Access-Control-Allow-Origin", "*");
-  response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  response.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,OPTIONS");
   response.setHeader(
     "Access-Control-Allow-Headers",
     request.get("access-control-request-headers") || "Content-Type, Authorization",
@@ -180,6 +336,313 @@ function applyCorsHeaders(request: Request, response: Response): void {
     "Access-Control-Expose-Headers",
     "Content-Disposition, X-Export-Path, X-Export-Url",
   );
+}
+
+function isSecureRequest(request: Request): boolean {
+  return (
+    request.secure ||
+    request.get("x-forwarded-proto")?.split(",")[0]?.trim() === "https"
+  );
+}
+
+function setAuthenticatedSession(
+  request: Request,
+  response: Response,
+  user: AuthUser,
+  remember: boolean,
+  passwordVersion?: number,
+): void {
+  response.setHeader(
+    "Set-Cookie",
+    createSessionCookie(createSessionToken(user, remember, Date.now(), passwordVersion), {
+      remember,
+      secure: isSecureRequest(request),
+    }),
+  );
+}
+
+function clearAuthenticatedSession(
+  request: Request,
+  response: Response,
+): void {
+  response.setHeader(
+    "Set-Cookie",
+    createExpiredSessionCookie(isSecureRequest(request)),
+  );
+}
+
+function getSuperAdminCredentials(): {
+  password: string;
+  username: string;
+} | null {
+  const username = process.env.SUPERADMIN?.trim();
+  const password = process.env.SUPERADMINPASSWORD?.trim();
+
+  return username && password ? { password, username } : null;
+}
+
+async function getAuthenticatedUser(
+  request: Request,
+): Promise<AuthSession | null> {
+  const session = verifySessionToken(readSessionToken(request.get("cookie")));
+
+  if (!session) {
+    return null;
+  }
+
+  if (session.role === "superadmin") {
+    const credentials = getSuperAdminCredentials();
+
+    return credentials &&
+      session.id === "superadmin" &&
+      safeStringEqual(
+        normalizeUsername(session.username),
+        normalizeUsername(credentials.username),
+      )
+      ? session
+      : null;
+  }
+
+  const account = await notesDataStore.getUserById(session.id);
+
+  return account &&
+    account.passwordVersion === (session.passwordVersion ?? 1) &&
+    safeStringEqual(
+      normalizeUsername(account.username),
+      normalizeUsername(session.username),
+    )
+    ? session
+    : null;
+}
+
+function readBearerToken(request: Request): string | undefined {
+  const authorization = request.get("authorization")?.trim();
+  const match = authorization?.match(/^Bearer\s+([^\s]+)$/i);
+  return match?.[1];
+}
+
+async function getAuthenticatedSkillUser(
+  request: Request,
+): Promise<AuthSession | null> {
+  const session = verifySkillToken(readBearerToken(request));
+
+  if (!session) {
+    return null;
+  }
+
+  if (session.role === "superadmin") {
+    return session;
+  }
+
+  const account = await notesDataStore.getUserById(session.id);
+
+  return account &&
+    account.passwordVersion === session.passwordVersion &&
+    account.skillTokenVersion === session.skillTokenVersion &&
+    safeStringEqual(
+      normalizeUsername(account.username),
+      normalizeUsername(session.username),
+    )
+    ? session
+    : null;
+}
+
+async function getWorkspaceUser(request: Request): Promise<AuthSession | null> {
+  return (
+    (await getAuthenticatedUser(request)) ??
+    (await getAuthenticatedSkillUser(request))
+  );
+}
+
+async function createSkillTokenForUser(user: AuthUser): Promise<string | null> {
+  if (user.role === "superadmin") {
+    return createSkillToken(user);
+  }
+
+  const account = await notesDataStore.getUserById(user.id);
+
+  return account
+    ? createSkillToken(
+        user,
+        account.passwordVersion,
+        account.skillTokenVersion,
+      )
+    : null;
+}
+
+async function getSkillTokenForHermesInstallTicket(
+  ticket: string,
+): Promise<string | null> {
+  const ownerId = await notesDataStore.getHermesInstallLinkOwner(ticket);
+
+  if (!ownerId) {
+    return null;
+  }
+
+  if (ownerId === "superadmin") {
+    const credentials = getSuperAdminCredentials();
+    return credentials
+      ? createSkillToken({
+          id: "superadmin",
+          role: "superadmin",
+          username: credentials.username,
+        })
+      : null;
+  }
+
+  const account = await notesDataStore.getUserById(ownerId);
+  return account
+    ? createSkillToken(
+        {
+          id: account.id,
+          role: "user",
+          username: account.username,
+        },
+        account.passwordVersion,
+        account.skillTokenVersion,
+      )
+    : null;
+}
+
+async function requireAuthenticatedUser(
+  request: Request,
+  response: Response,
+  role: AuthRole,
+): Promise<AuthSession | null> {
+  const user = await getAuthenticatedUser(request);
+
+  if (!user) {
+    response.status(401).json({
+      error: role === "superadmin" ? "请先登录管理员后台。" : "请先登录账号。",
+    });
+    return null;
+  }
+
+  if (user.role !== role) {
+    response.status(403).json({
+      error:
+        role === "superadmin"
+          ? "当前账号没有管理员权限。"
+          : "管理员密码由服务端环境变量维护，不能在便签页面修改。",
+    });
+    return null;
+  }
+
+  return user;
+}
+
+function getPublicAuthUser(user: AuthUser): AuthUser {
+  return {
+    id: user.id,
+    role: user.role,
+    username: user.username,
+  };
+}
+
+function resolveLoginCredentials(body: LoginRequestBody | undefined): {
+  password: string;
+  remember: boolean;
+  username: string;
+} | null {
+  const username = body?.username?.trim();
+  const password = body?.password;
+
+  if (!username || !password) {
+    return null;
+  }
+
+  return {
+    password,
+    remember: body?.remember === true,
+    username,
+  };
+}
+
+function authenticateSuperAdmin(
+  credentials: ReturnType<typeof resolveLoginCredentials>,
+): AuthUser | null {
+  const configured = getSuperAdminCredentials();
+
+  if (
+    !credentials ||
+    !configured ||
+    !safeStringEqual(
+      normalizeUsername(credentials.username),
+      normalizeUsername(configured.username),
+    ) ||
+    !safeStringEqual(credentials.password, configured.password)
+  ) {
+    return null;
+  }
+
+  return {
+    id: "superadmin",
+    role: "superadmin",
+    username: configured.username,
+  };
+}
+
+async function requireNoteServiceUser(
+  request: Request,
+  response: Response,
+): Promise<AuthSession | null> {
+  const user = await getAuthenticatedUser(request);
+
+  if (!user) {
+    response.status(401).json({ error: "请先登录账号。" });
+    return null;
+  }
+
+  return user;
+}
+
+async function requireWorkspaceUser(
+  request: Request,
+  response: Response,
+): Promise<AuthSession | null> {
+  const user = await getWorkspaceUser(request);
+
+  if (!user) {
+    response.status(401).json({ error: "请先登录账号或提供有效的 Skill Token。" });
+    return null;
+  }
+
+  return user;
+}
+
+function isSameOriginRequest(request: Request): boolean {
+  const origin = request.get("origin");
+
+  if (!origin) {
+    return true;
+  }
+
+  try {
+    const originUrl = new URL(origin);
+    return originUrl.origin === new URL(getPublicBaseUrl(request)).origin;
+  } catch {
+    return false;
+  }
+}
+
+function consumeAiRateLimit(userId: string): number | null {
+  const now = Date.now();
+  const earliestAllowed = now - aiRequestWindowMs;
+  const history = (aiRequestHistory.get(userId) || []).filter(
+    (timestamp) => timestamp > earliestAllowed,
+  );
+
+  if (history.length >= maxAiRequestsPerWindow) {
+    aiRequestHistory.set(userId, history);
+    return Math.max(
+      1,
+      Math.ceil((history[0] + aiRequestWindowMs - now) / 1_000),
+    );
+  }
+
+  history.push(now);
+  aiRequestHistory.set(userId, history);
+  return null;
 }
 
 function normalizeRenderableImageUrls(
@@ -225,7 +688,27 @@ async function getBrowser(): Promise<Browser> {
     browserPromise = chromium.launch({ headless: true });
   }
 
-  return browserPromise;
+  const currentBrowserPromise = browserPromise;
+
+  try {
+    const browser = await currentBrowserPromise;
+
+    if (!browser.isConnected()) {
+      if (browserPromise === currentBrowserPromise) {
+        browserPromise = undefined;
+      }
+
+      return getBrowser();
+    }
+
+    return browser;
+  } catch (error) {
+    if (browserPromise === currentBrowserPromise) {
+      browserPromise = undefined;
+    }
+
+    throw error;
+  }
 }
 
 async function resolveMarkdown(body: ExportRequestBody | ArchiveRequestBody): Promise<string> {
@@ -256,9 +739,31 @@ function normalizeFooterText(input: unknown): string | undefined {
   return input.replace(/[\u0000-\u001F\u007F]/g, "").slice(0, 80);
 }
 
+function normalizeFooterLogoUrl(input: unknown): string | undefined {
+  if (typeof input !== "string") {
+    return undefined;
+  }
+
+  const value = input
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .trim()
+    .slice(0, FOOTER_LOGO_URL_MAX_LENGTH);
+
+  if (
+    (value.startsWith("/") && !value.startsWith("//")) ||
+    /^https?:\/\//i.test(value) ||
+    /^data:image\/[a-z0-9.+-]+;base64,/i.test(value)
+  ) {
+    return value;
+  }
+
+  return undefined;
+}
+
 function resolveFooterConfig(body: ExportRequestBody): FooterConfig {
   return {
     brand: normalizeFooterText(body.footerBrand),
+    logoUrl: normalizeFooterLogoUrl(body.footerLogoUrl),
     via: normalizeFooterText(body.footerVia),
   };
 }
@@ -389,7 +894,10 @@ async function readRelativeArchiveImage(source: string): Promise<ImageSource | n
   };
 }
 
-async function resolveArchiveImage(source: string): Promise<ImageSource | null> {
+async function resolveArchiveImage(
+  source: string,
+  publicBaseUrl?: string,
+): Promise<ImageSource | null> {
   const dataImage = getDataUrlImage(source);
 
   if (dataImage) {
@@ -397,6 +905,24 @@ async function resolveArchiveImage(source: string): Promise<ImageSource | null> 
   }
 
   if (/^https?:\/\//i.test(source)) {
+    if (publicBaseUrl) {
+      try {
+        const sourceUrl = new URL(source);
+        const publicUrl = new URL(publicBaseUrl);
+
+        if (
+          sourceUrl.host.toLowerCase() === publicUrl.host.toLowerCase() &&
+          sourceUrl.pathname.startsWith("/images/")
+        ) {
+          return readRootRelativeArchiveImage(
+            `${sourceUrl.pathname}${sourceUrl.search}`,
+          );
+        }
+      } catch {
+        // Invalid URLs fall through to the existing remote-image path.
+      }
+    }
+
     return downloadImageFromUrl(source);
   }
 
@@ -450,6 +976,7 @@ function renderArchiveNoteSheet(markdown: string, footer: FooterConfig): string 
     createElement(NoteSheet, {
       notes: splitSections(markdown),
       footerBrand: createElement("span", { className: "sheet-footer-brand" }, footerBrand),
+      footerLogoUrl: footer.logoUrl ?? DEFAULT_FOOTER_LOGO_URL,
       footerVia: createElement("span", { className: "sheet-footer-via" }, footerVia),
     }),
   );
@@ -473,12 +1000,15 @@ function buildArchiveIndexHtml(
     <style>
 ${fontFaceCss}
       :root {
-        --paper: #fefcf6;
-        --sheet-surface: #fefcf6;
+        --paper: #fffcf7;
+        --sheet-surface: #fffcf7;
         --sheet-shadow: 0 24px 42px rgba(89, 65, 34, 0.12);
-        --note-frame: rgba(237, 233, 225, 0.92);
+        --note-frame: #e8e4dc;
+        --note-image-frame: #ebe8e3;
+        --note-image-mat: #ffffff;
+        --note-image-shadow: rgba(88, 70, 52, 0.07);
         --note-heading: rgba(70, 53, 38, 0.96);
-        --note-copy: rgba(106, 86, 67, 0.92);
+        --note-copy: #665749;
         --note-link: #ac9070;
         --note-code-bg: rgba(125, 78, 32, 0.08);
         --note-pre-bg: rgba(243, 236, 225, 0.9);
@@ -534,7 +1064,7 @@ ${fontFaceCss}
         margin: 0;
         padding:
           calc(18px * var(--note-scale))
-          calc(18px * var(--note-scale))
+          calc(16px * var(--note-scale))
           calc(24px * var(--note-scale));
         border-radius: 0;
         border: 0;
@@ -552,16 +1082,16 @@ ${fontFaceCss}
 
       .sheet-frame-outer {
         inset:
-          calc(14px * var(--note-scale))
-          calc(8px * var(--note-scale))
-          calc(54px * var(--note-scale));
+          calc(16px * var(--note-scale))
+          calc(9.6667px * var(--note-scale))
+          calc(58px * var(--note-scale));
       }
 
       .sheet-frame-inner {
         inset:
-          calc(18px * var(--note-scale))
-          calc(12px * var(--note-scale))
-          calc(58px * var(--note-scale));
+          calc(18.6667px * var(--note-scale))
+          calc(11.6667px * var(--note-scale))
+          calc(59.6667px * var(--note-scale));
       }
 
       .sheet-corner {
@@ -574,23 +1104,23 @@ ${fontFaceCss}
       }
 
       .sheet-corner-top-left {
-        left: calc(5px * var(--note-scale));
-        top: calc(13px * var(--note-scale));
+        left: calc(7.6667px * var(--note-scale));
+        top: calc(15px * var(--note-scale));
       }
 
       .sheet-corner-top-right {
-        right: calc(5px * var(--note-scale));
-        top: calc(13px * var(--note-scale));
+        right: calc(7.6667px * var(--note-scale));
+        top: calc(15px * var(--note-scale));
       }
 
       .sheet-corner-bottom-left {
-        left: calc(5px * var(--note-scale));
-        bottom: calc(53px * var(--note-scale));
+        left: calc(7.6667px * var(--note-scale));
+        bottom: calc(55.1667px * var(--note-scale));
       }
 
       .sheet-corner-bottom-right {
-        right: calc(5px * var(--note-scale));
-        bottom: calc(53px * var(--note-scale));
+        right: calc(7.6667px * var(--note-scale));
+        bottom: calc(55.1667px * var(--note-scale));
       }
 
       .sheet-inner {
@@ -600,8 +1130,8 @@ ${fontFaceCss}
         flex-direction: column;
         gap: 0;
         padding:
+          calc(34px * var(--note-scale))
           calc(16px * var(--note-scale))
-          calc(18px * var(--note-scale))
           calc(14px * var(--note-scale));
       }
 
@@ -626,10 +1156,13 @@ ${fontFaceCss}
         flex-direction: column;
         gap: 0;
         color: var(--note-copy);
-        font-size: calc(0.89rem * var(--note-scale));
+        font-size: calc(0.76rem * var(--note-scale));
         font-weight: 400;
-        line-height: 1.76;
-        letter-spacing: 0;
+        line-height: 1.8;
+        letter-spacing: 0.03em;
+        -webkit-text-stroke:
+          calc(0.15px * var(--note-scale))
+          color-mix(in srgb, currentColor 62%, transparent);
         overflow-wrap: anywhere;
         word-break: break-word;
       }
@@ -690,8 +1223,9 @@ ${fontFaceCss}
         margin-top: 0;
       }
 
-      .note-copy p img {
+      .note-copy img.note-image-frame {
         display: block;
+        box-sizing: border-box;
         width: auto;
         max-width: 100%;
         height: auto;
@@ -699,10 +1233,13 @@ ${fontFaceCss}
           calc(12px * var(--note-scale))
           auto
           calc(2px * var(--note-scale));
-        border: 0;
+        padding: calc(3px * var(--note-scale));
+        border: 1px solid var(--note-image-frame);
         border-radius: 0;
-        box-shadow: none;
-        background: color-mix(in srgb, var(--paper) 85%, transparent);
+        box-shadow:
+          0 calc(1px * var(--note-scale)) calc(3px * var(--note-scale))
+          var(--note-image-shadow);
+        background: var(--note-image-mat);
         object-fit: contain;
         image-rendering: auto;
       }
@@ -747,7 +1284,10 @@ ${fontFaceCss}
 
       .note-copy blockquote {
         position: relative;
-        margin: 0 0 calc(8px * var(--note-scale));
+        margin:
+          calc(8px * var(--note-scale))
+          0
+          calc(8px * var(--note-scale));
         padding-left: calc(0.92rem * var(--note-scale));
         color: var(--note-quote);
         font-size: calc(0.88rem * var(--note-scale));
@@ -817,11 +1357,15 @@ ${fontFaceCss}
       .sheet-footer {
         position: relative;
         z-index: 1;
-        margin-top: calc(28px * var(--note-scale));
-        padding: 0 calc(20px * var(--note-scale)) calc(16px * var(--note-scale));
+        margin:
+          calc(30px * var(--note-scale))
+          0
+          0
+          calc(0.6667px * var(--note-scale));
+        padding: 0 0 calc(16.6667px * var(--note-scale));
         display: flex;
         align-items: center;
-        gap: calc(4px * var(--note-scale));
+        gap: calc(6px * var(--note-scale));
         font-size: calc(0.38rem * var(--note-scale));
         line-height: 1;
       }
@@ -829,30 +1373,37 @@ ${fontFaceCss}
       .sheet-footer-copy {
         display: inline-flex;
         align-items: baseline;
-        gap: calc(4px * var(--note-scale));
+        gap: calc(5px * var(--note-scale));
         min-width: 0;
         white-space: nowrap;
       }
 
       .sheet-footer-brand {
         color: var(--footer-copy);
-        font-size: calc(0.4rem * var(--note-scale));
+        font-size: calc(0.5rem * var(--note-scale));
         font-weight: 500;
         letter-spacing: 0.01em;
       }
 
       .sheet-footer-via {
         color: var(--footer-via);
-        font-size: calc(0.24rem * var(--note-scale));
+        font-size: calc(0.42rem * var(--note-scale));
         font-weight: 400;
         transform: translateY(calc(-0.01rem * var(--note-scale)));
       }
 
       .sheet-footer-icon {
         display: block;
-        width: calc(0.5rem * var(--note-scale));
-        height: calc(0.5rem * var(--note-scale));
+        width: calc(0.64rem * var(--note-scale));
+        height: calc(0.64rem * var(--note-scale));
         flex: 0 0 auto;
+      }
+
+      .sheet-footer-icon img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
       }
 
       .sheet-footer-icon svg {
@@ -949,6 +1500,7 @@ async function buildArchive(
   const images: ArchiveImage[] = [];
   const replacements = new Map<string, string>();
   const htmlAssetEntries: ZipEntry[] = [];
+  let archivedFooter: FooterConfig = { ...footer };
   const fontAssets = await buildArchiveFontEntries(
     folderName,
     htmlAssetFolderName,
@@ -963,6 +1515,32 @@ async function buildArchive(
     });
   } catch (error) {
     console.warn("Archive HTML asset skipped", error);
+  }
+
+  try {
+    const logoSource = footer.logoUrl ?? DEFAULT_FOOTER_LOGO_URL;
+    const logoImage = await resolveArchiveImage(logoSource);
+
+    if (logoImage?.buffer.length) {
+      const extension =
+        detectImageFormat(
+          logoImage.buffer,
+          logoImage.mimeType,
+          logoImage.filename || logoSource,
+        ) || "bin";
+      const logoFilename = `footer-logo.${extension}`;
+
+      htmlAssetEntries.push({
+        path: `${folderName}/${htmlAssetFolderName}/${logoFilename}`,
+        data: logoImage.buffer,
+      });
+      archivedFooter = {
+        ...footer,
+        logoUrl: `./${htmlAssetFolderName}/${logoFilename}`,
+      };
+    }
+  } catch (error) {
+    console.warn("Archive footer Logo skipped", error);
   }
 
   for (const [index, source] of collectMarkdownImageSources(markdown).entries()) {
@@ -1001,7 +1579,10 @@ async function buildArchive(
   const entries: ZipEntry[] = [
     {
       path: `${folderName}/index.html`,
-      data: Buffer.from(buildArchiveIndexHtml(archivedMarkdown, footer, fontAssets.fonts), "utf8"),
+      data: Buffer.from(
+        buildArchiveIndexHtml(archivedMarkdown, archivedFooter, fontAssets.fonts),
+        "utf8",
+      ),
     },
     {
       path: `${folderName}/INDEX.md`,
@@ -1206,7 +1787,7 @@ function createZip(entries: ZipEntry[]): Buffer {
 
     const centralHeader = Buffer.alloc(46);
     centralHeader.writeUInt32LE(0x02014b50, 0);
-    centralHeader.writeUInt16LE(20, 4);
+    centralHeader.writeUInt16LE((3 << 8) | 20, 4);
     centralHeader.writeUInt16LE(20, 6);
     centralHeader.writeUInt16LE(0x0800, 8);
     centralHeader.writeUInt16LE(8, 10);
@@ -1220,7 +1801,7 @@ function createZip(entries: ZipEntry[]): Buffer {
     centralHeader.writeUInt16LE(0, 32);
     centralHeader.writeUInt16LE(0, 34);
     centralHeader.writeUInt16LE(0, 36);
-    centralHeader.writeUInt32LE(0, 38);
+    centralHeader.writeUInt32LE(((entry.mode ?? 0o100644) << 16) >>> 0, 38);
     centralHeader.writeUInt32LE(offset, 42);
 
     centralParts.push(centralHeader, name);
@@ -1760,7 +2341,164 @@ async function renderNotePng(markdown: string, renderUrl: string): Promise<Buffe
   }
 }
 
+async function prepareWechatArticle(
+  markdown: string,
+  options: {
+    footer: FooterConfig;
+    publicBaseUrl: string;
+    temporaryUploads: boolean;
+  },
+): Promise<{
+  anonymousQuota: AnonymousQuotaStatus | null;
+  html: string;
+  markdown: string;
+  imageCount: number;
+  uploadedImageCount: number;
+  reusedImageCount: number;
+}> {
+  const markdownImageSources = collectMarkdownImageSources(markdown);
+  const customFooterLogoSource =
+    options.footer.logoUrl &&
+    options.footer.logoUrl !== DEFAULT_FOOTER_LOGO_URL
+      ? options.footer.logoUrl
+      : null;
+  const imageSources = Array.from(
+    new Set([
+      ...markdownImageSources,
+      ...(customFooterLogoSource ? [customFooterLogoSource] : []),
+    ]),
+  );
+  const replacements = new Map<string, string>();
+  let uploadedImageCount = 0;
+  let reusedImageCount = 0;
+  let wechatMarkdown = markdown;
+  let anonymousQuota: AnonymousQuotaStatus | null = null;
+
+  if (imageSources.length > 0) {
+    const qiniuConfig = await loadQiniuConfig(rootDir);
+    const imagesByContentHash = new Map<
+      string,
+      {
+        buffer: Buffer;
+        extension: string;
+        sources: string[];
+      }
+    >();
+
+    for (const source of imageSources) {
+      if (isQiniuUrl(source, qiniuConfig)) {
+        reusedImageCount += 1;
+        continue;
+      }
+
+      const image = await resolveArchiveImage(source, options.publicBaseUrl);
+
+      if (!image?.buffer.length) {
+        throw new Error(`无法读取公众号图片：${source}`);
+      }
+
+      const extension = detectImageFormat(
+        image.buffer,
+        image.mimeType,
+        image.filename || source,
+      );
+
+      if (!extension) {
+        throw new Error(`公众号暂不支持该图片格式：${source}`);
+      }
+
+      const contentHash = createHash("sha256").update(image.buffer).digest("hex");
+      const existingImage = imagesByContentHash.get(contentHash);
+
+      if (existingImage) {
+        existingImage.sources.push(source);
+      } else {
+        imagesByContentHash.set(contentHash, {
+          buffer: image.buffer,
+          extension,
+          sources: [source],
+        });
+      }
+    }
+
+    const uniqueImages = Array.from(imagesByContentHash.values());
+    const anonymousDateKey = getShanghaiDateKey();
+    const temporaryPrefix = [
+      qiniuConfig.prefix,
+      "temporary",
+      anonymousDateKey,
+    ]
+      .filter(Boolean)
+      .join("/");
+
+    if (options.temporaryUploads && uniqueImages.length > 0) {
+      anonymousQuota = await notesDataStore.reserveAnonymousUploads(
+        uniqueImages.length,
+        anonymousDailyUploadLimit,
+      );
+    }
+
+    for (const image of uniqueImages) {
+      const uploaded = await uploadImageBufferToQiniu(
+        image.buffer,
+        image.extension,
+        qiniuConfig,
+        options.temporaryUploads
+          ? {
+              deleteAfterDays: 1,
+              prefix: temporaryPrefix,
+            }
+          : undefined,
+      );
+
+      for (const source of image.sources) {
+        replacements.set(source, uploaded.url);
+      }
+
+      if (uploaded.uploaded) {
+        uploadedImageCount += 1;
+      } else {
+        reusedImageCount += 1;
+      }
+
+      reusedImageCount += Math.max(0, image.sources.length - 1);
+    }
+
+    for (const [source, replacement] of Array.from(replacements).sort(
+      ([left], [right]) => right.length - left.length,
+    )) {
+      wechatMarkdown = replaceAll(wechatMarkdown, source, replacement);
+    }
+  }
+
+  const footerHammerUrl = customFooterLogoSource
+    ? replacements.get(customFooterLogoSource) || customFooterLogoSource
+    : process.env.WECHAT_FOOTER_HAMMER_URL?.trim() ||
+      defaultWechatFooterHammerUrl;
+  const html = renderToStaticMarkup(
+    createElement(WechatArticle, {
+      footerBrand: options.footer.brand ?? "由锤子便签发送",
+      markdown: wechatMarkdown,
+      footerHammerUrl,
+      footerVia: options.footer.via ?? "via Smartisan Notes",
+    }),
+  ).replace(
+    /<link\b[^>]*\brel="preload"[^>]*\bas="image"[^>]*\/?>/gi,
+    "",
+  );
+
+  return {
+    anonymousQuota,
+    html,
+    markdown: wechatMarkdown,
+    imageCount: markdownImageSources.length,
+    uploadedImageCount,
+    reusedImageCount,
+  };
+}
+
 const app = express();
+app.set("trust proxy", 1);
 
 app.use((request: Request, response: Response, next: NextFunction) => {
   applyCorsHeaders(request, response);
@@ -1773,8 +2511,631 @@ app.use((request: Request, response: Response, next: NextFunction) => {
   next();
 });
 
+app.use(
+  "/api/ai",
+  async (request: Request, response: Response, next: NextFunction) => {
+    if (request.method === "GET" && request.path === "/status") {
+      next();
+      return;
+    }
+
+    const user = await requireNoteServiceUser(request, response);
+
+    if (!user) {
+      return;
+    }
+
+    response.locals.aiUser = user;
+    next();
+  },
+);
+app.use("/api/ai", express.json({ limit: "128kb" }));
+app.use(
+  "/api/ai",
+  (
+    error: unknown,
+    _request: Request,
+    response: Response,
+    next: NextFunction,
+  ) => {
+    const parsedError = error as { status?: unknown; type?: unknown };
+
+    if (parsedError?.type === "entity.too.large" || parsedError?.status === 413) {
+      response.status(413).json({ error: "便签内容过长，无法提交 AI 审阅。" });
+      return;
+    }
+
+    if (error) {
+      response.status(400).json({ error: "AI 审阅请求格式不正确。" });
+      return;
+    }
+
+    next();
+  },
+);
 app.use(express.json({ limit: "10mb" }));
 app.use("/images", express.static(imagesDir, { fallthrough: false, immutable: true, maxAge: "1y" }));
+
+app.get("/api/auth/session", async (request: Request, response: Response) => {
+  const user = await getAuthenticatedUser(request);
+  response.json({ user: user ? getPublicAuthUser(user) : null });
+});
+
+app.post(
+  "/api/auth/login",
+  async (
+    request: Request<Record<string, never>, unknown, LoginRequestBody>,
+    response: Response,
+  ) => {
+    const credentials = resolveLoginCredentials(request.body);
+
+    if (!credentials) {
+      response.status(400).json({ error: "请输入用户名或邮箱及密码。" });
+      return;
+    }
+
+    const superAdmin = authenticateSuperAdmin(credentials);
+    const account = superAdmin
+      ? null
+      : await notesDataStore.authenticateUser(
+          credentials.username,
+          credentials.password,
+        );
+
+    if (!superAdmin && !account) {
+      response.status(401).json({ error: "用户名、邮箱或密码错误。" });
+      return;
+    }
+
+    const user: AuthUser =
+      superAdmin ??
+      ({
+        id: account!.id,
+        role: "user",
+        username: account!.username,
+      } satisfies AuthUser);
+    setAuthenticatedSession(
+      request,
+      response,
+      user,
+      credentials.remember,
+      account?.passwordVersion,
+    );
+    response.json({ user });
+  },
+);
+
+app.post(
+  "/api/auth/skill-token",
+  async (
+    request: Request<Record<string, never>, unknown, LoginRequestBody>,
+    response: Response,
+  ) => {
+    response.setHeader("Cache-Control", "no-store");
+
+    if (!isSameOriginRequest(request)) {
+      response.status(403).json({ error: "请从当前便签页面或可信客户端申请 Skill Token。" });
+      return;
+    }
+
+    let user: AuthUser | null = await getAuthenticatedUser(request);
+
+    if (!user) {
+      const credentials = resolveLoginCredentials(request.body);
+
+      if (!credentials) {
+        response.status(400).json({ error: "请提供用户名或邮箱及密码。" });
+        return;
+      }
+
+      const superAdmin = authenticateSuperAdmin(credentials);
+      const account = superAdmin
+        ? null
+        : await notesDataStore.authenticateUser(
+            credentials.username,
+            credentials.password,
+          );
+
+      if (!superAdmin && !account) {
+        response.status(401).json({ error: "用户名、邮箱或密码错误。" });
+        return;
+      }
+
+      user =
+        superAdmin ??
+        ({
+          id: account!.id,
+          role: "user",
+          username: account!.username,
+        } satisfies AuthUser);
+    }
+
+    if (!user) {
+      response.status(401).json({ error: "当前账号已不存在，请重新登录。" });
+      return;
+    }
+
+    const token = await createSkillTokenForUser(user);
+
+    if (!token) {
+      response.status(401).json({ error: "当前账号已不存在，请重新登录。" });
+      return;
+    }
+
+    response.json({ token });
+  },
+);
+
+app.post(
+  "/api/hermes-skill/download",
+  async (request: Request, response: Response) => {
+    response.setHeader("Cache-Control", "no-store");
+    response.setHeader("Pragma", "no-cache");
+    response.setHeader("X-Content-Type-Options", "nosniff");
+
+    if (!isSameOriginRequest(request)) {
+      response.status(403).json({ error: "请从当前便签页面下载 Hermes Skill。" });
+      return;
+    }
+
+    const user = await getAuthenticatedUser(request);
+
+    if (!user) {
+      response.status(401).json({ error: "请先登录账号。" });
+      return;
+    }
+
+    const token = await createSkillTokenForUser(user);
+
+    if (!token) {
+      response.status(401).json({ error: "当前账号已不存在，请重新登录。" });
+      return;
+    }
+
+    try {
+      const zip = await buildHermesSkillPackage(request, token);
+      applyHermesDownloadHeaders(response);
+      response.send(zip);
+    } catch (error) {
+      console.error("Hermes Skill package failed", error);
+      response.status(500).json({ error: "Hermes Skill 生成失败，请稍后重试。" });
+    }
+  },
+);
+
+async function respondWithHermesInstallLink(
+  request: Request,
+  response: Response,
+  reset: boolean,
+): Promise<void> {
+  response.setHeader("Cache-Control", "no-store");
+  response.setHeader("Pragma", "no-cache");
+
+  if (!isSameOriginRequest(request)) {
+    response.status(403).json({ error: "请从当前便签页面管理安装链接。" });
+    return;
+  }
+
+  const user = await getAuthenticatedUser(request);
+
+  if (!user) {
+    response.status(401).json({ error: "请先登录账号。" });
+    return;
+  }
+
+  let publicBaseUrl: string;
+
+  try {
+    publicBaseUrl = getNotesPublicBaseUrl(request);
+  } catch (error) {
+    console.error("Hermes Skill public URL failed", error);
+    response.status(500).json({ error: "Hermes 安装链接生成失败，请检查公开服务地址。" });
+    return;
+  }
+
+  const ticket = reset
+    ? await notesDataStore.resetHermesInstallLink(user.id)
+    : await notesDataStore.getOrCreateHermesInstallLink(user.id);
+  const installPath =
+    `/api/hermes-skill/install/${ticket}/notes-workspace-api.zip`;
+  response.json({
+    installUrl: new URL(installPath, `${publicBaseUrl}/`).toString(),
+  });
+}
+
+app.post(
+  "/api/hermes-skill/install-link",
+  (request: Request, response: Response) =>
+    respondWithHermesInstallLink(request, response, false),
+);
+
+app.post(
+  "/api/hermes-skill/install-link/reset",
+  (request: Request, response: Response) =>
+    respondWithHermesInstallLink(request, response, true),
+);
+
+app.head(
+  "/api/hermes-skill/install/:ticket/notes-workspace-api.zip",
+  async (request: Request<{ ticket: string }>, response: Response) => {
+    const token = await getSkillTokenForHermesInstallTicket(
+      request.params.ticket,
+    );
+
+    if (!token) {
+      response.setHeader("Cache-Control", "no-store");
+      response.setHeader("Pragma", "no-cache");
+      response.setHeader("X-Content-Type-Options", "nosniff");
+      response.status(410).end();
+      return;
+    }
+
+    applyHermesDownloadHeaders(response);
+    response.status(200).end();
+  },
+);
+
+app.get(
+  "/api/hermes-skill/install/:ticket/notes-workspace-api.zip",
+  async (request: Request<{ ticket: string }>, response: Response) => {
+    const { ticket } = request.params;
+    const token = await getSkillTokenForHermesInstallTicket(ticket);
+
+    if (!token) {
+      response.setHeader("Cache-Control", "no-store");
+      response.setHeader("Pragma", "no-cache");
+      response.setHeader("X-Content-Type-Options", "nosniff");
+      response.status(410).json({
+        error: "安装链接无效或已被重置，请在设置中复制当前链接。",
+      });
+      return;
+    }
+
+    try {
+      const zip = await buildHermesSkillPackage(request, token);
+      applyHermesDownloadHeaders(response);
+      response.send(zip);
+    } catch (error) {
+      console.error("Hermes Skill install link failed", error);
+      response.status(500).json({ error: "Hermes Skill 生成失败，请稍后重试。" });
+    }
+  },
+);
+
+app.post(
+  "/api/auth/password",
+  async (
+    request: Request<Record<string, never>, unknown, ChangePasswordRequestBody>,
+    response: Response,
+  ) => {
+    const session = await requireAuthenticatedUser(request, response, "user");
+
+    if (!session) {
+      return;
+    }
+
+    const currentPassword = request.body?.currentPassword;
+    const newPassword = request.body?.newPassword;
+
+    if (
+      typeof currentPassword !== "string" ||
+      !currentPassword ||
+      typeof newPassword !== "string"
+    ) {
+      response.status(400).json({ error: "请输入当前密码和新密码。" });
+      return;
+    }
+
+    try {
+      const passwordVersion = await notesDataStore.changePassword(
+        session.id,
+        currentPassword,
+        newPassword,
+      );
+      const user = getPublicAuthUser(session);
+      setAuthenticatedSession(
+        request,
+        response,
+        user,
+        session.remember,
+        passwordVersion,
+      );
+      await notesDataStore.revokeHermesInstallLink(session.id);
+      response.json({ ok: true });
+    } catch (error) {
+      const status =
+        error instanceof InvalidCurrentPasswordError ||
+        error instanceof InvalidNewPasswordError
+          ? 400
+          : error instanceof AccountNotFoundError
+            ? 404
+            : 500;
+      response.status(status).json({
+        error: error instanceof Error ? error.message : "修改密码失败。",
+      });
+    }
+  },
+);
+
+app.post(
+  "/api/superadmin/login",
+  (
+    request: Request<Record<string, never>, unknown, LoginRequestBody>,
+    response: Response,
+  ) => {
+    const configured = getSuperAdminCredentials();
+
+    if (!configured) {
+      response.status(503).json({
+        error:
+          "管理员账号尚未配置，请在服务端设置 SUPERADMIN 和 SUPERADMINPASSWORD。",
+      });
+      return;
+    }
+
+    const credentials = resolveLoginCredentials(request.body);
+    const user = authenticateSuperAdmin(credentials);
+
+    if (!user) {
+      response.status(credentials ? 401 : 400).json({
+        error: credentials ? "管理员用户名或密码错误。" : "请输入用户名和密码。",
+      });
+      return;
+    }
+
+    setAuthenticatedSession(
+      request,
+      response,
+      user,
+      credentials?.remember === true,
+    );
+    response.json({ user });
+  },
+);
+
+app.post("/api/auth/logout", (request: Request, response: Response) => {
+  clearAuthenticatedSession(request, response);
+  response.json({ ok: true });
+});
+
+app.get(
+  "/api/superadmin/users",
+  async (request: Request, response: Response) => {
+    if (!(await requireAuthenticatedUser(request, response, "superadmin"))) {
+      return;
+    }
+
+    response.json({ users: await notesDataStore.listUsers() });
+  },
+);
+
+app.post(
+  "/api/superadmin/users",
+  async (
+    request: Request<Record<string, never>, unknown, CreateUserRequestBody>,
+    response: Response,
+  ) => {
+    if (!(await requireAuthenticatedUser(request, response, "superadmin"))) {
+      return;
+    }
+
+    const username = request.body?.username;
+
+    if (typeof username !== "string") {
+      response.status(400).json({ error: "请输入普通用户名或邮箱。" });
+      return;
+    }
+
+    const configured = getSuperAdminCredentials();
+
+    if (
+      configured &&
+      normalizeUsername(username) === normalizeUsername(configured.username)
+    ) {
+      response.status(409).json({ error: "普通账号不能与管理员账号相同。" });
+      return;
+    }
+
+    try {
+      response.status(201).json({
+        user: await notesDataStore.createUser(username),
+      });
+    } catch (error) {
+      const status =
+        error instanceof DuplicateUsernameError
+          ? 409
+          : error instanceof InvalidUsernameError
+            ? 400
+            : 500;
+      response.status(status).json({
+        error: error instanceof Error ? error.message : "创建用户失败。",
+      });
+    }
+  },
+);
+
+app.post(
+  "/api/superadmin/users/:userId/reset-password",
+  async (
+    request: Request<{ userId: string }>,
+    response: Response,
+  ) => {
+    if (!(await requireAuthenticatedUser(request, response, "superadmin"))) {
+      return;
+    }
+
+    try {
+      const user = await notesDataStore.resetUserPassword(request.params.userId);
+      await notesDataStore.revokeHermesInstallLink(request.params.userId);
+      response.json({
+        user,
+      });
+    } catch (error) {
+      response
+        .status(error instanceof AccountNotFoundError ? 404 : 500)
+        .json({
+          error: error instanceof Error ? error.message : "重置密码失败。",
+        });
+    }
+  },
+);
+
+app.get("/api/workspace", async (request: Request, response: Response) => {
+  const user = await requireWorkspaceUser(request, response);
+
+  if (!user) {
+    return;
+  }
+
+  const stored = await notesDataStore.getWorkspace(user.id);
+  response.json(
+    stored ?? {
+      updatedAt: null,
+      workspace: null,
+    },
+  );
+});
+
+app.get("/api/ai/status", (_request: Request, response: Response) => {
+  response.setHeader("Cache-Control", "no-store");
+  response.json({ available: isAiAvailable() });
+});
+
+app.post(
+  "/api/ai/suggestions",
+  async (
+    request: Request<Record<string, never>, unknown, AiSuggestionsRequestBody>,
+    response: Response,
+  ) => {
+    const user = response.locals.aiUser as AuthSession | undefined;
+
+    if (!user) {
+      response.status(401).json({ error: "请先登录账号。" });
+      return;
+    }
+
+    if (!isSameOriginRequest(request)) {
+      response.status(403).json({ error: "请从当前便签页面发起 AI 审阅。" });
+      return;
+    }
+
+    if (!isAiAvailable()) {
+      response.status(503).json({ error: "AI 服务当前不可用，请稍后重试。" });
+      return;
+    }
+
+    const markdown = request.body?.markdown;
+    const instruction =
+      typeof request.body?.instruction === "string"
+        ? request.body.instruction.trim()
+        : "";
+
+    if (
+      typeof markdown !== "string" ||
+      !markdown ||
+      markdown.length > maxAiMarkdownLength
+    ) {
+      response.status(400).json({
+        error: `便签正文须为 1-${maxAiMarkdownLength} 个字符。`,
+      });
+      return;
+    }
+
+    if (
+      !instruction ||
+      instruction.length > maxAiInstructionLength
+    ) {
+      response.status(400).json({
+        error: `审阅要求须为 1-${maxAiInstructionLength} 个字符。`,
+      });
+      return;
+    }
+
+    if (activeAiUsers.has(user.id)) {
+      response.status(429).json({ error: "已有 AI 审阅正在进行，请稍候。" });
+      return;
+    }
+
+    const retryAfter = consumeAiRateLimit(user.id);
+
+    if (retryAfter !== null) {
+      response.setHeader("Retry-After", retryAfter.toString());
+      response.status(429).json({ error: "AI 审阅请求过于频繁，请稍后再试。" });
+      return;
+    }
+
+    activeAiUsers.add(user.id);
+
+    try {
+      response.setHeader("Cache-Control", "no-store");
+      response.json(await createAiSuggestions(markdown, instruction));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "AI_UPSTREAM_ERROR";
+      const status =
+        code === "AI_TIMEOUT"
+          ? 504
+          : code === "AI_UNAVAILABLE"
+            ? 503
+            : 502;
+      response.status(status).json({
+        error:
+          status === 504
+            ? "AI 审阅超时，请稍后重试。"
+            : status === 503
+              ? "AI 服务当前不可用，请稍后重试。"
+              : "AI 暂时无法生成有效建议，请稍后重试。",
+      });
+    } finally {
+      activeAiUsers.delete(user.id);
+    }
+  },
+);
+
+app.put(
+  "/api/workspace",
+  async (
+    request: Request<Record<string, never>, unknown, WorkspaceRequestBody>,
+    response: Response,
+  ) => {
+    const user = await requireWorkspaceUser(request, response);
+
+    if (!user) {
+      return;
+    }
+
+    const expectedUpdatedAt = request.body?.expectedUpdatedAt;
+
+    if (
+      expectedUpdatedAt !== undefined &&
+      expectedUpdatedAt !== null &&
+      (typeof expectedUpdatedAt !== "number" ||
+        !Number.isFinite(expectedUpdatedAt))
+    ) {
+      response.status(400).json({
+        error: "expectedUpdatedAt 必须是服务端返回的时间戳或 null。",
+      });
+      return;
+    }
+
+    try {
+      response.json(
+        await notesDataStore.saveWorkspace(
+          user.id,
+          request.body?.workspace,
+          Date.now(),
+          expectedUpdatedAt,
+        ),
+      );
+    } catch (error) {
+      response.status(error instanceof WorkspaceConflictError ? 409 : 400).json({
+        error: error instanceof Error ? error.message : "云端工作区保存失败。",
+        ...(error instanceof WorkspaceConflictError
+          ? { updatedAt: error.updatedAt }
+          : {}),
+      });
+    }
+  },
+);
 
 app.post(
   "/api/export",
@@ -1844,6 +3205,50 @@ app.post(
   },
 );
 
+app.post(
+  "/api/wechat",
+  async (
+    request: Request<Record<string, never>, unknown, WechatRequestBody>,
+    response: Response,
+  ) => {
+    try {
+      const markdown = await resolveMarkdown(request.body || {});
+      const authenticatedUser = await getWorkspaceUser(request);
+      response.json(
+        await prepareWechatArticle(markdown, {
+          footer: resolveFooterConfig(request.body || {}),
+          publicBaseUrl: getPublicBaseUrl(request),
+          temporaryUploads: !authenticatedUser,
+        }),
+      );
+    } catch (error) {
+      console.error("Wechat copy preparation failed:", error);
+
+      const status =
+        error instanceof AnonymousQuotaExceededError
+          ? 429
+          : error instanceof QiniuConfigurationError
+          ? 503
+          : error instanceof QiniuUploadError
+            ? 502
+            : 500;
+
+      response.status(status).json({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to prepare WeChat article",
+        hint:
+          error instanceof AnonymousQuotaExceededError
+            ? `今日额度已使用 ${error.quota.used}/${error.quota.limit} 张，下一次重置时间：${error.quota.resetsAt}`
+            : error instanceof QiniuConfigurationError
+            ? "本地可通过 QINIU_CONFIG_PATH 复用现有 qiniu.json；生产环境请使用环境变量或只读挂载配置。"
+            : undefined,
+      });
+    }
+  },
+);
+
 app.get("/api/health", (_request: Request, response: Response) => {
   response.json({ ok: true });
 });
@@ -1907,6 +3312,8 @@ if (await hasDistIndex()) {
     response.sendFile(path.join(distDir, "index.html"));
   });
 }
+
+await checkAiAvailability();
 
 const server = app.listen(port, () => {
   console.log(`Backend listening on http://127.0.0.1:${port}`);

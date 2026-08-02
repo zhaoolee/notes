@@ -17,6 +17,7 @@
     "server/**/*.ts",
     "src/components/MarkdownText.tsx",
     "src/components/NoteSheet.tsx",
+    "src/components/WechatArticle.tsx",
     "src/lib/markdown.ts",
     "src/types/app.ts"
   ]

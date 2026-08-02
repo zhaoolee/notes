@@ -4,4 +4,6 @@ dist-server
 .env
 storage/images/*
 !storage/images/.gitkeep
+storage/data/*
+!storage/data/.gitkeep
 .playwright-mcp/

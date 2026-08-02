@@ -1,6 +1,10 @@
 node_modules
 dist
+storage
 .git
 .github
 .DS_Store
 npm-debug.log
+.env
+.env.*
+!.env.example

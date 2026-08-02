@@ -1,9 +1,9 @@
-import { THEME_OPTIONS } from "../lib/app-state";
-import type { ThemeId } from "../types/app";
+import { THEME_OPTIONS } from "../lib/themes.js";
+import type { ThemePreferenceId } from "../types/app.js";
 
 interface ThemeSelectorProps {
-  value: ThemeId;
-  onChange: (themeId: ThemeId) => void;
+  value: ThemePreferenceId;
+  onChange: (themeId: ThemePreferenceId) => void;
 }
 
 export function ThemeSelector({ value, onChange }: ThemeSelectorProps) {

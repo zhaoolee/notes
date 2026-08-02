@@ -13,6 +13,7 @@ RUN npm ci
 ENV PORT=3001
 ENV EXPORT_APP_URL=http://frontend:15173
 ENV IMAGE_STORAGE_DIR=/app/storage/images
+ENV DATA_STORAGE_DIR=/app/storage/data
 
 EXPOSE 3001
 

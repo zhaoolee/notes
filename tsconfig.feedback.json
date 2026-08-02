@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.server.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "frontend/tests/**/*.test.ts",
+    "backend/tests/**/*.test.ts"
+  ]
+}

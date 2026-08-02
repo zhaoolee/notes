@@ -1,8 +1,16 @@
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { MARKDOWN_BLANK_LINE, preserveMarkdownBlankLines } from "../lib/markdown.js";
+import {
+  detachUnindentedImagesFromLists,
+  MARKDOWN_BLANK_LINE,
+  preserveMarkdownBlankLines,
+} from "../lib/markdown.js";
 
 interface MarkdownTextProps {
+  children: string;
+}
+
+interface MarkdownInlineTextProps {
   children: string;
 }
 
@@ -27,6 +35,8 @@ const markdownComponents: Components = {
   ),
   img: ({ src, alt }) => (
     <img
+      className="note-image-frame"
+      data-smartisan-image-frame="android"
       src={src}
       alt={alt ?? ""}
       loading="eager"
@@ -36,6 +46,18 @@ const markdownComponents: Components = {
   code: ({ children, className }) => <code className={className}>{children}</code>,
   blockquote: ({ children }) => <blockquote>{children}</blockquote>,
 };
+
+const inlineMarkdownComponents: Components = {
+  ...markdownComponents,
+  p: ({ children }) => <>{children}</>,
+};
+
+function escapeLeadingBlockMarkdown(markdown: string): string {
+  return markdown
+    .replace(/^(\s*)(\d+)([.)])(?=\s)/, "$1$2\\$3")
+    .replace(/^(\s*)([-+*>])(?=\s)/, "$1\\$2")
+    .replace(/^(\s*)(#{1,6})(?=\s)/, "$1\\$2");
+}
 
 type MarkdownAstNode = {
   type?: string;
@@ -113,7 +135,7 @@ function splitParagraphByManualLines(node: MarkdownAstNode): MarkdownAstNode[] {
   });
 }
 
-function remarkManualLineParagraphs() {
+export function remarkManualLineParagraphs() {
   return (tree: MarkdownAstNode) => {
     function visit(node: MarkdownAstNode): void {
       if (!node || typeof node !== "object") {
@@ -139,7 +161,18 @@ export function MarkdownText({ children }: MarkdownTextProps) {
       remarkPlugins={[remarkGfm, remarkManualLineParagraphs]}
       components={markdownComponents}
     >
-      {preserveMarkdownBlankLines(children)}
+      {detachUnindentedImagesFromLists(preserveMarkdownBlankLines(children))}
+    </ReactMarkdown>
+  );
+}
+
+export function MarkdownInlineText({ children }: MarkdownInlineTextProps) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={inlineMarkdownComponents}
+    >
+      {escapeLeadingBlockMarkdown(children)}
     </ReactMarkdown>
   );
 }

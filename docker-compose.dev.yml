@@ -22,10 +22,26 @@ services:
       PORT: "3001"
       EXPORT_APP_URL: http://frontend:15173
       IMAGE_STORAGE_DIR: /app/storage/images
+      DATA_STORAGE_DIR: /app/storage/data
+      QINIU_ACCESS_KEY: ${QINIU_ACCESS_KEY:-}
+      QINIU_SECRET_KEY: ${QINIU_SECRET_KEY:-}
+      QINIU_BUCKET: ${QINIU_BUCKET:-}
+      QINIU_DOMAIN: ${QINIU_DOMAIN:-}
+      QINIU_PREFIX: ${QINIU_PREFIX:-}
+      QINIU_UPLOAD_TIMEOUT_MS: ${QINIU_UPLOAD_TIMEOUT_MS:-30000}
+      QINIU_UPLOAD_URL: ${QINIU_UPLOAD_URL:-}
+      SUPERADMIN: ${SUPERADMIN:-}
+      SUPERADMINPASSWORD: ${SUPERADMINPASSWORD:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      ANONYMOUS_DAILY_UPLOAD_LIMIT: ${ANONYMOUS_DAILY_UPLOAD_LIMIT:-500}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
     volumes:
       - .:/app
       - backend_node_modules:/app/node_modules
       - ./storage/images:/app/storage/images
+      - ./storage/data:/app/storage/data
 
 volumes:
   frontend_node_modules:

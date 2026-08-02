@@ -9,6 +9,7 @@ interface ExportErrorPayload {
 
 interface ExportFooterOptions {
   footerBrand: string;
+  footerLogoUrl: string;
   footerVia: string;
 }
 
@@ -177,6 +178,7 @@ async function tryServerExport(
         body: JSON.stringify({
           filename,
           footerBrand: footer.footerBrand,
+          footerLogoUrl: footer.footerLogoUrl,
           footerVia: footer.footerVia,
           markdown,
           theme,
@@ -232,6 +234,7 @@ export async function exportMarkdownArchive(
     },
     body: JSON.stringify({
       footerBrand: footer.footerBrand,
+      footerLogoUrl: footer.footerLogoUrl,
       footerVia: footer.footerVia,
       markdown,
     }),

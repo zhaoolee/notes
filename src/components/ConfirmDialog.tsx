@@ -1,7 +1,13 @@
-import type { PendingAction } from "../types/app";
+import { useId } from "react";
+
+export interface ConfirmDialogAction {
+  confirmLabel: string;
+  description: string;
+  title: string;
+}
 
 interface ConfirmDialogProps {
-  pendingAction: PendingAction | null;
+  pendingAction: ConfirmDialogAction | null;
   onClose: () => void;
   onConfirm: () => void;
 }
@@ -11,6 +17,8 @@ export function ConfirmDialog({
   onClose,
   onConfirm,
 }: ConfirmDialogProps) {
+  const titleId = useId();
+
   if (!pendingAction) {
     return null;
   }
@@ -21,17 +29,17 @@ export function ConfirmDialog({
         className="confirm-dialog"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
+        aria-labelledby={titleId}
         onClick={(event) => event.stopPropagation()}
       >
-        <h3 id="confirm-dialog-title">{pendingAction.title}</h3>
+        <h3 id={titleId}>{pendingAction.title}</h3>
         <p>{pendingAction.description}</p>
         <div className="confirm-dialog-actions">
           <button type="button" onClick={onClose}>
             取消
           </button>
           <button type="button" className="primary" onClick={onConfirm}>
-            确认覆盖
+            {pendingAction.confirmLabel}
           </button>
         </div>
       </div>

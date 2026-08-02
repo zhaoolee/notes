@@ -16,5 +16,21 @@ services:
     restart: unless-stopped
     environment:
       IMAGE_STORAGE_DIR: /app/storage/images
+      DATA_STORAGE_DIR: /app/storage/data
+      QINIU_ACCESS_KEY: ${QINIU_ACCESS_KEY:-}
+      QINIU_SECRET_KEY: ${QINIU_SECRET_KEY:-}
+      QINIU_BUCKET: ${QINIU_BUCKET:-}
+      QINIU_DOMAIN: ${QINIU_DOMAIN:-}
+      QINIU_PREFIX: ${QINIU_PREFIX:-}
+      QINIU_UPLOAD_TIMEOUT_MS: ${QINIU_UPLOAD_TIMEOUT_MS:-30000}
+      QINIU_UPLOAD_URL: ${QINIU_UPLOAD_URL:-}
+      SUPERADMIN: ${SUPERADMIN:-}
+      SUPERADMINPASSWORD: ${SUPERADMINPASSWORD:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      ANONYMOUS_DAILY_UPLOAD_LIMIT: ${ANONYMOUS_DAILY_UPLOAD_LIMIT:-500}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
     volumes:
       - ./storage/images:/app/storage/images
+      - ./storage/data:/app/storage/data

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout android:id="@id/weibo_note_image_background" android:background="@drawable/longlength_weibo_image_bg" android:layout_width="fill_parent" android:layout_height="wrap_content"
+  xmlns:android="http://schemas.android.com/apk/res/android">
+    <com.smartisanos.notes.widget.AutoScaleImageView android:id="@id/weibo_note_image" android:layout_width="fill_parent" android:layout_height="wrap_content" android:scaleType="fitCenter" />
+    <TextView android:textSize="@dimen/preview_detail_image_des_size" android:textColor="@color/image_des_preview_color" android:gravity="center" android:id="@id/weibo_image_describe" android:background="@android:color/transparent" android:visibility="visible" android:layout_width="fill_parent" android:layout_height="@dimen/detail_notes_pic_des_height" android:layout_marginLeft="5.0dip" android:layout_marginRight="5.0dip" android:hint="@string/app_name" android:maxEms="15" android:layout_below="@id/weibo_note_image" android:layout_centerHorizontal="true" />
+</RelativeLayout>
