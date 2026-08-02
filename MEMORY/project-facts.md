@@ -1299,3 +1299,35 @@
   `28.16px / 41.6768px`，H2 和引用均无额外边框或背景。71 项前端 feedback、
   12 项后端 feedback、完整 TypeScript 检查与生产构建通过；构建只保留既有的
   单 chunk 超过 `500kB` 提示。
+
+## 2026-08-02：公众号富文本比例统一生产发布
+
+- GitHub `dev` 与生产 detached HEAD 发布时均包含精确应用提交
+  `0eb995d517c2aaf31aa85bfb1da65948f696740f`；上一可回滚应用版本为
+  `295e6f213e844d74a3e066797c1637e618401287`。
+- 发布前完整备份位于
+  `/home/hermes/notes-production-backups/20260802-083650-pre-0eb995d`，包含 110 个图片
+  文件和 2 个数据文件；图片约 66 MB、数据约 48 KB。受保护的 `notes-data.json`
+  通过后端容器只读复制，源与备份 SHA-256 均为
+  `58967cf49c7487106d528df945ed26c38e44e3df7ebeb3b4ebb2ee4651232416`。
+- 新生产后端镜像为 `a3dc6cb0fbd5`，前端静态产物未变、镜像仍为 `69fe09b59e7d`；
+  两个容器均稳定 running、重启次数为 0。本机和公网健康检查成功，AI 状态均为
+  可用，启动与收尾日志没有持续重启、Playwright 或存储权限错误。
+- 生产 `POST /api/wechat` 已直接断言纸张 `660px`、正文 `24.32px / 1.8`、H1
+  `40.96px`、H2 `29.44px`、引用 `28.16px`；旧 `15px / 330px` 与 H2 下划线均
+  不存在。管理员图片链路上传/复用成功、替换了站内源地址且没有消耗匿名额度。
+- 匿名纯文本 PNG、站内图片导入与公网读取、带图 ZIP、带图 PNG、公开 HTTPS
+  `X-Export-Url`、公网导出图片、`/superadmin`、管理员 `Secure / HttpOnly /
+  SameSite=Lax` Cookie 和云工作区只读均通过。冒烟新增 3 个正常导出图片文件，
+  `storage/images` 从 110 增至 113，没有修改真实便签。
+- 容器重建后数据仍为 schema v1、1 个普通用户、2 个工作区、13 条便签和 1 个当前
+  Hermes 安装链接。验证期间仍打开的生产页面正常更新了其中一个工作区，便签数量
+  不变；因此收尾数据哈希变为
+  `f0137849d481a2f4ccbcc23f80046a7a181269105d239d1f54106558a56eba2a`，没有用旧备份
+  覆盖这次正常并发写入。
+- 生产 `QINIU_DOMAIN` 仍为既有 HTTP 地址；上传对象通过 HTTP 返回 200，但同域名
+  HTTPS 证书因密钥强度过低无法通过校验，不能通过应用回滚或直接替换协议修复。
+  后续应先在七牛侧升级 CDN 证书，再把 `QINIU_DOMAIN` 改为 HTTPS 并重启后端复验。
+- 精确应用提交的 71 项前端 feedback、12 项后端 feedback、完整 TypeScript 检查和
+  生产构建通过，`npm audit --omit=dev` 为 0；仅保留既有的单 chunk 超过 `500kB`
+  构建提示。
