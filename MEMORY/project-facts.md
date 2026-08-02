@@ -1279,3 +1279,23 @@
 - 精确提交的 71 项前端 feedback、12 项后端 feedback、完整 TypeScript 检查和生产
   构建通过；`npm audit --omit=dev` 为 0。仅保留不进入生产依赖的 Windows 开发服务
   esbuild low 提示，以及既有单 chunk 超过 `500kB` 的构建提示。
+
+## 2026-08-02：公众号富文本与成品便签比例统一
+
+- 浏览器实测生产分享预览的正文、H1、H2 分别为 `24.32px`、`40.96px`、
+  `29.44px`，但当时 `WechatArticle` 固定输出 `15px / 20px / 17px`，并额外添加
+  H2 下划线和引用色块；公众号编辑器截图正好呈现这套复制源样式，因此根因是
+  复制组件维护了另一套紧凑排版，不是微信随机缩小或改色。
+- `WechatArticle` 现在直接展开成品便签标准 `--note-scale: 2` 的尺寸：纸张
+  `660px`，正文 `24.32px / 1.8`，H1 `40.96px / 1.28`，H2
+  `29.44px / 1.35`。双框内边距、真实 Markdown 空行、引用大引号、列表、代码、
+  表格、图片 `6px` 衬边与 `24px auto 4px` 外距、页脚尺寸也使用同一倍率；公众号
+  专用的 H2 横线、引用背景和左边线已移除。
+- `remarkManualLineParagraphs` 从 `MarkdownText` 导出后同时用于公众号渲染，配合
+  `preserveMarkdownBlankLines` 保证普通预览与复制 HTML 的手动换行和空行语义一致。
+- 本地浏览器通过真实 `POST /api/wechat` 渲染同一段“程序员狠话”正文后，计算样式
+  与生产预览一致：正文 `24.32px / 43.776px`、H1
+  `40.96px / 52.4288px`、H2 `29.44px / 39.744px`、引用
+  `28.16px / 41.6768px`，H2 和引用均无额外边框或背景。71 项前端 feedback、
+  12 项后端 feedback、完整 TypeScript 检查与生产构建通过；构建只保留既有的
+  单 chunk 超过 `500kB` 提示。

@@ -1,10 +1,19 @@
-import type { CSSProperties, ReactNode } from "react";
+import {
+  Children,
+  cloneElement,
+  isValidElement,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   detachUnindentedImagesFromLists,
+  MARKDOWN_BLANK_LINE,
+  preserveMarkdownBlankLines,
   splitSections,
 } from "../lib/markdown.js";
+import { remarkManualLineParagraphs } from "./MarkdownText.js";
 
 interface WechatArticleProps {
   footerBrand: string;
@@ -22,37 +31,113 @@ const colors = {
   heading: "rgba(70,53,38,0.96)",
   muted: "#c0b5a7",
   paper: "#fffcf7",
+  quoteMark: "#ded4c8",
   text: "#665749",
 };
 
+const NOTE_SCALE = 2;
+
+function scaledPx(value: number): string {
+  return `${Number((value * NOTE_SCALE).toFixed(4))}px`;
+}
+
+function scaledRem(value: number): string {
+  return scaledPx(value * 16);
+}
+
+const bodyFontSize = scaledRem(0.76);
+const bodyLineHeight = 1.8;
+const quoteIndent = scaledRem(0.92);
+
 const baseHeadingStyle: CSSProperties = {
   color: colors.heading,
-  fontWeight: 600,
-  letterSpacing: "0",
-  lineHeight: 1.4,
+  fontWeight: 700,
+  letterSpacing: "0.03em",
+  lineHeight: 1.28,
 };
 
 const bodyParagraphStyle: CSSProperties = {
-  margin: "0 0 12px",
+  margin: "0",
   color: colors.text,
   fontFamily:
-    '"PingFang SC","Hiragino Sans GB","Microsoft YaHei",Arial,sans-serif',
-  fontSize: "15px",
+    '"OPPOSans","Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Helvetica Neue",Arial,sans-serif',
+  fontSize: bodyFontSize,
   fontWeight: 400,
-  lineHeight: 1.68,
-  letterSpacing: "0",
+  lineHeight: bodyLineHeight,
+  letterSpacing: "0.03em",
   textAlign: "left",
-  overflowWrap: "break-word",
+  whiteSpace: "pre-wrap",
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
 };
+
+function renderBlockquoteChildren(children: ReactNode): ReactNode {
+  let hasQuoteMark = false;
+
+  return Children.map(children, (child) => {
+    if (
+      !isValidElement<{
+        children?: ReactNode;
+        style?: CSSProperties;
+      }>(child)
+    ) {
+      return child;
+    }
+
+    const isFirstTextBlock = !hasQuoteMark;
+    hasQuoteMark = true;
+
+    return cloneElement(
+      child,
+      {
+        style: {
+          ...child.props.style,
+          margin: "0",
+          color: "inherit",
+          fontSize: "inherit",
+          lineHeight: "inherit",
+          ...(isFirstTextBlock
+            ? {
+                paddingLeft: quoteIndent,
+                textIndent: `-${quoteIndent}`,
+              }
+            : {}),
+        },
+      },
+      isFirstTextBlock ? (
+        <>
+          <span
+            aria-hidden="true"
+            style={{
+              display: "inline-block",
+              width: quoteIndent,
+              color: colors.quoteMark,
+              fontFamily: 'Georgia,"Times New Roman",serif',
+              fontSize: scaledRem(1.42),
+              fontWeight: 400,
+              lineHeight: 0.82,
+              textIndent: "0",
+              verticalAlign: "-0.12em",
+            }}
+          >
+            “
+          </span>
+          {child.props.children}
+        </>
+      ) : (
+        child.props.children
+      ),
+    );
+  });
+}
 
 const components: Components = {
   h1: ({ children }) => (
     <h1
       style={{
         ...baseHeadingStyle,
-        margin: "18px 0 14px",
-        fontSize: "20px",
-        textAlign: "center",
+        margin: "0",
+        fontSize: scaledRem(1.28),
       }}
     >
       {children}
@@ -62,10 +147,8 @@ const components: Components = {
     <h2
       style={{
         ...baseHeadingStyle,
-        margin: "18px 0 10px",
-        paddingBottom: "6px",
-        borderBottom: `1px solid ${colors.border}`,
-        fontSize: "17px",
+        margin: "0",
+        fontSize: scaledRem(0.92),
       }}
     >
       {children}
@@ -75,8 +158,8 @@ const components: Components = {
     <h3
       style={{
         ...baseHeadingStyle,
-        margin: "16px 0 8px",
-        fontSize: "16px",
+        margin: "0",
+        fontSize: "1.17em",
       }}
     >
       {children}
@@ -86,46 +169,68 @@ const components: Components = {
     <h4
       style={{
         ...baseHeadingStyle,
-        margin: "15px 0 7px",
-        fontSize: "15px",
+        margin: "0",
+        fontSize: "1em",
       }}
     >
       {children}
     </h4>
   ),
   h5: ({ children }) => (
-    <h5 style={{ ...baseHeadingStyle, margin: "14px 0 7px", fontSize: "14px" }}>
+    <h5 style={{ ...baseHeadingStyle, margin: "0", fontSize: "0.83em" }}>
       {children}
     </h5>
   ),
   h6: ({ children }) => (
-    <h6 style={{ ...baseHeadingStyle, margin: "14px 0 7px", fontSize: "13px" }}>
+    <h6 style={{ ...baseHeadingStyle, margin: "0", fontSize: "0.67em" }}>
       {children}
     </h6>
   ),
-  p: ({ children }) => (
-    <p style={bodyParagraphStyle}>{children}</p>
-  ),
+  p: ({ children, style }) => {
+    const isBlankLine = Array.isArray(children)
+      ? children.length === 1 && children[0] === MARKDOWN_BLANK_LINE
+      : children === MARKDOWN_BLANK_LINE;
+
+    return (
+      <p
+        style={{
+          ...(isBlankLine
+            ? {
+                ...bodyParagraphStyle,
+                display: "block",
+                height: "0.704em",
+                minHeight: "0",
+                color: "transparent",
+                lineHeight: "0",
+                overflow: "hidden",
+              }
+            : bodyParagraphStyle),
+          ...style,
+        }}
+      >
+        {children}
+      </p>
+    );
+  },
   strong: ({ children }) => (
     <strong
       style={{
         display: "inline",
-        color: colors.heading,
-        fontWeight: 600,
+        color: "inherit",
+        fontWeight: 700,
         whiteSpace: "normal",
       }}
     >
       {children}
     </strong>
   ),
-  em: ({ children }) => <em style={{ color: colors.muted }}>{children}</em>,
+  em: ({ children }) => <em style={{ color: "inherit" }}>{children}</em>,
   a: ({ children, href }) => (
     <a
       href={href}
       style={{
         color: colors.accent,
         textDecoration: "none",
-        borderBottom: `1px solid ${colors.border}`,
       }}
     >
       {children}
@@ -134,17 +239,19 @@ const components: Components = {
   blockquote: ({ children }) => (
     <blockquote
       style={{
-        margin: "12px 0",
-        padding: "8px 12px",
-        borderLeft: `2px solid ${colors.border}`,
-        backgroundColor: "rgba(243,236,225,0.65)",
+        margin: `${scaledPx(8)} 0`,
+        padding: "0",
+        border: "0",
+        backgroundColor: "transparent",
         color: colors.muted,
-        fontSize: "15px",
+        fontSize: scaledRem(0.88),
         fontWeight: 400,
-        lineHeight: 1.64,
+        lineHeight: 1.48,
+        overflowWrap: "anywhere",
+        wordBreak: "break-word",
       }}
     >
-      {children}
+      {renderBlockquoteChildren(children)}
     </blockquote>
   ),
   ul: ({ children }) => (
@@ -153,13 +260,13 @@ const components: Components = {
         boxSizing: "border-box",
         width: "100% !important",
         maxWidth: "100% !important",
-        margin: "6px 0 13px",
-        paddingLeft: "1.35em !important",
+        margin: `${scaledPx(8)} 0 0`,
+        paddingLeft: "1.3em !important",
         listStylePosition: "outside",
         color: colors.text,
-        fontSize: "15px",
+        fontSize: bodyFontSize,
         fontWeight: 400,
-        lineHeight: 1.68,
+        lineHeight: bodyLineHeight,
       }}
     >
       {children}
@@ -172,13 +279,13 @@ const components: Components = {
         boxSizing: "border-box",
         width: "100% !important",
         maxWidth: "100% !important",
-        margin: "6px 0 13px",
-        paddingLeft: "1.5em !important",
+        margin: `${scaledPx(8)} 0 0`,
+        paddingLeft: "1.3em !important",
         listStylePosition: "outside",
         color: colors.text,
-        fontSize: "15px",
+        fontSize: bodyFontSize,
         fontWeight: 400,
-        lineHeight: 1.68,
+        lineHeight: bodyLineHeight,
       }}
     >
       {children}
@@ -190,12 +297,12 @@ const components: Components = {
         boxSizing: "border-box",
         minWidth: "0",
         maxWidth: "100% !important",
-        margin: "3px 0",
-        paddingLeft: "0.1em",
+        margin: "0",
+        paddingLeft: "0",
         color: colors.text,
-        fontSize: "15px",
+        fontSize: bodyFontSize,
         fontWeight: 400,
-        lineHeight: 1.68,
+        lineHeight: bodyLineHeight,
       }}
     >
       {children}
@@ -205,13 +312,13 @@ const components: Components = {
     <code
       className={className}
       style={{
-        padding: className ? "0" : "2px 5px",
+        padding: className ? "0" : "0.08em 0.32em",
         borderRadius: "0",
         background: className ? "transparent" : colors.code,
         color: className ? colors.text : "#8a6548",
         fontFamily:
           '"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
-        fontSize: className ? "12px" : "0.88em",
+        fontSize: className ? scaledRem(0.72) : "0.9em",
         fontWeight: 400,
       }}
     >
@@ -221,18 +328,19 @@ const components: Components = {
   pre: ({ children }) => (
     <pre
       style={{
-        margin: "12px 0",
-        padding: "10px 12px",
-        overflowX: "auto",
-        border: `1px solid ${colors.border}`,
+        margin: `${scaledPx(10)} 0 0`,
+        padding: `${scaledPx(9)} ${scaledPx(11)}`,
+        overflow: "hidden",
+        border: "0",
         borderRadius: "0",
         background: "rgba(243,236,225,0.9)",
         color: "rgba(97,79,61,0.94)",
-        fontSize: "12px",
+        fontSize: scaledRem(0.72),
         fontWeight: 400,
-        lineHeight: 1.6,
+        lineHeight: 1.62,
         whiteSpace: "pre-wrap",
-        overflowWrap: "break-word",
+        overflowWrap: "anywhere",
+        wordBreak: "break-word",
       }}
     >
       {children}
@@ -248,12 +356,12 @@ const components: Components = {
         minWidth: "0",
         width: "100% !important",
         maxWidth: "100% !important",
-        margin: "14px auto",
-        padding: "4px",
+        margin: `${scaledPx(12)} auto ${scaledPx(2)}`,
+        padding: scaledPx(3),
         border: "1px solid #ebe8e3",
         borderRadius: "0",
         backgroundColor: "#ffffff",
-        boxShadow: "0 1px 4px rgba(88,70,52,0.07)",
+        boxShadow: `0 ${scaledPx(1)} ${scaledPx(3)} rgba(88,70,52,0.07)`,
         clear: "both",
         overflow: "hidden !important",
       }}
@@ -278,15 +386,15 @@ const components: Components = {
     </span>
   ),
   table: ({ children }) => (
-    <section style={{ margin: "12px 0", overflowX: "auto" }}>
+    <section style={{ margin: `${scaledPx(8)} 0 0`, overflowX: "auto" }}>
       <table
         style={{
           width: "100%",
           borderCollapse: "collapse",
           color: colors.text,
-          fontSize: "13px",
+          fontSize: scaledRem(0.74),
           fontWeight: 400,
-          lineHeight: 1.55,
+          lineHeight: 1.52,
         }}
       >
         {children}
@@ -296,11 +404,11 @@ const components: Components = {
   th: ({ children }) => (
     <th
       style={{
-        padding: "8px 10px",
+        padding: `${scaledRem(0.35)} ${scaledRem(0.45)}`,
         border: `1px solid ${colors.border}`,
         background: "rgba(243,236,225,0.65)",
         color: colors.heading,
-        fontWeight: 600,
+        fontWeight: 700,
         textAlign: "left",
       }}
     >
@@ -310,7 +418,7 @@ const components: Components = {
   td: ({ children }) => (
     <td
       style={{
-        padding: "8px 10px",
+        padding: `${scaledRem(0.35)} ${scaledRem(0.45)}`,
         border: `1px solid ${colors.border}`,
         verticalAlign: "top",
       }}
@@ -321,8 +429,8 @@ const components: Components = {
   hr: () => (
     <hr
       style={{
-        margin: "18px auto",
-        width: "38%",
+        margin: `${scaledPx(12)} 0`,
+        width: "100%",
         border: "0",
         borderTop: `1px solid ${colors.border}`,
       }}
@@ -344,16 +452,23 @@ function SectionHeading({ children }: { children: string }) {
     p: ({ children: titleChildren }) => (
       <header
         style={{
-          ...baseHeadingStyle,
-          margin: "2px 0 10px",
-          paddingBottom: "6px",
-          borderBottom: `1px solid ${colors.border}`,
-          color: colors.heading,
-          fontSize: "16px",
-          textAlign: "start",
+          margin: `0 0 ${scaledPx(6)}`,
+          padding: "0",
+          border: "0",
         }}
       >
-        {titleChildren as ReactNode}
+        <h2
+          style={{
+            ...baseHeadingStyle,
+            margin: "0",
+            color: colors.heading,
+            fontSize: scaledRem(0.92),
+            lineHeight: 1.35,
+            textAlign: "start",
+          }}
+        >
+          {titleChildren as ReactNode}
+        </h2>
       </header>
     ),
   };
@@ -499,8 +614,11 @@ export function WechatArticle({
         backgroundColor: "transparent",
         color: colors.text,
         fontFamily:
-          '"PingFang SC","Hiragino Sans GB","Microsoft YaHei",Arial,sans-serif',
+          '"OPPOSans","Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Helvetica Neue",Arial,sans-serif',
+        fontSize: bodyFontSize,
         fontWeight: 400,
+        lineHeight: bodyLineHeight,
+        letterSpacing: "0.03em",
         wordBreak: "break-word",
       }}
     >
@@ -509,13 +627,13 @@ export function WechatArticle({
         style={{
           boxSizing: "border-box",
           margin: "0 auto",
-          padding: "6px",
+          padding: `${scaledPx(15)} ${scaledPx(6.6667)} 0`,
           paddingBottom: "12%",
           width: "100%",
-          maxWidth: "677px",
+          maxWidth: scaledPx(330),
           border: "0",
           backgroundColor: colors.paper,
-          boxShadow: "0 2px 8px rgba(89,65,34,0.08)",
+          boxShadow: `0 ${scaledPx(12)} ${scaledPx(21)} rgba(89,65,34,0.12)`,
         }}
       >
         <table
@@ -574,14 +692,23 @@ export function WechatArticle({
               >
                 {"\u00a0"}
               </td>
-              <td style={{ padding: "3px", border: "0" }}>
+              <td style={{ padding: scaledPx(2), border: "0" }}>
                 <section
                   data-smartisan-frame="inner"
                   style={{
                     boxSizing: "border-box",
-                    padding: "20px 18px 14px",
+                    padding: `${scaledPx(31.5)} ${scaledPx(19.8333)} ${scaledPx(14)}`,
                     border: `1px solid ${colors.frame}`,
                     backgroundColor: colors.paper,
+                    color: colors.text,
+                    fontSize: bodyFontSize,
+                    fontWeight: 400,
+                    lineHeight: bodyLineHeight,
+                    letterSpacing: "0.03em",
+                    WebkitTextStroke:
+                      "0.3px rgba(102,87,73,0.62)",
+                    overflowWrap: "anywhere",
+                    wordBreak: "break-word",
                   }}
                 >
                   {sections.length ? (
@@ -593,8 +720,8 @@ export function WechatArticle({
                             index === 0
                               ? "0"
                               : section.heading
-                                ? "18px 0 0"
-                                : "12px 0 0",
+                                ? `${scaledPx(18)} 0 0`
+                                : "0",
                         }}
                       >
                         {section.heading ? (
@@ -607,12 +734,14 @@ export function WechatArticle({
                           )
                         ) : null}
                         <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
+                          remarkPlugins={[remarkGfm, remarkManualLineParagraphs]}
                           components={components}
                         >
-                          {protectWechatInlineBoundaries(
-                            detachUnindentedImagesFromLists(
-                              removeTrailingEmptyListItems(section.content),
+                          {preserveMarkdownBlankLines(
+                            protectWechatInlineBoundaries(
+                              detachUnindentedImagesFromLists(
+                                removeTrailingEmptyListItems(section.content),
+                              ),
                             ),
                           )}
                         </ReactMarkdown>
@@ -621,11 +750,11 @@ export function WechatArticle({
                   ) : (
                     <p
                       style={{
-                        margin: "18px 0",
+                        margin: `${scaledPx(18)} 0`,
                         color: colors.muted,
-                        fontSize: "14px",
+                        fontSize: bodyFontSize,
                         fontWeight: 400,
-                        lineHeight: 1.68,
+                        lineHeight: bodyLineHeight,
                         textAlign: "center",
                       }}
                     >
@@ -675,13 +804,13 @@ export function WechatArticle({
           data-smartisan-footer="true"
           style={{
             boxSizing: "border-box",
-            margin: "11px 18px 0",
+            margin: `${scaledPx(30)} ${scaledPx(10)} 0`,
             padding: "0",
             border: "0",
             color: colors.footer,
             fontSize: "0",
             fontWeight: 400,
-            lineHeight: "16px",
+            lineHeight: scaledRem(0.64),
             textAlign: "left",
             whiteSpace: "nowrap",
           }}
@@ -690,13 +819,13 @@ export function WechatArticle({
             data-smartisan-hammer="true"
             src={footerHammerUrl}
             alt="锤子"
-            width="16"
-            height="16"
+            width="20"
+            height="20"
             style={{
               display: "inline-block",
-              width: "16px",
-              height: "16px",
-              margin: "0 5px 0 0",
+              width: scaledRem(0.64),
+              height: scaledRem(0.64),
+              margin: `0 ${scaledPx(6)} 0 0`,
               border: "0",
               borderRadius: "50%",
               backgroundColor: "transparent",
@@ -709,16 +838,20 @@ export function WechatArticle({
               display: "inline-block",
               margin: "0",
               color: colors.footer,
-              fontSize: "10px",
+              fontSize: scaledRem(0.5),
               fontWeight: 400,
-              lineHeight: "16px",
+              lineHeight: scaledRem(0.64),
               verticalAlign: "middle",
               whiteSpace: "nowrap",
             }}
           >
             <strong style={{ fontWeight: 400 }}>{footerBrand}</strong>
             <span
-              style={{ marginLeft: "4px", fontSize: "8px", fontWeight: 400 }}
+              style={{
+                marginLeft: scaledPx(5),
+                fontSize: scaledRem(0.42),
+                fontWeight: 400,
+              }}
             >
               {footerVia}
             </span>

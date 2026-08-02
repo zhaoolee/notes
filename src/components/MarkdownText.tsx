@@ -135,7 +135,7 @@ function splitParagraphByManualLines(node: MarkdownAstNode): MarkdownAstNode[] {
   });
 }
 
-function remarkManualLineParagraphs() {
+export function remarkManualLineParagraphs() {
   return (tree: MarkdownAstNode) => {
     function visit(node: MarkdownAstNode): void {
       if (!node || typeof node !== "object") {

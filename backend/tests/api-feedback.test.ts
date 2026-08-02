@@ -351,7 +351,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     );
     assert.match(
       wechat.html,
-      /<td style="padding:3px;border:0"><section data-smartisan-frame="inner"/,
+      /<td style="padding:4px;border:0"><section data-smartisan-frame="inner"/,
     );
     assert.doesNotMatch(
       wechat.html,
@@ -360,7 +360,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.doesNotMatch(wechat.html, /<header[^>]*text-align:center/);
     assert.match(
       wechat.html,
-      /<p style="[^"]*font-size:15px[^"]*font-weight:400[^"]*line-height:1\.68[^"]*text-align:center[^"]*">公众号测试<\/p>/,
+      /<p style="[^"]*font-size:24\.32px[^"]*font-weight:400[^"]*line-height:1\.8[^"]*text-align:center[^"]*">公众号测试<\/p>/,
     );
     assert.match(wechat.html, /<strong[^>]*>加粗正文<\/strong>/);
     assert.match(
@@ -376,12 +376,12 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.match(wechat.html, /图片后的编号仍可见<\/li>/);
     assert.match(wechat.html, /data-smartisan-image="true"/);
     assert.match(wechat.html, /data-smartisan-image-frame="android"/);
-    assert.match(wechat.html, /padding:4px/);
+    assert.match(wechat.html, /padding:6px/);
     assert.match(wechat.html, /border:1px solid #ebe8e3/);
     assert.match(wechat.html, /background-color:#ffffff/);
     assert.match(
       wechat.html,
-      /box-shadow:0 1px 4px rgba\(88,70,52,0\.07\)/,
+      /box-shadow:0 2px 6px rgba\(88,70,52,0\.07\)/,
     );
     assert.match(wechat.html, /<img[^>]*width="100%"/);
     assert.match(wechat.html, /width:100% !important/);
@@ -392,7 +392,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     );
     assert.match(
       wechat.html,
-      /<\/ol>\s*<p style="[^"]*"><span data-smartisan-image="true"[^>]*margin:14px auto/,
+      /data-smartisan-image="true"[^>]*margin:24px auto 4px/,
     );
     assert.doesNotMatch(wechat.html, /<li style="[^"]*overflow:hidden/);
     assert.match(wechat.html, new RegExp(qiniuImageUrl.replace(/\./g, "\\.")));
@@ -400,7 +400,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.match(wechat.html, /via API Feedback/);
     assert.match(
       wechat.html,
-      /<section data-smartisan-footer="true" style="[^"]*margin:11px 18px 0[^"]*font-size:0[^"]*line-height:16px/,
+      /<section data-smartisan-footer="true" style="[^"]*margin:60px 20px 0[^"]*font-size:0[^"]*line-height:20\.48px/,
     );
     assert.doesNotMatch(wechat.html, /<footer(?:\s|>)/);
     assert.doesNotMatch(wechat.html, /<table data-smartisan-footer="true"/);

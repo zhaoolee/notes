@@ -402,6 +402,10 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
       markdown: [
         "[公众号居中正文]",
         "",
+        "## **0x01**",
+        "",
+        "> 话题：AI 理财建议",
+        "",
         "正文包含 **粗体**、[链接](https://example.com) 和图片。",
         "",
         "9. **鼓励**vibe coding，但只提供 coding plan。",
@@ -427,7 +431,7 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.match(html, /data-smartisan-paper="true"/);
   assert.match(
     html,
-    /data-smartisan-paper="true" style="[^"]*padding-bottom:12%[^"]*border:0[^"]*background-color:#fffcf7/,
+    /data-smartisan-paper="true" style="[^"]*padding:30px 13\.3334px 0[^"]*padding-bottom:12%[^"]*max-width:660px[^"]*border:0[^"]*background-color:#fffcf7/,
   );
   assert.match(html, /background-color:#fffcf7/);
   assert.match(html, /data-smartisan-frame="outer"/);
@@ -474,7 +478,11 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
     ).length,
     1,
   );
-  assert.match(html, /<td style="padding:3px;border:0"><section data-smartisan-frame="inner"/);
+  assert.match(html, /<td style="padding:4px;border:0"><section data-smartisan-frame="inner"/);
+  assert.match(
+    html,
+    /data-smartisan-frame="inner" style="[^"]*padding:63px 39\.6666px 28px[^"]*font-size:24\.32px[^"]*line-height:1\.8/,
+  );
   assert.match(html, /<td data-smartisan-corner="top-left"/);
   assert.doesNotMatch(
     html,
@@ -484,21 +492,34 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.doesNotMatch(html, /<header[^>]*text-align:center/);
   assert.match(
     html,
-    /<p style="[^"]*font-size:15px[^"]*font-weight:400[^"]*line-height:1\.68[^"]*text-align:center[^"]*">公众号居中正文<\/p>/,
+    /<p style="[^"]*font-size:24\.32px[^"]*font-weight:400[^"]*line-height:1\.8[^"]*text-align:center[^"]*">公众号居中正文<\/p>/,
+  );
+  assert.match(
+    html,
+    /<h2 style="[^"]*font-weight:700[^"]*line-height:1\.35[^"]*font-size:29\.44px[^"]*"><strong[^>]*>0x01<\/strong><\/h2>/,
+  );
+  assert.doesNotMatch(html, /<header[^>]*border-bottom/);
+  assert.match(
+    html,
+    /<blockquote style="[^"]*margin:16px 0[^"]*border:0[^"]*background-color:transparent[^"]*font-size:28\.16px/,
+  );
+  assert.match(
+    html,
+    /<span aria-hidden="true" style="[^"]*width:29\.44px[^"]*font-size:45\.44px[^>]*>“<\/span>话题：AI 理财建议/,
   );
   assert.match(html, /<strong[^>]*>鼓励\u2060<\/strong>vibe coding/);
   assert.doesNotMatch(html, /<\/strong>[\u00a0\u2060]vibe coding/);
   assert.match(
     html,
-    /<p style="[^"]*color:#665749[^"]*line-height:1\.68/,
+    /<p style="[^"]*color:#665749[^"]*line-height:1\.8/,
   );
   assert.match(html, /<a href="https:\/\/example\.com" style=/);
   assert.match(html, /data-smartisan-image="true"/);
   assert.match(html, /data-smartisan-image-frame="android"/);
-  assert.match(html, /padding:4px/);
+  assert.match(html, /padding:6px/);
   assert.match(html, /border:1px solid #ebe8e3/);
   assert.match(html, /background-color:#ffffff/);
-  assert.match(html, /box-shadow:0 1px 4px rgba\(88,70,52,0\.07\)/);
+  assert.match(html, /box-shadow:0 2px 6px rgba\(88,70,52,0\.07\)/);
   assert.match(
     html,
     /<ol start="9" style="[^"]*box-sizing:border-box[^"]*width:100% !important[^"]*max-width:100% !important[^"]*list-style-position:outside/,
@@ -510,11 +531,7 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
     html,
     /<li\b[^>]*>(?:(?!<\/li>)[\s\S])*data-smartisan-image="true"/,
   );
-  assert.match(
-    html,
-    /<\/ol>\s*<p style="[^"]*"><span data-smartisan-image="true"[^>]*margin:14px auto/,
-  );
-  assert.match(html, /data-smartisan-image="true"[^>]*margin:14px auto/);
+  assert.match(html, /data-smartisan-image="true"[^>]*margin:24px auto 4px/);
   assert.doesNotMatch(html, /<li style="[^"]*overflow:hidden/);
   assert.match(
     html,
@@ -529,7 +546,7 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.match(html, /via Notes Skill/);
   assert.match(
     html,
-    /<section data-smartisan-footer="true" style="[^"]*margin:11px 18px 0[^"]*font-size:0[^"]*line-height:16px/,
+    /<section data-smartisan-footer="true" style="[^"]*margin:60px 20px 0[^"]*font-size:0[^"]*line-height:20\.48px/,
   );
   assert.doesNotMatch(html, /<footer(?:\s|>)/);
   assert.doesNotMatch(html, /<table data-smartisan-footer="true"/);
