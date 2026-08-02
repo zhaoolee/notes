@@ -147,9 +147,16 @@ test("AI 审阅支持三种快捷模式、逐条确认和底部接受剩余建�
 
   assert.match(source, /纠正标点语法/);
   assert.match(source, /重点加粗/);
-  assert.match(source, /让公众更易读/);
-  assert.match(source, /把过长、信息过密的句子拆成自然、易读的短句/);
-  assert.match(source, /保持原意、语气和 Markdown 结构/);
+  assert.match(source, /通俗化润色/);
+  assert.doesNotMatch(source, /让公众更易读/);
+  assert.match(source, /把过长、结构复杂或信息过密的句子拆成自然、易读的短句/);
+  assert.match(source, /把专业术语、抽象表达和行业黑话改用公众容易理解的简单概念表达/);
+  assert.match(source, /保持原意、事实、语气和 Markdown 结构/);
+  assert.match(
+    source,
+    /session\.instruction === QUICK_REVIEW_MODES\[0\]\.instruction[\s\S]*"大模型已检查，无需纠正"[\s\S]*"大模型已检查，暂无修改建议"/s,
+  );
+  assert.doesNotMatch(source, /AI 没有发现需要修改的地方/);
   assert.match(source, /支持逐条确认，也可以一键接受剩余待处理建议/);
   assert.match(source, /确认修改/);
   assert.match(source, /忽略/);

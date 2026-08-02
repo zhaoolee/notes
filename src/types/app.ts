@@ -1,9 +1,10 @@
 export type ThemeId = "default" | "smartisan-dark";
+export type ThemePreferenceId = ThemeId | "system";
 
 export type CopyState = "idle" | "copied" | "failed";
 
 export interface ThemeOption {
-  id: ThemeId;
+  id: ThemePreferenceId;
   label: string;
   description: string;
 }

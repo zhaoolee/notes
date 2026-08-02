@@ -983,6 +983,14 @@ test("桌面工作区使用锤子便签网页版的纸面、细线和栏宽比�
   assert.match(appSource, /className="smartisan-toolbar-icon icon-share"/);
   assert.match(appSource, /className="smartisan-toolbar-icon icon-delete"/);
   assert.match(
+    appSource,
+    /className="desktop-note-actions"[\s\S]*className="ai-review-trigger"[\s\S]*className="mobile-detail-action mobile-delete-note"[\s\S]*className="app-share"/s,
+  );
+  assert.match(
+    styles,
+    /@media \(min-width:\s*641px\)[\s\S]*?\.desktop-note-actions\s*\{[^}]*margin-left:\s*auto;[^}]*display:\s*flex;[^}]*gap:\s*14px;[^}]*\}/s,
+  );
+  assert.match(
     styles,
     /@media \(min-width:\s*641px\)[\s\S]*\.desktop-left-actions\s*\{[^}]*top:\s*12px;[^}]*left:\s*calc\(var\(--category-sidebar-width\) \+ var\(--note-sidebar-width\) - 165px\);[^}]*gap:\s*14px;/s,
   );

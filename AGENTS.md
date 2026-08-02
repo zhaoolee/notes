@@ -40,3 +40,6 @@
 ## 智能体工作流程
 
 收到prompt后，阅读**DOCS**，生成执行任务，完成后，跑**feedback测试**，测试完成后，有价值的信息更新到**MEMORY**
+
+任何用户可感知的功能、行为、兼容性或安全性变化，都必须同步维护项目根目录的
+`CHANGELOG.md`；具体格式与发布归档规则见 `PROMPTS/deploy-to-production.md`。

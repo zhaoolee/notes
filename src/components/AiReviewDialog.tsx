@@ -20,6 +20,7 @@ interface ReviewSession {
   acceptedIds: Set<string>;
   expectedMarkdown: string;
   ignoredIds: Set<string>;
+  instruction: string;
   sourceMarkdown: string;
   sourceNoteId: string;
   suggestions: AiSuggestion[];
@@ -41,8 +42,8 @@ const QUICK_REVIEW_MODES = [
   {
     id: "readability",
     instruction:
-      "请让文章更适合公众阅读：优先把过长、信息过密的句子拆成自然、易读的短句，保持原意、语气和 Markdown 结构，不扩写，也不改写无关内容。",
-    label: "让公众更易读",
+      "请对文章进行通俗化润色：把过长、结构复杂或信息过密的句子拆成自然、易读的短句；把专业术语、抽象表达和行业黑话改用公众容易理解的简单概念表达。保持原意、事实、语气和 Markdown 结构，不扩写，也不改写无关内容。",
+    label: "通俗化润色",
   },
 ] as const;
 
@@ -168,6 +169,7 @@ export function AiReviewDialog({
         acceptedIds: new Set(),
         expectedMarkdown: sourceMarkdown,
         ignoredIds: new Set(),
+        instruction: normalizedInstruction,
         sourceMarkdown,
         sourceNoteId,
         suggestions: result.suggestions,
@@ -408,7 +410,9 @@ export function AiReviewDialog({
                 </>
               ) : (
                 <p className="ai-review-empty">
-                  AI 没有发现需要修改的地方。正文未发生任何变化。
+                  {session.instruction === QUICK_REVIEW_MODES[0].instruction
+                    ? "大模型已检查，无需纠正"
+                    : "大模型已检查，暂无修改建议"}
                 </p>
               )}
             </div>

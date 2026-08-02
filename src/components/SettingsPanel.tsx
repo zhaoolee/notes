@@ -6,8 +6,9 @@ import {
   FOOTER_TEXT_MAX_LENGTH,
 } from "../lib/footer.js";
 import { importImageFile } from "../lib/images.js";
+import { HERMES_SKILL_INSTALL_INSTRUCTION_PREVIEW } from "../lib/hermes.js";
 import { THEME_OPTIONS } from "../lib/themes.js";
-import type { ThemeId } from "../types/app.js";
+import type { ThemePreferenceId } from "../types/app.js";
 
 interface SettingsPanelProps {
   aiAvailable?: boolean;
@@ -25,7 +26,7 @@ interface SettingsPanelProps {
     | "resetting"
     | "reset";
   isHermesSkillDownloading?: boolean;
-  selectedTheme: ThemeId;
+  selectedTheme: ThemePreferenceId;
   onAiEnabledChange?: (enabled: boolean) => void;
   onChangePassword?: () => void;
   onClose: () => void;
@@ -37,7 +38,7 @@ interface SettingsPanelProps {
   onHermesSkillLinkReset?: () => void;
   onLogin?: () => void;
   onLogout?: () => void;
-  onThemeChange: (themeId: ThemeId) => void;
+  onThemeChange: (themeId: ThemePreferenceId) => void;
 }
 
 const SETTINGS_CATEGORIES = [
@@ -205,39 +206,6 @@ export function SettingsPanel({
                   })}
                 </div>
               </section>
-
-              {aiAvailable ? (
-                <section className="settings-group" aria-label="智能功能">
-                  <div className="settings-group-heading">
-                    <strong>智能功能</strong>
-                  </div>
-                  <div className="settings-card">
-                    <button
-                      type="button"
-                      className="settings-row settings-ai-row"
-                      role="switch"
-                      aria-checked={aiEnabled}
-                      aria-label={`AI 辅助审阅，当前${aiEnabled ? "已开启" : "已关闭"}`}
-                      onClick={() => onAiEnabledChange(!aiEnabled)}
-                    >
-                      <span className="settings-row-label">
-                        AI 辅助审阅
-                        <small>
-                          {authUsername
-                            ? "逐条确认建议，正文始终由你决定是否修改"
-                            : "登录后可逐条确认 AI 提供的修改建议"}
-                        </small>
-                      </span>
-                      <span
-                        className={`settings-switch${aiEnabled ? " is-on" : ""}`}
-                        aria-hidden="true"
-                      >
-                        <span />
-                      </span>
-                    </button>
-                  </div>
-                </section>
-              ) : null}
             </section>
 
             <section
@@ -450,54 +418,107 @@ export function SettingsPanel({
             >
               <header className="settings-pane-header">
                 <h3 id="settings-extensions-title">工具与扩展</h3>
-                <p>把当前账号的便签能力安全地接入本地 AI 工具。</p>
+                <p>管理 AI 辅助能力和外部工具扩展。</p>
               </header>
 
-              <article className="settings-tool-card">
-                <span className="settings-tool-icon" aria-hidden="true">H</span>
-                <div className="settings-tool-copy">
-                  <h4>Hermes Skill</h4>
-                  <p>
-                    下载包含当前账号授权的工作区 Skill。解压到{" "}
-                    <code>~/.hermes/skills</code>{" "}后即可使用。
-                  </p>
-                  <small>
-                    当前链接可用于多台电脑；仅在主动重置或修改密码后失效。
-                  </small>
-                </div>
-                <div className="settings-tool-actions" aria-live="polite">
-                  <button
-                    type="button"
-                    className="settings-tool-action settings-hermes-skill-row"
-                    disabled={Boolean(authUsername) && isHermesSkillDownloading}
-                    onClick={authUsername ? onHermesSkillDownload : onLogin}
-                  >
-                    {authUsername
-                      ? isHermesSkillDownloading
-                        ? "生成中…"
-                        : "下载 Skill"
-                      : "登录后使用"}
-                  </button>
-                  {authUsername ? (
-                    <>
-                      <button
-                        type="button"
-                        className="settings-tool-action settings-tool-action-secondary"
-                        disabled={
-                          hermesSkillLinkActionState === "copying" ||
-                          hermesSkillLinkActionState === "resetting"
-                        }
-                        onClick={onHermesSkillLinkCopy}
+              {aiAvailable ? (
+                <section className="settings-group" aria-label="智能工具">
+                  <div className="settings-group-heading">
+                    <strong>智能工具</strong>
+                  </div>
+                  <div className="settings-card">
+                    <button
+                      type="button"
+                      className="settings-row settings-ai-row"
+                      role="switch"
+                      aria-checked={aiEnabled}
+                      aria-label={`AI 辅助审阅，当前${aiEnabled ? "已开启" : "已关闭"}`}
+                      onClick={() => onAiEnabledChange(!aiEnabled)}
+                    >
+                      <span className="settings-row-label">
+                        AI 辅助审阅
+                        <small>
+                          {authUsername
+                            ? "逐条确认建议，正文始终由你决定是否修改"
+                            : "登录后可逐条确认 AI 提供的修改建议"}
+                        </small>
+                      </span>
+                      <span
+                        className={`settings-switch${aiEnabled ? " is-on" : ""}`}
+                        aria-hidden="true"
                       >
-                        {hermesSkillLinkActionState === "copying"
+                        <span />
+                      </span>
+                    </button>
+                  </div>
+                </section>
+              ) : null}
+
+              <section className="settings-group" aria-label="外部扩展">
+                <div className="settings-group-heading">
+                  <strong>外部扩展</strong>
+                </div>
+                <article className="settings-tool-card">
+                  <span className="settings-tool-icon" aria-hidden="true">H</span>
+                  <div className="settings-tool-copy">
+                    <h4>Hermes Skill</h4>
+                    <p>
+                      把下面这句话直接发给 Hermes，它会自行下载、解压并安装：
+                    </p>
+                    <div className="settings-tool-prompt">
+                      <div className="settings-tool-prompt-header">
+                        <span className="settings-tool-prompt-label">安装指令</span>
+                        <button
+                          type="button"
+                          className="settings-tool-prompt-action"
+                          aria-label={
+                            authUsername
+                              ? "复制发给 Hermes 的安装指令"
+                              : "登录后复制发给 Hermes 的安装指令"
+                          }
+                          disabled={
+                            Boolean(authUsername) &&
+                            (hermesSkillLinkActionState === "copying" ||
+                              hermesSkillLinkActionState === "resetting")
+                          }
+                          onClick={authUsername ? onHermesSkillLinkCopy : onLogin}
+                        >
+                          {authUsername
+                            ? hermesSkillLinkActionState === "copying"
+                              ? "生成中…"
+                              : hermesSkillLinkActionState === "copied"
+                                ? "已复制"
+                                : "复制"
+                            : "登录后复制"}
+                        </button>
+                      </div>
+                      <p className="settings-tool-prompt-text">
+                        “{HERMES_SKILL_INSTALL_INSTRUCTION_PREVIEW}”
+                      </p>
+                    </div>
+                    <small>
+                      复制时会自动填入当前账号的专属链接。链接可用于多台电脑；
+                      请勿公开分享，仅在主动重置或修改密码后失效。
+                    </small>
+                  </div>
+                  <div className="settings-tool-actions" aria-live="polite">
+                    <button
+                      type="button"
+                      className="settings-tool-action settings-hermes-skill-row"
+                      disabled={Boolean(authUsername) && isHermesSkillDownloading}
+                      onClick={authUsername ? onHermesSkillDownload : onLogin}
+                    >
+                      {authUsername
+                        ? isHermesSkillDownloading
                           ? "生成中…"
-                          : hermesSkillLinkActionState === "copied"
-                            ? "已复制"
-                            : "复制链接"}
-                      </button>
+                          : "下载 Skill"
+                        : "登录后使用"}
+                    </button>
+                    {authUsername ? (
                       <button
                         type="button"
                         className="settings-tool-action settings-tool-action-reset"
+                        aria-haspopup="dialog"
                         disabled={
                           hermesSkillLinkActionState === "copying" ||
                           hermesSkillLinkActionState === "resetting"
@@ -510,10 +531,10 @@ export function SettingsPanel({
                             ? "已重置"
                             : "重置链接"}
                       </button>
-                    </>
-                  ) : null}
-                </div>
-              </article>
+                    ) : null}
+                  </div>
+                </article>
+              </section>
             </section>
           </div>
         </div>

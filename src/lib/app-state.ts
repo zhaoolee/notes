@@ -4,10 +4,9 @@ import {
   SMARTISAN_WEB_TEST_DATA_ID,
   SMARTISAN_WEB_TEST_WORKSPACE_STORAGE_KEY,
 } from "../fixtures/smartisan-web-test-workspace.js";
-import type { NoteWorkspace, ThemeId } from "../types/app";
+import type { NoteWorkspace } from "../types/app";
 import { createNoteDocument, parseNoteWorkspace } from "./notes";
 import { consumeTestDataResetFromCurrentUrl } from "./test-data-url";
-import { DEFAULT_THEME_ID, isThemeId } from "./themes";
 import {
   DEFAULT_FOOTER_BRAND,
   DEFAULT_FOOTER_LOGO_URL,
@@ -33,9 +32,10 @@ export {
 export const FALLBACK_CONTENT = "";
 export const DRAFT_STORAGE_KEY = "notes.markdownDraft";
 export const WORKSPACE_STORAGE_KEY = "notes.workspace.v1";
-export const THEME_STORAGE_KEY = "notes.previewTheme";
 export const AI_ENABLED_STORAGE_KEY = "notes.aiEnabled";
 export const SAMPLE_MARKDOWN_CONTENT = sampleMarkdown || FALLBACK_CONTENT;
+
+export { getInitialTheme, THEME_STORAGE_KEY } from "./themes";
 
 export function isSmartisanWebTestDataMode(): boolean {
   return readSearchParam("testData") === SMARTISAN_WEB_TEST_DATA_ID;
@@ -115,22 +115,6 @@ export function persistNoteWorkspace(workspace: NoteWorkspace): void {
   if (activeNote && !isSmartisanWebTestDataMode()) {
     window.localStorage.setItem(DRAFT_STORAGE_KEY, activeNote.markdown);
   }
-}
-
-export function getInitialTheme(): ThemeId {
-  const searchTheme = readSearchParam("theme");
-
-  if (isThemeId(searchTheme)) {
-    return searchTheme;
-  }
-
-  const storedTheme = readStoredValue(THEME_STORAGE_KEY);
-
-  if (isThemeId(storedTheme)) {
-    return storedTheme;
-  }
-
-  return DEFAULT_THEME_ID;
 }
 
 export function getRenderMode(): string | null {

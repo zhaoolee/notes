@@ -97,10 +97,10 @@ test("superadmin 路由、用户管理和首页云同步入口保持连通", () 
   const authSource = readFileSync("src/lib/auth.ts", "utf8");
   const styles = readFileSync("src/styles.css", "utf8");
 
-  assert.match(
-    mainSource,
-    /pathname === "\/superadmin" \? <SuperAdminPage \/> : <App \/>/,
-  );
+  assert.match(mainSource, /pathname === "\/superadmin"/);
+  assert.match(mainSource, /<SuperAdminPage \/>/);
+  assert.match(mainSource, /pathname === "\/changelog"/);
+  assert.match(mainSource, /<ChangelogPage markdown=\{changelogMarkdown\} \/>/);
   assert.match(appSource, /className="auth-trigger"/);
   assert.match(appSource, /className="auth-trigger-label"/);
   assert.match(appSource, /desktopFooter=\{desktopSidebarFooter\}/);

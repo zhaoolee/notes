@@ -59,12 +59,15 @@ Secret 注入，并为 `SESSION_SECRET` 配置独立的高熵随机值。未配�
 `notes-workspace-api/` 的 ZIP；包内 `.env` 已写入服务端公开基础地址和当前账号的
 `NOTES_API_TOKEN`，解压到 `~/.hermes/skills/` 后可直接使用。
 
-同一区域提供“复制链接”和“重置链接”。网页用登录 Cookie 调用
+同一区域提供安装指令右上角的“复制”和底部“重置链接”。“复制”会生成一条可直接
+发送给 Hermes 的完整安装指令，包含专属 ZIP 地址、安装目录、读取 `SKILL.md` 和
+不得回显链接或 `.env` 凭据的要求；底部只保留包下载和链接重置。网页用登录 Cookie 调用
 `POST /api/hermes-skill/install-link` 获取当前账号的安装地址：首次调用创建地址，
 之后重复复制始终返回同一个地址，不会暗中轮换。Hermes Agent 无需 Cookie 即可
 多次 GET 该地址，因此同一个链接可用于多台电脑。只有用户主动调用
 `POST /api/hermes-skill/install-link/reset`，或修改、重置账号密码时，旧地址才会
-失效；已经下载并安装的 Skill 不受链接重置影响。
+失效。点击“重置链接”后必须先在危险操作确认框中明确确认，确认框会提示旧链接
+立即失效；取消确认不得调用重置接口。已经下载并安装的 Skill 不受链接重置影响。
 
 安装地址仅包含随机票据，不包含长期 `NOTES_API_TOKEN`。当前票据保存在权限为
 `0600` 的 `notes-data.json` 中，因此服务重启后复制仍得到同一链接；链接本身仍是

@@ -47,7 +47,9 @@ import {
 } from "./lib/auth";
 import { copyTextToClipboard, normalizeClipboardMarkdown } from "./lib/clipboard";
 import { exportMarkdownArchive, exportMarkdownAsPng, getExportErrorMessage } from "./lib/export";
+import { buildHermesSkillInstallInstruction } from "./lib/hermes";
 import { splitSections } from "./lib/markdown";
+import { useResolvedTheme } from "./lib/use-theme";
 import {
   getCategoryNoteDocuments,
   getFolderIdFromCategory,
@@ -86,6 +88,12 @@ interface NoteRouteNavigation {
 const NOTE_REFRESH_DELAY_MS = 650;
 const CLOUD_SAVE_DELAY_MS = 650;
 const CLOUD_POLL_INTERVAL_MS = 15_000;
+const HERMES_SKILL_LINK_RESET_CONFIRMATION = {
+  title: "重置 Hermes 安装链接？",
+  description:
+    "重置后，当前专属链接会立即失效，之后无法再用于下载；已经安装的 Skill 不受影响。",
+  confirmLabel: "确认重置",
+};
 
 function getCurrentWorkspace(): NoteWorkspace {
   const state = useAppStore.getState();
@@ -193,6 +201,10 @@ export default function App() {
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isHermesSkillDownloading, setIsHermesSkillDownloading] =
     useState(false);
+  const [
+    isHermesSkillLinkResetConfirmationOpen,
+    setIsHermesSkillLinkResetConfirmationOpen,
+  ] = useState(false);
   const [hermesSkillLinkActionState, setHermesSkillLinkActionState] =
     useState<HermesSkillLinkActionState>("idle");
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
@@ -216,7 +228,7 @@ export default function App() {
   const editorPanelRef = useRef<EditorPanelHandle | null>(null);
   const refreshTimeoutRef = useRef<number | null>(null);
   const settingsContainerRef = useRef<HTMLDivElement | null>(null);
-  const desktopSettingsContainerRef = useRef<HTMLDivElement | null>(null);
+  const desktopSettingsContainerRef = useRef<HTMLButtonElement | null>(null);
   const settingsPanelHostRef = useRef<HTMLDivElement | null>(null);
   const shareContainerRef = useRef<HTMLDivElement | null>(null);
   const accountContainerRef = useRef<HTMLDivElement | null>(null);
@@ -233,6 +245,7 @@ export default function App() {
   const noteDocuments = useAppStore((state) => state.notes);
   const markdown = useAppStore((state) => state.markdown);
   const selectedTheme = useAppStore((state) => state.selectedTheme);
+  const resolvedTheme = useResolvedTheme(selectedTheme);
   const isExporting = useAppStore((state) => state.isExporting);
   const exportError = useAppStore((state) => state.exportError);
   const copyState = useAppStore((state) => state.copyState);
@@ -618,8 +631,8 @@ export default function App() {
     }
 
     window.localStorage.setItem(THEME_STORAGE_KEY, selectedTheme);
-    document.documentElement.dataset.theme = selectedTheme;
-  }, [selectedTheme]);
+    document.documentElement.dataset.theme = resolvedTheme;
+  }, [resolvedTheme, selectedTheme]);
 
   useEffect(() => {
     persistFooterText(footerBrand, footerVia);
@@ -673,6 +686,10 @@ export default function App() {
     }
 
     function handlePointerDown(event: PointerEvent) {
+      if (isHermesSkillLinkResetConfirmationOpen) {
+        return;
+      }
+
       const target = event.target;
 
       const isInsideSettings =
@@ -690,6 +707,11 @@ export default function App() {
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        if (isHermesSkillLinkResetConfirmationOpen) {
+          setIsHermesSkillLinkResetConfirmationOpen(false);
+          return;
+        }
+
         setIsSettingsOpen(false);
       }
     }
@@ -701,7 +723,7 @@ export default function App() {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isSettingsOpen]);
+  }, [isHermesSkillLinkResetConfirmationOpen, isSettingsOpen]);
 
   useEffect(() => {
     if (!isAccountMenuOpen && !isLoginOpen) {
@@ -1029,7 +1051,7 @@ export default function App() {
     try {
       setHermesSkillLinkActionState("copying");
       const { installUrl } = await getHermesSkillInstallLink();
-      await copyTextToClipboard(installUrl);
+      await copyTextToClipboard(buildHermesSkillInstallInstruction(installUrl));
       setHermesSkillLinkActionState("copied");
       window.setTimeout(() => {
         setHermesSkillLinkActionState((state) =>
@@ -1042,7 +1064,7 @@ export default function App() {
       window.alert(
         error instanceof Error
           ? error.message
-          : "Hermes 安装链接复制失败，请稍后重试。",
+          : "Hermes 安装指令复制失败，请稍后重试。",
       );
     }
   }
@@ -1054,6 +1076,8 @@ export default function App() {
     ) {
       return;
     }
+
+    setIsHermesSkillLinkResetConfirmationOpen(false);
 
     try {
       setHermesSkillLinkActionState("resetting");
@@ -1083,7 +1107,7 @@ export default function App() {
     try {
       setIsExporting(true);
       setExportError("");
-      await exportMarkdownAsPng(markdown, selectedTheme, {
+      await exportMarkdownAsPng(markdown, resolvedTheme, {
         footerBrand,
         footerLogoUrl,
         footerVia,
@@ -1480,24 +1504,6 @@ export default function App() {
   const desktopSidebarFooter = (
     <div className="desktop-sidebar-footer">
       {desktopAccountEntry}
-      <div className="desktop-settings" ref={desktopSettingsContainerRef}>
-        <button
-          type="button"
-          className="desktop-settings-trigger"
-          aria-label={isSettingsOpen ? "关闭设置" : "打开设置"}
-          aria-controls="app-settings-panel"
-          aria-expanded={isSettingsOpen}
-          title="设置"
-          onClick={handleSettingsToggle}
-        >
-          <img
-            src="/smartisan/mobile/btn_settings.png"
-            alt=""
-            aria-hidden="true"
-            draggable={false}
-          />
-        </button>
-      </div>
     </div>
   );
 
@@ -1543,7 +1549,9 @@ export default function App() {
       onFooterViaChange={setFooterVia}
       onHermesSkillDownload={() => void handleHermesSkillDownload()}
       onHermesSkillLinkCopy={() => void handleHermesSkillLinkCopy()}
-      onHermesSkillLinkReset={() => void handleHermesSkillLinkReset()}
+      onHermesSkillLinkReset={() =>
+        setIsHermesSkillLinkResetConfirmationOpen(true)
+      }
       onThemeChange={setSelectedTheme}
     />
   ) : null;
@@ -1552,7 +1560,8 @@ export default function App() {
     <>
       <div
         className="app-layout"
-        data-theme={selectedTheme}
+        data-theme={resolvedTheme}
+        data-theme-preference={selectedTheme}
         data-authenticated={authUser ? "true" : "false"}
         data-render-mode={isPlaywrightRender ? "playwright" : undefined}
         data-desktop-view={desktopWorkspaceView}
@@ -1590,9 +1599,20 @@ export default function App() {
             </button>
 
             <div className="app-brand">
-              <div className="app-brand-mark" aria-hidden="true">
-                <img src="/header/logo.png" alt="" />
-              </div>
+              <button
+                ref={desktopSettingsContainerRef}
+                type="button"
+                className="desktop-brand-settings-trigger"
+                aria-label={isSettingsOpen ? "关闭设置" : "打开设置"}
+                aria-controls="app-settings-panel"
+                aria-expanded={isSettingsOpen}
+                title="设置"
+                onClick={handleSettingsToggle}
+              >
+                <span className="app-brand-mark" aria-hidden="true">
+                  <img src="/header/logo.png" alt="" />
+                </span>
+              </button>
               <div className="app-brand-copy">
                 <span className="app-brand-title">锤子便签</span>
               </div>
@@ -1655,22 +1675,6 @@ export default function App() {
               </button>
 
               <div className="mobile-detail-actions">
-                {aiAvailable &&
-                aiEnabled &&
-                authUser &&
-                activeCategoryNote &&
-                activeCategoryId !== "trash" ? (
-                  <button
-                    type="button"
-                    className="ai-review-trigger"
-                    aria-label="使用 AI 审阅当前便签"
-                    title="AI 辅助审阅"
-                    onClick={handleOpenAiReview}
-                    onPointerDown={handleAiReviewPointerDown}
-                  >
-                    AI
-                  </button>
-                ) : null}
                 <button
                   type="button"
                   className="mobile-detail-action mobile-insert-image"
@@ -1700,52 +1704,71 @@ export default function App() {
                 >
                   <span className="smartisan-toolbar-icon icon-create" aria-hidden="true" />
                 </button>
-                <button
-                  type="button"
-                  className="mobile-detail-action mobile-delete-note"
-                  aria-label="删除当前便签"
-                  onClick={handleDeleteCurrentNote}
-                >
-                  <span className="smartisan-toolbar-icon icon-delete" aria-hidden="true" />
-                </button>
 
-                <div className="app-share" ref={shareContainerRef}>
+                <div className="desktop-note-actions">
+                  {aiAvailable &&
+                  aiEnabled &&
+                  authUser &&
+                  activeCategoryNote &&
+                  activeCategoryId !== "trash" ? (
+                    <button
+                      type="button"
+                      className="ai-review-trigger"
+                      aria-label="使用 AI 审阅当前便签"
+                      title="AI 辅助审阅"
+                      onClick={handleOpenAiReview}
+                      onPointerDown={handleAiReviewPointerDown}
+                    >
+                      AI
+                    </button>
+                  ) : null}
                   <button
                     type="button"
-                    className="share-trigger"
-                    aria-label={isShareOpen ? "关闭分享与导出" : "打开分享与导出"}
-                    aria-controls="app-share-panel"
-                    aria-expanded={isShareOpen}
-                    title="分享与导出"
-                    onClick={handleShareTrigger}
+                    className="mobile-detail-action mobile-delete-note"
+                    aria-label="删除当前便签"
+                    onClick={handleDeleteCurrentNote}
                   >
-                    <span className="smartisan-toolbar-icon icon-share" aria-hidden="true" />
+                    <span className="smartisan-toolbar-icon icon-delete" aria-hidden="true" />
                   </button>
 
-                  {isShareOpen ? (
-                    <SharePanel
-                      copyButtonText={getCopyButtonText(copyState)}
-                      isArchiving={isArchiving}
-                      isCopyingWechat={wechatCopyState === "preparing"}
-                      isExporting={isExporting}
-                      onArchiveDownload={() => {
-                        setIsShareOpen(false);
-                        void handleArchiveDownload();
-                      }}
-                      onClose={() => setIsShareOpen(false)}
-                      onCopyMarkdown={() => {
-                        void handleCopyMarkdown();
-                      }}
-                      onCopyWechat={() => {
-                        void handleCopyWechat();
-                      }}
-                      onExport={() => {
-                        setIsShareOpen(false);
-                        void handleExport();
-                      }}
-                      wechatButtonText={getWechatCopyButtonText(wechatCopyState)}
-                    />
-                  ) : null}
+                  <div className="app-share" ref={shareContainerRef}>
+                    <button
+                      type="button"
+                      className="share-trigger"
+                      aria-label={isShareOpen ? "关闭分享与导出" : "打开分享与导出"}
+                      aria-controls="app-share-panel"
+                      aria-expanded={isShareOpen}
+                      title="分享与导出"
+                      onClick={handleShareTrigger}
+                    >
+                      <span className="smartisan-toolbar-icon icon-share" aria-hidden="true" />
+                    </button>
+
+                    {isShareOpen ? (
+                      <SharePanel
+                        copyButtonText={getCopyButtonText(copyState)}
+                        isArchiving={isArchiving}
+                        isCopyingWechat={wechatCopyState === "preparing"}
+                        isExporting={isExporting}
+                        onArchiveDownload={() => {
+                          setIsShareOpen(false);
+                          void handleArchiveDownload();
+                        }}
+                        onClose={() => setIsShareOpen(false)}
+                        onCopyMarkdown={() => {
+                          void handleCopyMarkdown();
+                        }}
+                        onCopyWechat={() => {
+                          void handleCopyWechat();
+                        }}
+                        onExport={() => {
+                          setIsShareOpen(false);
+                          void handleExport();
+                        }}
+                        wechatButtonText={getWechatCopyButtonText(wechatCopyState)}
+                      />
+                    ) : null}
+                  </div>
                 </div>
               </div>
 
@@ -2065,6 +2088,15 @@ export default function App() {
 
         <div className="settings-panel-host" ref={settingsPanelHostRef}>
           {settingsPanel}
+          <ConfirmDialog
+            pendingAction={
+              isHermesSkillLinkResetConfirmationOpen
+                ? HERMES_SKILL_LINK_RESET_CONFIRMATION
+                : null
+            }
+            onClose={() => setIsHermesSkillLinkResetConfirmationOpen(false)}
+            onConfirm={() => void handleHermesSkillLinkReset()}
+          />
         </div>
 
         {aiReviewNoteId === activeNoteId && activeNote ? (

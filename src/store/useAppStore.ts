@@ -18,7 +18,7 @@ import type {
   NoteFolder,
   NoteWorkspace,
   PendingAction,
-  ThemeId,
+  ThemePreferenceId,
 } from "../types/app";
 
 interface AppStoreState {
@@ -26,7 +26,7 @@ interface AppStoreState {
   folders: NoteFolder[];
   notes: NoteDocument[];
   markdown: string;
-  selectedTheme: ThemeId;
+  selectedTheme: ThemePreferenceId;
   isExporting: boolean;
   exportError: string;
   copyState: CopyState;
@@ -47,7 +47,7 @@ interface AppStoreState {
   reorderNotes: (activeNoteId: string, overNoteId: string) => void;
   moveNoteToFolder: (noteId: string, folderId: string | null) => void;
   setMarkdown: (markdown: string) => void;
-  setSelectedTheme: (theme: ThemeId) => void;
+  setSelectedTheme: (theme: ThemePreferenceId) => void;
   setIsExporting: (isExporting: boolean) => void;
   setExportError: (exportError: string) => void;
   setCopyState: (copyState: CopyState) => void;

@@ -266,6 +266,10 @@ test("启动探测成功后只向登录用户返回逐条 AI 建议且不写工�
   });
   assert.match(JSON.stringify(completionRequest.body), new RegExp(instruction));
   assert.match(JSON.stringify(completionRequest.body), /这里有错字/);
+  assert.match(
+    JSON.stringify(completionRequest.body),
+    /如果没有需要修改的地方.*suggestions.*\[\]/,
+  );
 
   const workspaceResponse = await fetch(`${baseUrl}/api/workspace`, {
     headers: { Cookie: cookie },

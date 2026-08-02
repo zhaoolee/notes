@@ -5,6 +5,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SettingsPanel } from "../../src/components/SettingsPanel.js";
 import { SharePanel } from "../../src/components/SharePanel.js";
+import { buildHermesSkillInstallInstruction } from "../../src/lib/hermes.js";
 
 test("设置页只保留长期偏好，不混入当前便签操作", () => {
   const noop = () => undefined;
@@ -35,6 +36,8 @@ test("设置页只保留长期偏好，不混入当前便签操作", () => {
   assert.match(html, /登录账号/);
   assert.match(html, /数据仅保存在当前浏览器/);
   assert.match(html, /外观/);
+  assert.match(html, /自动适应/);
+  assert.match(html, /跟随系统日夜切换/);
   assert.match(html, /暖白纸感/);
   assert.match(html, /个性化/);
   assert.match(html, /由测试发送/);
@@ -47,7 +50,7 @@ test("设置页只保留长期偏好，不混入当前便签操作", () => {
   assert.doesNotMatch(html, /复制文本/);
 });
 
-test("AI 服务可用时才显示开启选项，并明确逐条确认", () => {
+test("AI 服务可用时才在工具与扩展显示开启选项，并明确逐条确认", () => {
   const noop = () => undefined;
   const unavailableHtml = renderToStaticMarkup(
     createElement(SettingsPanel, {
@@ -73,7 +76,17 @@ test("AI 服务可用时才显示开启选项，并明确逐条确认", () => {
   assert.match(availableHtml, /AI 辅助审阅/);
   assert.match(availableHtml, /role="switch"/);
   assert.match(availableHtml, /aria-checked="true"/);
+  assert.match(availableHtml, /智能工具/);
   assert.match(availableHtml, /逐条确认建议，正文始终由你决定是否修改/);
+  assert.ok(
+    availableHtml.indexOf('id="settings-pane-extensions"') <
+      availableHtml.indexOf("智能工具") &&
+      availableHtml.indexOf("智能工具") <
+        availableHtml.indexOf("AI 辅助审阅") &&
+      availableHtml.indexOf("AI 辅助审阅") <
+        availableHtml.indexOf("Hermes Skill"),
+    "AI 辅助审阅应归入工具与扩展，并排在外部扩展之前",
+  );
 });
 
 test("底部显示设置提供四角格、Logo 上传、双文本编辑、恢复默认与持久化", () => {
@@ -230,11 +243,22 @@ test("登录用户可在移动设置页修改密码或退出", () => {
   assert.match(html, /修改密码/);
   assert.match(html, /Hermes Skill/);
   assert.match(html, /下载 Skill/);
-  assert.match(html, /复制链接/);
+  assert.match(html, /安装指令/);
+  assert.match(html, /aria-label="复制发给 Hermes 的安装指令"/);
   assert.match(html, /重置链接/);
-  assert.match(html, /当前链接可用于多台电脑/);
+  assert.match(html, /链接可用于多台电脑/);
   assert.match(html, /仅在主动重置或修改密码后失效/);
-  assert.match(html, /解压到[\s\S]*~\/\.hermes\/skills[\s\S]*后即可使用/);
+  assert.match(html, /把下面这句话直接发给 Hermes/);
+  assert.match(html, /请帮我安装这个 Skill/);
+  assert.match(html, /专属 ZIP 链接/);
+  assert.match(html, /notes-workspace-api[\s\S]*~\/\.hermes\/skills\//);
+  assert.match(html, /读取 SKILL\.md 并完成安装/);
+  assert.match(html, /不要在回复中展示安装链接或 \.env 里的凭据/);
+  assert.ok(
+    html.indexOf('aria-label="复制发给 Hermes 的安装指令"') <
+      html.indexOf("请帮我安装这个 Skill"),
+    "复制按钮应位于安装指令正文上方的右侧工具栏",
+  );
   assert.match(html, /退出登录/);
   assert.doesNotMatch(html, /登录账号/);
   assert.ok(
@@ -246,14 +270,20 @@ test("登录用户可在移动设置页修改密码或退出", () => {
   );
 });
 
-test("Hermes Skill 支持下载、幂等复制和主动重置安装链接", () => {
+test("Hermes Skill 支持下载、复制完整安装指令和主动重置安装链接", () => {
   const appSource = readFileSync("src/App.tsx", "utf8");
   const authSource = readFileSync("src/lib/auth.ts", "utf8");
   const settingsSource = readFileSync("src/components/SettingsPanel.tsx", "utf8");
+  const styles = readFileSync("src/styles.css", "utf8");
 
   assert.match(settingsSource, /settings-hermes-skill-row/);
-  assert.match(settingsSource, /settings-tool-action-secondary/);
+  assert.match(settingsSource, /settings-tool-prompt-action/);
   assert.match(settingsSource, /settings-tool-action-reset/);
+  assert.match(settingsSource, /aria-haspopup="dialog"/);
+  assert.match(
+    settingsSource,
+    /className="settings-tool-prompt"[\s\S]*className="settings-tool-prompt-header"[\s\S]*className="settings-tool-prompt-action"[\s\S]*className="settings-tool-prompt-text"/s,
+  );
   assert.match(
     settingsSource,
     /disabled=\{Boolean\(authUsername\) && isHermesSkillDownloading\}/,
@@ -267,9 +297,39 @@ test("Hermes Skill 支持下载、幂等复制和主动重置安装链接", () =
   assert.match(authSource, /"\/api\/hermes-skill\/install-link\/reset"/);
   assert.match(appSource, /await getHermesSkillInstallLink\(\)/);
   assert.match(appSource, /await resetHermesSkillInstallLink\(\)/);
-  assert.match(appSource, /await copyTextToClipboard\(installUrl\)/);
+  assert.match(
+    appSource,
+    /await copyTextToClipboard\(buildHermesSkillInstallInstruction\(installUrl\)\)/,
+  );
   assert.match(settingsSource, /hermesSkillLinkActionState === "copied"/);
   assert.match(settingsSource, /hermesSkillLinkActionState === "reset"/);
+  assert.match(
+    appSource,
+    /onHermesSkillLinkReset=\{\(\) =>\s*setIsHermesSkillLinkResetConfirmationOpen\(true\)\s*\}/s,
+  );
+  assert.doesNotMatch(
+    appSource,
+    /onHermesSkillLinkReset=\{\(\) => void handleHermesSkillLinkReset\(\)\}/,
+  );
+  assert.match(appSource, /title: "重置 Hermes 安装链接？"/);
+  assert.match(appSource, /当前专属链接会立即失效/);
+  assert.match(appSource, /已经安装的 Skill 不受影响/);
+  assert.match(appSource, /confirmLabel: "确认重置"/);
+  assert.match(
+    appSource,
+    /pendingAction=\{\s*isHermesSkillLinkResetConfirmationOpen[\s\S]*?onClose=\{\(\) => setIsHermesSkillLinkResetConfirmationOpen\(false\)\}[\s\S]*?onConfirm=\{\(\) => void handleHermesSkillLinkReset\(\)\}/s,
+  );
+  assert.match(
+    styles,
+    /\.confirm-dialog-backdrop\s*\{[^}]*z-index:\s*150;/s,
+  );
+
+  assert.equal(
+    buildHermesSkillInstallInstruction(
+      " https://notes.example.com/api/hermes-skill/install/ticket/notes-workspace-api.zip ",
+    ),
+    "请帮我安装这个 Skill：https://notes.example.com/api/hermes-skill/install/ticket/notes-workspace-api.zip。请下载并解压 ZIP 包，把其中的 notes-workspace-api 文件夹放到 ~/.hermes/skills/，然后读取 SKILL.md 并完成安装；安装完成后请告诉我结果，不要在回复中展示安装链接或 .env 里的凭据。",
+  );
 });
 
 test("设置入口复用同一个分类浮窗，并按桌面和手机切换导航布局", () => {
@@ -278,8 +338,13 @@ test("设置入口复用同一个分类浮窗，并按桌面和手机切换导�
 
   assert.match(
     appSource,
-    /const desktopSidebarFooter = \([\s\S]*className="desktop-sidebar-footer"[\s\S]*\{desktopAccountEntry\}[\s\S]*className="desktop-settings"[\s\S]*className="desktop-settings-trigger"[\s\S]*aria-controls="app-settings-panel"/s,
+    /className="app-brand"[\s\S]*className="desktop-brand-settings-trigger"[\s\S]*aria-controls="app-settings-panel"[\s\S]*onClick=\{handleSettingsToggle\}[\s\S]*className="app-brand-mark"/s,
   );
+  assert.match(
+    appSource,
+    /const desktopSidebarFooter = \([\s\S]*className="desktop-sidebar-footer"[\s\S]*\{desktopAccountEntry\}[\s\S]*\);/s,
+  );
+  assert.doesNotMatch(appSource, /className="desktop-settings-trigger"/);
   assert.match(appSource, /desktopFooter=\{desktopSidebarFooter\}/);
   assert.match(
     appSource,
@@ -292,11 +357,11 @@ test("设置入口复用同一个分类浮窗，并按桌面和手机切换导�
   );
   assert.match(
     styles,
-    /\.desktop-sidebar-footer\s*\{[^}]*height:\s*49px;[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\) 50px;/s,
+    /\.desktop-sidebar-footer\s*\{[^}]*width:\s*100%;[^}]*height:\s*49px;/s,
   );
   assert.match(
     styles,
-    /\.desktop-settings-trigger\s*\{[^}]*width:\s*49px;[^}]*height:\s*49px;[^}]*place-items:\s*center;/s,
+    /\.desktop-brand-settings-trigger\s*\{[^}]*width:\s*38px;[^}]*height:\s*38px;[^}]*place-items:\s*center;/s,
   );
   assert.match(
     styles,
@@ -313,6 +378,14 @@ test("设置入口复用同一个分类浮窗，并按桌面和手机切换导�
   assert.match(
     styles,
     /@media \(max-width:\s*640px\)[\s\S]*\.settings-category-nav\s*\{[^}]*flex-direction:\s*row;[^}]*overflow-x:\s*auto;/s,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width:\s*640px\)[\s\S]*\.settings-tool-actions \.settings-tool-action\s*\{[^}]*padding-inline:\s*4px;[^}]*white-space:\s*nowrap;/s,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width:\s*640px\)[\s\S]*\.settings-tool-actions\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);/s,
   );
 });
 
