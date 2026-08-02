@@ -1,6 +1,6 @@
-import { EXPORT_RETRY_BASE_DELAY_MS, EXPORT_RETRY_LIMIT, EXPORT_REQUEST_TIMEOUT_MS } from "./export-config";
-import type { ThemeId } from "../types/app";
-import { ExportError } from "../types/app";
+import { EXPORT_RETRY_BASE_DELAY_MS, EXPORT_RETRY_LIMIT, EXPORT_REQUEST_TIMEOUT_MS } from "./export-config.js";
+import type { NoteWorkspace, ThemeId } from "../types/app.js";
+import { ExportError } from "../types/app.js";
 
 interface ExportErrorPayload {
   error?: string;
@@ -13,7 +13,27 @@ interface ExportFooterOptions {
   footerVia: string;
 }
 
+interface WorkspaceArchiveJobPayload {
+  id: string;
+  status: "preparing" | "collecting" | "packaging" | "ready" | "failed";
+  progress: number;
+  message: string;
+  completedNotes: number;
+  totalNotes: number;
+  error?: string;
+  filename?: string;
+}
+
+export interface WorkspaceArchiveProgress {
+  percent: number;
+  message: string;
+  completedNotes: number;
+  totalNotes: number;
+}
+
 const contentDispositionFilenamePattern = /filename\*?=(?:UTF-8''|")?([^";]+)/i;
+const workspaceArchivePollIntervalMs = 400;
+const workspaceArchiveTimeoutMs = 30 * 60 * 1_000;
 
 function padDatePart(value: number): string {
   return String(value).padStart(2, "0");
@@ -252,6 +272,144 @@ export async function exportMarkdownArchive(
     "notes-archive.zip",
   );
   await saveBlob(await response.blob(), filename);
+}
+
+async function downloadWorkspaceArchive(
+  job: WorkspaceArchiveJobPayload,
+  onProgress: (progress: WorkspaceArchiveProgress) => void,
+): Promise<void> {
+  const response = await fetch(`/api/workspace/archive/${job.id}/download`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new ExportError(await readExportErrorMessage(response), {
+      status: response.status,
+      retriable: false,
+    });
+  }
+
+  const filename = getFilenameFromContentDisposition(
+    response.headers.get("content-disposition"),
+    job.filename || "smartisan-notes.zip",
+  );
+  const contentLength = Number(response.headers.get("content-length") || "0");
+
+  if (!response.body) {
+    onProgress({
+      percent: 98,
+      message: "正在下载压缩包",
+      completedNotes: job.totalNotes,
+      totalNotes: job.totalNotes,
+    });
+    await saveBlob(await response.blob(), filename);
+  } else {
+    const reader = response.body.getReader();
+    const chunks: ArrayBuffer[] = [];
+    let receivedBytes = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      const chunk = new Uint8Array(value.byteLength);
+      chunk.set(value);
+      chunks.push(chunk.buffer);
+      receivedBytes += value.byteLength;
+      const downloadPercent = contentLength > 0
+        ? Math.min(99, 95 + Math.floor((receivedBytes / contentLength) * 4))
+        : 97;
+      onProgress({
+        percent: downloadPercent,
+        message: "正在下载压缩包",
+        completedNotes: job.totalNotes,
+        totalNotes: job.totalNotes,
+      });
+    }
+
+    await saveBlob(
+      new Blob(chunks, {
+        type: response.headers.get("content-type") || "application/zip",
+      }),
+      filename,
+    );
+  }
+
+  onProgress({
+    percent: 100,
+    message: "全部便签已导出",
+    completedNotes: job.totalNotes,
+    totalNotes: job.totalNotes,
+  });
+}
+
+export async function exportNoteWorkspaceArchive(
+  workspace: NoteWorkspace,
+  onProgress: (progress: WorkspaceArchiveProgress) => void,
+): Promise<void> {
+  const createResponse = await fetch("/api/workspace/archive", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ workspace }),
+  });
+
+  if (!createResponse.ok) {
+    throw new ExportError(await readExportErrorMessage(createResponse), {
+      status: createResponse.status,
+      retriable: false,
+    });
+  }
+
+  let job = (await createResponse.json()) as WorkspaceArchiveJobPayload;
+  const deadline = Date.now() + workspaceArchiveTimeoutMs;
+
+  onProgress({
+    percent: job.progress,
+    message: job.message,
+    completedNotes: job.completedNotes,
+    totalNotes: job.totalNotes,
+  });
+
+  while (job.status !== "ready") {
+    if (job.status === "failed") {
+      throw new ExportError(job.error || job.message || "整体导出失败。", {
+        retriable: false,
+      });
+    }
+
+    if (Date.now() >= deadline) {
+      throw new ExportError("整体导出等待超时，请稍后重试。", {
+        retriable: false,
+      });
+    }
+
+    await wait(workspaceArchivePollIntervalMs);
+    const statusResponse = await fetch(`/api/workspace/archive/${job.id}`, {
+      cache: "no-store",
+    });
+
+    if (!statusResponse.ok) {
+      throw new ExportError(await readExportErrorMessage(statusResponse), {
+        status: statusResponse.status,
+        retriable: false,
+      });
+    }
+
+    job = (await statusResponse.json()) as WorkspaceArchiveJobPayload;
+    onProgress({
+      percent: job.progress,
+      message: job.message,
+      completedNotes: job.completedNotes,
+      totalNotes: job.totalNotes,
+    });
+  }
+
+  await downloadWorkspaceArchive(job, onProgress);
 }
 
 export function getExportErrorMessage(error: unknown): string {

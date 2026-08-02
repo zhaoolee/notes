@@ -71,13 +71,15 @@ export QINIU_SECRET_KEY=...
 export QINIU_BUCKET=...
 export QINIU_DOMAIN=https://cdn.example.com
 export QINIU_PREFIX=notes
-export QINIU_UPLOAD_URL=https://upload-z2.qiniup.com
 export QINIU_UPLOAD_TIMEOUT_MS=30000
 docker compose up --build -d
 ```
 
-`QINIU_UPLOAD_URL` 应使用七牛为目标 Bucket 区域返回的优先上传域名；上例的
-`upload-z2` 只适用于华南区域。单次上传超时允许配置为 10000 到 300000 毫秒。
+上传链路使用七牛官方 Node SDK，根据 AK 与 Bucket 自动查询区域，并依次尝试该区域
+返回的多个上传节点。通常不要设置 `QINIU_UPLOAD_URL`；为兼容已有部署，单个七牛
+标准上传域名仍可作为首选节点，SDK 会补齐同区域备用节点。诊断私有网关时可用
+`QINIU_UPLOAD_URLS` 传入逗号分隔的同协议节点。单节点超时允许配置为 10000 到
+300000 毫秒。
 
 开发环境可以直接检查富文本生成接口：
 

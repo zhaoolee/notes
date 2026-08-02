@@ -1,7 +1,7 @@
 import { createHash, createHmac } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
+import qiniu from "qiniu";
 
 interface LegacyQiniuConfig {
   AK?: string;
@@ -11,6 +11,7 @@ interface LegacyQiniuConfig {
   QINIU_PREFIX?: string;
   QINIU_UPLOAD_TIMEOUT_MS?: number | string;
   QINIU_UPLOAD_URL?: string;
+  QINIU_UPLOAD_URLS?: string;
 }
 
 export interface QiniuConfig {
@@ -20,7 +21,7 @@ export interface QiniuConfig {
   domain: string;
   prefix: string;
   uploadTimeoutMs: number;
-  uploadUrl: string;
+  uploadUrls: string[];
 }
 
 export interface QiniuUploadResult {
@@ -43,17 +44,19 @@ export class QiniuConfigurationError extends Error {
 
 export class QiniuUploadError extends Error {
   status?: number;
+  code?: string;
 
-  constructor(message: string, status?: number) {
-    super(message);
+  constructor(
+    message: string,
+    options: { cause?: unknown; code?: string; status?: number } = {},
+  ) {
+    super(message, { cause: options.cause });
     this.name = "QiniuUploadError";
-    this.status = status;
+    this.status = options.status;
+    this.code = options.code;
   }
 }
 
-const resolvedUploadUrls = new Map<string, string>();
-const QINIU_NETWORK_UPLOAD_ATTEMPTS = 3;
-const QINIU_NETWORK_RETRY_DELAY_MS = 150;
 const DEFAULT_QINIU_UPLOAD_TIMEOUT_MS = 30_000;
 const MIN_QINIU_UPLOAD_TIMEOUT_MS = 10_000;
 const MAX_QINIU_UPLOAD_TIMEOUT_MS = 300_000;
@@ -90,6 +93,62 @@ function normalizeDomain(value: string): string {
   return `https://${trimmed}`;
 }
 
+function parseQiniuUploadUrls(value?: string): string[] {
+  const entries = value
+    ?.split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  if (!entries?.length) {
+    return [];
+  }
+
+  const normalized = entries.map((entry) => {
+    let parsed: URL;
+
+    try {
+      parsed = new URL(entry);
+    } catch {
+      throw new QiniuConfigurationError(
+        `七牛上传地址格式不正确：${entry}`,
+      );
+    }
+
+    if (
+      !["http:", "https:"].includes(parsed.protocol) ||
+      parsed.username ||
+      parsed.password ||
+      parsed.pathname !== "/" ||
+      parsed.search ||
+      parsed.hash
+    ) {
+      throw new QiniuConfigurationError(
+        `七牛上传地址必须是没有路径、查询参数或凭证的 HTTP(S) Origin：${entry}`,
+      );
+    }
+
+    return parsed.origin;
+  });
+  const protocols = new Set(normalized.map((entry) => new URL(entry).protocol));
+
+  if (protocols.size > 1) {
+    throw new QiniuConfigurationError(
+      "QINIU_UPLOAD_URLS 中的上传节点必须使用相同协议。",
+    );
+  }
+
+  return Array.from(new Set(normalized));
+}
+
+function readConfiguredUploadUrls(data?: LegacyQiniuConfig): string[] {
+  return parseQiniuUploadUrls(
+    process.env.QINIU_UPLOAD_URLS?.trim() ||
+      process.env.QINIU_UPLOAD_URL?.trim() ||
+      data?.QINIU_UPLOAD_URLS?.trim() ||
+      data?.QINIU_UPLOAD_URL?.trim(),
+  );
+}
+
 function readEnvironmentConfig(): QiniuConfig | null {
   const accessKey = process.env.QINIU_ACCESS_KEY?.trim();
   const secretKey = process.env.QINIU_SECRET_KEY?.trim();
@@ -116,8 +175,7 @@ function readEnvironmentConfig(): QiniuConfig | null {
     uploadTimeoutMs: parseQiniuUploadTimeoutMs(
       process.env.QINIU_UPLOAD_TIMEOUT_MS,
     ),
-    uploadUrl:
-      process.env.QINIU_UPLOAD_URL?.trim() || "https://upload.qiniup.com",
+    uploadUrls: readConfiguredUploadUrls(),
   };
 }
 
@@ -145,10 +203,7 @@ function parseLegacyConfig(data: LegacyQiniuConfig, configPath: string): QiniuCo
           ? undefined
           : String(data.QINIU_UPLOAD_TIMEOUT_MS)),
     ),
-    uploadUrl:
-      process.env.QINIU_UPLOAD_URL?.trim() ||
-      data.QINIU_UPLOAD_URL?.trim() ||
-      "https://upload.qiniup.com",
+    uploadUrls: readConfiguredUploadUrls(data),
   };
 }
 
@@ -260,21 +315,113 @@ function getMimeType(extension: string): string {
   }
 }
 
-async function readUploadFailure(response: Response): Promise<string> {
-  const data = (await response.json().catch(() => null)) as
-    | { error?: string }
-    | null;
-  return data?.error || response.statusText || "未知错误";
-}
+function inferQiniuRegionId(uploadUrl: string): string | null {
+  const hostname = new URL(uploadUrl).hostname.toLowerCase();
 
-function getSuggestedUploadUrl(message: string): string | null {
-  const match = /please use ([a-z0-9.-]+\.qiniup\.com)/i.exec(message);
-
-  if (!match) {
-    return null;
+  if (
+    hostname === "upload.qiniup.com" ||
+    hostname === "up.qiniup.com" ||
+    hostname === "up.qbox.me"
+  ) {
+    return "z0";
   }
 
-  return `https://${match[1].toLowerCase()}`;
+  return /^(?:upload|up)-([a-z0-9-]+)\.qiniup\.com$/.exec(hostname)?.[1] ??
+    /^up-([a-z0-9-]+)\.qbox\.me$/.exec(hostname)?.[1] ??
+    null;
+}
+
+function uniqueEndpoints(
+  endpoints: qiniu.httpc.Endpoint[],
+): qiniu.httpc.Endpoint[] {
+  const seen = new Set<string>();
+
+  return endpoints.filter((endpoint) => {
+    if (seen.has(endpoint.host)) {
+      return false;
+    }
+
+    seen.add(endpoint.host);
+    return true;
+  });
+}
+
+/**
+ * 默认让官方 SDK 根据 AK + Bucket 查询区域和上传节点。旧的固定上传地址仅作为
+ * 首选节点；若它属于七牛标准区域域名，会自动补齐该区域的其它官方上传节点。
+ */
+export function createQiniuSdkConfig(config: QiniuConfig): qiniu.conf.Config {
+  if (config.uploadUrls.length === 0) {
+    return new qiniu.conf.Config({ useHttpsDomain: true });
+  }
+
+  const protocol = new URL(config.uploadUrls[0]).protocol.slice(0, -1);
+  const preferredScheme = protocol === "http" ? "http" : "https";
+  const configuredEndpoints = config.uploadUrls.map(
+    (uploadUrl) =>
+      new qiniu.httpc.Endpoint(new URL(uploadUrl).host, {
+        defaultScheme: preferredScheme,
+      }),
+  );
+  const regionIds = config.uploadUrls.map(inferQiniuRegionId);
+  const inferredRegionId =
+    regionIds[0] && regionIds.every((regionId) => regionId === regionIds[0])
+      ? regionIds[0]
+      : null;
+  const region = inferredRegionId
+    ? qiniu.httpc.Region.fromRegionId(inferredRegionId, { preferredScheme })
+    : new qiniu.httpc.Region({
+        services: {
+          [qiniu.httpc.SERVICE_NAME.UP]: configuredEndpoints,
+        },
+      });
+
+  if (inferredRegionId) {
+    region.services[qiniu.httpc.SERVICE_NAME.UP] = uniqueEndpoints([
+      ...configuredEndpoints,
+      ...region.services[qiniu.httpc.SERVICE_NAME.UP],
+    ]);
+  }
+
+  return new qiniu.conf.Config({
+    regionsProvider: region,
+    useHttpsDomain: preferredScheme === "https",
+  });
+}
+
+function findQiniuErrorCode(
+  error: unknown,
+  seen = new Set<unknown>(),
+): string | undefined {
+  if (!error || typeof error !== "object" || seen.has(error)) {
+    return undefined;
+  }
+
+  seen.add(error);
+  const candidate = error as { cause?: unknown; code?: unknown };
+
+  if (
+    typeof candidate.code === "string" &&
+    /^[A-Z][A-Z0-9_]+$/.test(candidate.code)
+  ) {
+    return candidate.code;
+  }
+
+  return findQiniuErrorCode(candidate.cause, seen);
+}
+
+function readSdkUploadFailure(
+  result: qiniu.httpc.ResponseWrapper,
+): { message: string; status: number } {
+  const status = result.resp?.statusCode || 0;
+  const data = result.data as { error?: unknown; error_code?: unknown } | undefined;
+  const detail =
+    (typeof data?.error === "string" && data.error) ||
+    (typeof data?.error_code === "string" && data.error_code) ||
+    result.resp?.statusMessage ||
+    "未知错误";
+
+  return { message: detail, status };
 }
 
 export function isQiniuUrl(sourceUrl: string, config: QiniuConfig): boolean {
@@ -314,77 +461,52 @@ export async function uploadImageBufferToQiniu(
   );
   const filename = key.slice(key.lastIndexOf("/") + 1);
   const publicUrl = `${config.domain}/${encodeObjectKey(key)}`;
+  const uploadToken = createQiniuUploadToken(
+    config,
+    key,
+    Date.now(),
+    options.deleteAfterDays,
+  );
+  const putExtra = new qiniu.form_up.PutExtra(
+    filename,
+    undefined,
+    getMimeType(normalizedExtension),
+    undefined,
+    true,
+  );
+  const uploader = new qiniu.form_up.FormUploader(
+    createQiniuSdkConfig(config),
+  );
+  let result: qiniu.httpc.ResponseWrapper;
 
-  async function upload(uploadUrl: string): Promise<Response> {
-    let lastError: unknown;
+  // SDK 的 RPC_TIMEOUT 同时覆盖区域查询、连接建立和上传响应等待。
+  qiniu.conf.RPC_TIMEOUT = config.uploadTimeoutMs;
 
-    for (let attempt = 1; attempt <= QINIU_NETWORK_UPLOAD_ATTEMPTS; attempt += 1) {
-      const form = new FormData();
-
-      form.append(
-        "token",
-        createQiniuUploadToken(
-          config,
-          key,
-          Date.now(),
-          options.deleteAfterDays,
-        ),
-      );
-      form.append("key", key);
-      form.append(
-        "file",
-        new Blob([new Uint8Array(buffer)], {
-          type: getMimeType(normalizedExtension),
-        }),
-        filename,
-      );
-
-      try {
-        return await fetch(uploadUrl, {
-          method: "POST",
-          body: form,
-          signal: AbortSignal.timeout(config.uploadTimeoutMs),
-        });
-      } catch (error) {
-        lastError = error;
-
-        if (attempt < QINIU_NETWORK_UPLOAD_ATTEMPTS) {
-          await delay(QINIU_NETWORK_RETRY_DELAY_MS * attempt);
-        }
-      }
-    }
-
+  try {
+    result = await uploader.put(uploadToken, key, buffer, putExtra);
+  } catch (error) {
+    const code = findQiniuErrorCode(error);
     throw new QiniuUploadError(
-      `七牛图片上传网络失败（单次超时 ${config.uploadTimeoutMs}ms，已重试 ${QINIU_NETWORK_UPLOAD_ATTEMPTS} 次）：${
-        lastError instanceof Error ? lastError.message : "未知网络错误"
-      }`,
+      `七牛 SDK 上传失败：已尝试区域查询和上传链路中的所有可用节点${
+        code ? `（${code}）` : ""
+      }。`,
+      { cause: error, code },
     );
   }
 
-  let uploadUrl = resolvedUploadUrls.get(config.bucket) || config.uploadUrl;
-  let response = await upload(uploadUrl);
-  let failureMessage = response.ok ? "" : await readUploadFailure(response);
-  const suggestedUploadUrl =
-    response.status === 400 ? getSuggestedUploadUrl(failureMessage) : null;
-
-  if (suggestedUploadUrl && suggestedUploadUrl !== uploadUrl) {
-    uploadUrl = suggestedUploadUrl;
-    resolvedUploadUrls.set(config.bucket, uploadUrl);
-    response = await upload(uploadUrl);
-    failureMessage = response.ok ? "" : await readUploadFailure(response);
-  }
-
-  if (response.ok) {
+  if (result.ok()) {
     return { key, uploaded: true, url: publicUrl };
   }
 
+  const failure = readSdkUploadFailure(result);
+
   // 内容哈希作为 key；同一张图已存在时直接复用公开地址。
-  if (response.status === 614) {
+  if (failure.status === 614) {
     return { key, uploaded: false, url: publicUrl };
   }
 
   throw new QiniuUploadError(
-    `七牛图片上传失败（${response.status}）：${failureMessage}`,
-    response.status,
+    `七牛图片上传失败（${failure.status}）：${failure.message}`,
+    { status: failure.status },
   );
 }

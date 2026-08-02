@@ -46,7 +46,13 @@ import {
   type AuthUser,
 } from "./lib/auth";
 import { copyTextToClipboard, normalizeClipboardMarkdown } from "./lib/clipboard";
-import { exportMarkdownArchive, exportMarkdownAsPng, getExportErrorMessage } from "./lib/export";
+import {
+  exportMarkdownArchive,
+  exportMarkdownAsPng,
+  exportNoteWorkspaceArchive,
+  getExportErrorMessage,
+  type WorkspaceArchiveProgress,
+} from "./lib/export";
 import { buildHermesSkillInstallInstruction } from "./lib/hermes";
 import { splitSections } from "./lib/markdown";
 import { useResolvedTheme } from "./lib/use-theme";
@@ -179,6 +185,11 @@ export default function App() {
   const [aiAvailable, setAiAvailable] = useState(false);
   const [aiReviewNoteId, setAiReviewNoteId] = useState<string | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [isWorkspaceArchiveExporting, setIsWorkspaceArchiveExporting] =
+    useState(false);
+  const [workspaceArchiveProgress, setWorkspaceArchiveProgress] =
+    useState<WorkspaceArchiveProgress | null>(null);
+  const [workspaceArchiveError, setWorkspaceArchiveError] = useState("");
   const [isImportingImage, setIsImportingImage] = useState(false);
   const [isRefreshingNotes, setIsRefreshingNotes] = useState(false);
   const [isNoteSidebarOpen, setIsNoteSidebarOpen] = useState(false);
@@ -1141,6 +1152,32 @@ export default function App() {
     }
   }
 
+  async function handleWorkspaceArchiveExport() {
+    if (isWorkspaceArchiveExporting) {
+      return;
+    }
+
+    try {
+      setIsWorkspaceArchiveExporting(true);
+      setWorkspaceArchiveError("");
+      setWorkspaceArchiveProgress({
+        percent: 0,
+        message: "正在提交整体导出任务",
+        completedNotes: 0,
+        totalNotes: noteDocuments.length,
+      });
+      await exportNoteWorkspaceArchive(
+        getCurrentWorkspace(),
+        setWorkspaceArchiveProgress,
+      );
+    } catch (error) {
+      console.error("Workspace archive export failed", error);
+      setWorkspaceArchiveError(getExportErrorMessage(error));
+    } finally {
+      setIsWorkspaceArchiveExporting(false);
+    }
+  }
+
   async function handleCopyMarkdown() {
     try {
       await copyTextToClipboard(normalizeClipboardMarkdown(markdown));
@@ -1529,7 +1566,10 @@ export default function App() {
       footerVia={footerVia}
       hermesSkillLinkActionState={hermesSkillLinkActionState}
       isHermesSkillDownloading={isHermesSkillDownloading}
+      isWorkspaceArchiveExporting={isWorkspaceArchiveExporting}
       selectedTheme={selectedTheme}
+      workspaceArchiveError={workspaceArchiveError}
+      workspaceArchiveProgress={workspaceArchiveProgress}
       onAiEnabledChange={setAiEnabled}
       onChangePassword={() => {
         setIsSettingsOpen(false);
@@ -1553,6 +1593,7 @@ export default function App() {
         setIsHermesSkillLinkResetConfirmationOpen(true)
       }
       onThemeChange={setSelectedTheme}
+      onWorkspaceArchiveExport={() => void handleWorkspaceArchiveExport()}
     />
   ) : null;
 

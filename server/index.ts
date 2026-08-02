@@ -1,7 +1,7 @@
 import express, { type NextFunction, type Request, type Response } from "express";
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { once } from "node:events";
 import os from "node:os";
 import path from "node:path";
@@ -19,6 +19,12 @@ import {
   FOOTER_LOGO_URL_MAX_LENGTH,
 } from "../src/lib/footer.js";
 import { splitSections } from "../src/lib/markdown.js";
+import {
+  getNoteTitle,
+  orderNoteDocuments,
+  parseNoteWorkspace,
+} from "../src/lib/notes.js";
+import type { NoteDocument, NoteWorkspace } from "../src/types/app.js";
 import {
   isQiniuUrl,
   loadQiniuConfig,
@@ -78,6 +84,10 @@ interface ArchiveRequestBody {
   footerBrand?: string;
   footerLogoUrl?: string;
   footerVia?: string;
+}
+
+interface WorkspaceArchiveRequestBody {
+  workspace?: unknown;
 }
 
 interface WechatRequestBody {
@@ -156,6 +166,33 @@ interface ArchiveFont {
   weight: number;
 }
 
+type WorkspaceArchiveJobStatus =
+  | "preparing"
+  | "collecting"
+  | "packaging"
+  | "ready"
+  | "failed";
+
+interface WorkspaceArchiveJob {
+  id: string;
+  status: WorkspaceArchiveJobStatus;
+  progress: number;
+  message: string;
+  completedNotes: number;
+  totalNotes: number;
+  createdAt: number;
+  error?: string;
+  filename?: string;
+  zipBuffer?: Buffer;
+}
+
+interface WorkspaceArchiveBuildProgress {
+  status: Extract<WorkspaceArchiveJobStatus, "collecting" | "packaging">;
+  progress: number;
+  message: string;
+  completedNotes: number;
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir =
@@ -180,6 +217,12 @@ const maxAiMarkdownLength = 100_000;
 const maxAiInstructionLength = 2_000;
 const aiRequestWindowMs = 10 * 60 * 1_000;
 const maxAiRequestsPerWindow = 10;
+const maxWorkspaceArchiveNotes = 2_000;
+const maxWorkspaceArchiveUncompressedBytes = 512 * 1024 * 1024;
+const maxConcurrentWorkspaceArchiveJobs = 2;
+const maxRetainedWorkspaceArchiveJobs = 8;
+const maxRetainedWorkspaceArchiveBytes = 640 * 1024 * 1024;
+const workspaceArchiveJobLifetimeMs = 30 * 60 * 1_000;
 const exportDeviceScaleFactor = 3;
 const maxSafeScreenshotDimension = 30_000;
 const maxScreenshotChunkHeight = Math.min(
@@ -196,6 +239,7 @@ const imageUpload = multer({
 let browserPromise: Promise<Browser> | undefined;
 const activeAiUsers = new Set<string>();
 const aiRequestHistory = new Map<string, number[]>();
+const workspaceArchiveJobs = new Map<string, WorkspaceArchiveJob>();
 const notesDataStore = new NotesDataStore(dataDirectory);
 const execFileAsync = promisify(execFile);
 const defaultWechatFooterHammerUrl =
@@ -1600,6 +1644,360 @@ async function buildArchive(
     filename: `${basename}.zip`,
     zipBuffer: createZip(entries),
   };
+}
+
+function sanitizeWorkspaceArchiveSegment(value: string, fallback: string): string {
+  const normalized = value
+    .normalize("NFKC")
+    .replace(/[\u0000-\u001F\u007F\\/:*?"<>|]/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[. -]+|[. -]+$/g, "")
+    .slice(0, 80);
+  const candidate = normalized || fallback;
+
+  return /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(candidate)
+    ? `_${candidate}`
+    : candidate;
+}
+
+function getUniqueWorkspaceArchiveSegment(
+  usedSegments: Set<string>,
+  requestedSegment: string,
+): string {
+  const normalizedKey = requestedSegment.toLocaleLowerCase("zh-CN");
+
+  if (!usedSegments.has(normalizedKey)) {
+    usedSegments.add(normalizedKey);
+    return requestedSegment;
+  }
+
+  let attempt = 2;
+
+  while (
+    usedSegments.has(
+      `${requestedSegment}-${attempt}`.toLocaleLowerCase("zh-CN"),
+    )
+  ) {
+    attempt += 1;
+  }
+
+  const uniqueSegment = `${requestedSegment}-${attempt}`;
+  usedSegments.add(uniqueSegment.toLocaleLowerCase("zh-CN"));
+  return uniqueSegment;
+}
+
+function buildWorkspaceArchiveNames(): { filename: string; rootFolder: string } {
+  const now = new Date();
+  const formatted = [
+    now.getFullYear(),
+    padDatePart(now.getMonth() + 1),
+    padDatePart(now.getDate()),
+    padDatePart(now.getHours()),
+    padDatePart(now.getMinutes()),
+    padDatePart(now.getSeconds()),
+  ].join("-");
+
+  return {
+    filename: `smartisan-notes-${formatted}.zip`,
+    rootFolder: `锤子便签-${formatted}`,
+  };
+}
+
+function buildWorkspaceArchiveReadme(
+  workspace: NoteWorkspace,
+  exportedAt: Date,
+): string {
+  const deletedNoteCount = workspace.notes.filter(
+    (note) => note.deletedAt !== null,
+  ).length;
+
+  return [
+    "# 锤子便签整体导出",
+    "",
+    `- 导出时间：${exportedAt.toISOString()}`,
+    `- 自定义文件夹：${workspace.folders.length}`,
+    `- 便签总数：${workspace.notes.length}`,
+    `- 回收站便签：${deletedNoteCount}`,
+    "",
+    "每张便签保存为一个 Markdown 文件。便签引用的图片位于同名 `.assets` 文件夹中，Markdown 内的图片地址已经改为相对路径。未分类便签位于 `_未分类`，尚可恢复的已删除便签位于 `_回收站`。",
+    "",
+  ].join("\n");
+}
+
+function getWorkspaceArchiveDirectory(
+  note: NoteDocument,
+  folderDirectories: Map<string, string>,
+): string {
+  if (note.deletedAt !== null) {
+    return "_回收站";
+  }
+
+  if (note.folderId) {
+    return folderDirectories.get(note.folderId) ?? "_未分类";
+  }
+
+  return "_未分类";
+}
+
+async function buildWorkspaceArchive(
+  workspace: NoteWorkspace,
+  publicBaseUrl: string,
+  onProgress: (progress: WorkspaceArchiveBuildProgress) => void,
+): Promise<{ filename: string; zipBuffer: Buffer }> {
+  const names = buildWorkspaceArchiveNames();
+  const entries: ZipEntry[] = [];
+  const folderDirectories = new Map<string, string>();
+  const usedRootSegments = new Set<string>(["_未分类", "_回收站"]);
+  const usedNoteSegments = new Map<string, Set<string>>();
+  const orderedNotes = orderNoteDocuments(workspace.notes);
+  const totalImages = orderedNotes.reduce(
+    (total, note) => total + collectMarkdownImageSources(note.markdown).length,
+    0,
+  );
+  const totalUnits = Math.max(orderedNotes.length + totalImages, 1);
+  let completedUnits = 0;
+  let uncompressedBytes = 0;
+
+  const addEntry = (entry: ZipEntry) => {
+    uncompressedBytes += entry.data.length;
+
+    if (uncompressedBytes > maxWorkspaceArchiveUncompressedBytes) {
+      throw new Error("整体导出内容过大，压缩前不能超过 512MB。");
+    }
+
+    if (entries.length >= 60_000) {
+      throw new Error("整体导出的文件数量过多，无法生成兼容 ZIP。");
+    }
+
+    entries.push(entry);
+  };
+
+  const reportCollectingProgress = (
+    completedNotes: number,
+    message: string,
+  ) => {
+    onProgress({
+      status: "collecting",
+      progress: Math.min(90, 3 + Math.floor((completedUnits / totalUnits) * 87)),
+      message,
+      completedNotes,
+    });
+  };
+
+  for (const folder of workspace.folders) {
+    const segment = getUniqueWorkspaceArchiveSegment(
+      usedRootSegments,
+      sanitizeWorkspaceArchiveSegment(folder.name, "未命名文件夹"),
+    );
+    folderDirectories.set(folder.id, segment);
+  }
+
+  addEntry({
+    path: `${names.rootFolder}/导出说明.md`,
+    data: Buffer.from(buildWorkspaceArchiveReadme(workspace, new Date()), "utf8"),
+  });
+
+  for (const directory of [
+    ...folderDirectories.values(),
+    "_未分类",
+    "_回收站",
+  ]) {
+    addEntry({
+      path: `${names.rootFolder}/${directory}/`,
+      data: Buffer.alloc(0),
+      mode: 0o40755,
+    });
+  }
+
+  reportCollectingProgress(0, `正在收集便签（0/${orderedNotes.length}）`);
+
+  for (const [noteIndex, note] of orderedNotes.entries()) {
+    const directory = getWorkspaceArchiveDirectory(note, folderDirectories);
+    const directoryUsedSegments = usedNoteSegments.get(directory) ?? new Set<string>();
+    usedNoteSegments.set(directory, directoryUsedSegments);
+    const noteSegment = getUniqueWorkspaceArchiveSegment(
+      directoryUsedSegments,
+      sanitizeWorkspaceArchiveSegment(
+        getNoteTitle(note.markdown),
+        `便签-${noteIndex + 1}`,
+      ),
+    );
+    const assetFolderName = `${noteSegment}.assets`;
+    const images: ArchiveImage[] = [];
+    const replacements = new Map<string, string>();
+    const imageSources = collectMarkdownImageSources(note.markdown);
+
+    for (const [imageIndex, source] of imageSources.entries()) {
+      let image: ImageSource | null = null;
+
+      try {
+        image = await resolveArchiveImage(source, publicBaseUrl);
+      } catch {
+        throw new Error(
+          `便签「${noteSegment}」中的图片无法读取，请确认原图仍可访问。`,
+        );
+      }
+
+      if (!image?.buffer.length) {
+        throw new Error(
+          `便签「${noteSegment}」中的图片无法读取，请确认原图仍可访问。`,
+        );
+      }
+
+      const extension = detectImageFormat(
+        image.buffer,
+        image.mimeType,
+        image.filename,
+      );
+      const fallbackName = `image-${imageIndex + 1}`;
+      const baseFilename = sanitizeArchiveFilename(
+        image.filename || source,
+        fallbackName,
+      );
+      const filename = path.extname(baseFilename)
+        ? baseFilename
+        : `${baseFilename}.${extension || "bin"}`;
+      const uniqueFilename = getUniqueArchiveFilename(images, filename);
+
+      images.push({
+        source,
+        filename: uniqueFilename,
+        buffer: image.buffer,
+      });
+      replacements.set(source, `${assetFolderName}/${uniqueFilename}`);
+      completedUnits += 1;
+      reportCollectingProgress(
+        noteIndex,
+        `正在收集图片（${completedUnits - noteIndex}/${totalImages}）`,
+      );
+    }
+
+    let archivedMarkdown = note.markdown;
+
+    const orderedReplacements = Array.from(replacements).sort(
+      ([leftSource], [rightSource]) => rightSource.length - leftSource.length,
+    );
+
+    for (const [source, replacement] of orderedReplacements) {
+      archivedMarkdown = replaceAll(archivedMarkdown, source, replacement);
+    }
+
+    addEntry({
+      path: `${names.rootFolder}/${directory}/${noteSegment}.md`,
+      data: Buffer.from(archivedMarkdown, "utf8"),
+    });
+
+    for (const image of images) {
+      addEntry({
+        path: `${names.rootFolder}/${directory}/${assetFolderName}/${image.filename}`,
+        data: image.buffer,
+      });
+    }
+
+    completedUnits += 1;
+    reportCollectingProgress(
+      noteIndex + 1,
+      `正在收集便签（${noteIndex + 1}/${orderedNotes.length}）`,
+    );
+  }
+
+  onProgress({
+    status: "packaging",
+    progress: 92,
+    message: "正在生成 ZIP 压缩包",
+    completedNotes: orderedNotes.length,
+  });
+
+  return {
+    filename: names.filename,
+    zipBuffer: createZip(entries),
+  };
+}
+
+function getWorkspaceArchiveJobPayload(job: WorkspaceArchiveJob) {
+  return {
+    id: job.id,
+    status: job.status,
+    progress: job.progress,
+    message: job.message,
+    completedNotes: job.completedNotes,
+    totalNotes: job.totalNotes,
+    ...(job.filename ? { filename: job.filename } : {}),
+    ...(job.error ? { error: job.error } : {}),
+  };
+}
+
+function pruneWorkspaceArchiveJobs(requiredBufferBytes = 0): void {
+  let retainedBytes = Array.from(workspaceArchiveJobs.values()).reduce(
+    (total, job) => total + (job.zipBuffer?.length ?? 0),
+    0,
+  );
+  const removableJobs = Array.from(workspaceArchiveJobs.values())
+    .filter((job) => job.status === "ready" || job.status === "failed")
+    .sort((left, right) => left.createdAt - right.createdAt);
+
+  for (const job of removableJobs) {
+    if (
+      workspaceArchiveJobs.size < maxRetainedWorkspaceArchiveJobs &&
+      retainedBytes + requiredBufferBytes <= maxRetainedWorkspaceArchiveBytes
+    ) {
+      break;
+    }
+
+    workspaceArchiveJobs.delete(job.id);
+    retainedBytes -= job.zipBuffer?.length ?? 0;
+  }
+}
+
+function scheduleWorkspaceArchiveJobExpiry(jobId: string): void {
+  const timeout = setTimeout(() => {
+    workspaceArchiveJobs.delete(jobId);
+  }, workspaceArchiveJobLifetimeMs);
+  timeout.unref();
+}
+
+function runWorkspaceArchiveJob(
+  job: WorkspaceArchiveJob,
+  workspace: NoteWorkspace,
+  publicBaseUrl: string,
+): void {
+  setImmediate(() => {
+    void (async () => {
+      try {
+        job.status = "collecting";
+        job.message = `正在收集便签（0/${workspace.notes.length}）`;
+        const archive = await buildWorkspaceArchive(
+          workspace,
+          publicBaseUrl,
+          (progress) => {
+            job.status = progress.status;
+            job.progress = progress.progress;
+            job.message = progress.message;
+            job.completedNotes = progress.completedNotes;
+          },
+        );
+
+        if (archive.zipBuffer.length > maxRetainedWorkspaceArchiveBytes) {
+          throw new Error("整体导出压缩包过大，无法在服务器上暂存下载。");
+        }
+
+        pruneWorkspaceArchiveJobs(archive.zipBuffer.length);
+        job.filename = archive.filename;
+        job.zipBuffer = archive.zipBuffer;
+        job.status = "ready";
+        job.progress = 95;
+        job.message = "压缩包已生成，正在准备下载";
+        job.completedNotes = workspace.notes.length;
+      } catch (error) {
+        console.error("Workspace archive job failed:", error);
+        job.status = "failed";
+        job.error =
+          error instanceof Error ? error.message : "整体导出失败，请稍后重试。";
+        job.message = job.error;
+      }
+    })();
+  });
 }
 
 function getUniqueArchiveFilename(images: ArchiveImage[], filename: string): string {
@@ -3178,6 +3576,121 @@ app.post(
           : undefined,
       });
     }
+  },
+);
+
+app.post(
+  "/api/workspace/archive",
+  async (
+    request: Request<Record<string, never>, unknown, WorkspaceArchiveRequestBody>,
+    response: Response,
+  ) => {
+    pruneWorkspaceArchiveJobs();
+    const activeJobCount = Array.from(workspaceArchiveJobs.values()).filter(
+      (job) =>
+        job.status === "preparing" ||
+        job.status === "collecting" ||
+        job.status === "packaging",
+    ).length;
+
+    if (activeJobCount >= maxConcurrentWorkspaceArchiveJobs) {
+      response.status(429).json({
+        error: "当前已有整体导出任务正在运行，请稍后再试。",
+      });
+      return;
+    }
+
+    const serializedWorkspace = JSON.stringify(request.body?.workspace);
+    const workspace = parseNoteWorkspace(
+      typeof serializedWorkspace === "string" ? serializedWorkspace : null,
+    );
+
+    if (!workspace) {
+      response.status(400).json({ error: "工作区数据格式不正确，无法整体导出。" });
+      return;
+    }
+
+    if (workspace.notes.length > maxWorkspaceArchiveNotes) {
+      response.status(400).json({
+        error: `单次最多导出 ${maxWorkspaceArchiveNotes} 张便签。`,
+      });
+      return;
+    }
+
+    if (workspaceArchiveJobs.size >= maxRetainedWorkspaceArchiveJobs) {
+      response.status(429).json({
+        error: "整体导出任务暂存数量已满，请稍后再试。",
+      });
+      return;
+    }
+
+    const job: WorkspaceArchiveJob = {
+      id: randomUUID(),
+      status: "preparing",
+      progress: 1,
+      message: "正在准备整体导出",
+      completedNotes: 0,
+      totalNotes: workspace.notes.length,
+      createdAt: Date.now(),
+    };
+
+    workspaceArchiveJobs.set(job.id, job);
+    scheduleWorkspaceArchiveJobExpiry(job.id);
+    runWorkspaceArchiveJob(job, workspace, getPublicBaseUrl(request));
+
+    response.setHeader("Cache-Control", "no-store");
+    response.status(202).json(getWorkspaceArchiveJobPayload(job));
+  },
+);
+
+app.get(
+  "/api/workspace/archive/:jobId",
+  (request: Request<{ jobId: string }>, response: Response) => {
+    const job = workspaceArchiveJobs.get(request.params.jobId);
+
+    response.setHeader("Cache-Control", "no-store");
+
+    if (!job) {
+      response.status(404).json({ error: "整体导出任务不存在或已过期。" });
+      return;
+    }
+
+    response.json(getWorkspaceArchiveJobPayload(job));
+  },
+);
+
+app.get(
+  "/api/workspace/archive/:jobId/download",
+  (request: Request<{ jobId: string }>, response: Response) => {
+    const job = workspaceArchiveJobs.get(request.params.jobId);
+
+    response.setHeader("Cache-Control", "no-store");
+    response.setHeader("X-Content-Type-Options", "nosniff");
+
+    if (!job) {
+      response.status(404).json({ error: "整体导出任务不存在或已过期。" });
+      return;
+    }
+
+    if (job.status === "failed") {
+      response.status(409).json({ error: job.error || "整体导出失败。" });
+      return;
+    }
+
+    if (job.status !== "ready" || !job.zipBuffer || !job.filename) {
+      response.status(409).json({ error: "整体导出仍在处理中。" });
+      return;
+    }
+
+    response.setHeader("Content-Type", "application/zip");
+    response.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${job.filename}"`,
+    );
+    response.once("finish", () => {
+      workspaceArchiveJobs.delete(job.id);
+    });
+    response.send(job.zipBuffer);
   },
 );
 

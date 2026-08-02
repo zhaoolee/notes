@@ -9,8 +9,12 @@ import path from "node:path";
 import test from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import {
+  createQiniuSdkConfig,
   parseQiniuUploadTimeoutMs,
   QiniuConfigurationError,
+  QiniuUploadError,
+  uploadImageBufferToQiniu,
+  type QiniuConfig,
 } from "../../server/qiniu.js";
 
 interface ImportedImage {
@@ -33,6 +37,18 @@ interface WechatPreparation {
   imageCount: number;
   uploadedImageCount: number;
   reusedImageCount: number;
+}
+
+function createFeedbackQiniuConfig(uploadUrls: string[] = []): QiniuConfig {
+  return {
+    accessKey: "feedback-access-key",
+    secretKey: "feedback-secret-key",
+    bucket: "feedback-bucket",
+    domain: "https://cdn.example.test",
+    prefix: "feedback",
+    uploadTimeoutMs: 10_000,
+    uploadUrls,
+  };
 }
 
 function getShanghaiDateKey(now = new Date()): string {
@@ -103,7 +119,7 @@ async function stopChild(child: ChildProcess): Promise<void> {
 test("Express 提供健康检查和内容寻址图片存储", async (context) => {
   assert.match(
     await readFile("server/qiniu.ts", "utf8"),
-    /signal:\s*AbortSignal\.timeout\(config\.uploadTimeoutMs\)/,
+    /qiniu\.conf\.RPC_TIMEOUT\s*=\s*config\.uploadTimeoutMs/,
   );
 
   const port = await getUnusedPort();
@@ -113,31 +129,41 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
   let qiniuUploadAttemptCount = 0;
   let qiniuUploadCount = 0;
   const qiniuUploadBodies: string[] = [];
-  const qiniuUploadServer = createHttpServer((request, response) => {
-    qiniuUploadAttemptCount += 1;
+  const qiniuEndpointAttempts = [0, 0, 0];
+  const qiniuUploadServers = qiniuEndpointAttempts.map((_, endpointIndex) =>
+    createHttpServer((request, response) => {
+      qiniuUploadAttemptCount += 1;
+      qiniuEndpointAttempts[endpointIndex] += 1;
 
-    if (qiniuUploadAttemptCount <= 2) {
-      request.socket.destroy();
-      return;
+      if (endpointIndex < 2) {
+        request.socket.destroy();
+        return;
+      }
+
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk) => {
+        chunks.push(Buffer.from(chunk));
+      });
+      request.on("end", () => {
+        qiniuUploadCount += 1;
+        qiniuUploadBodies.push(Buffer.concat(chunks).toString("latin1"));
+        response.writeHead(200, { "Content-Type": "application/json" });
+        response.end('{"hash":"feedback","key":"feedback.png"}');
+      });
+    }),
+  );
+  const qiniuUploadUrls: string[] = [];
+
+  for (const server of qiniuUploadServers) {
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+
+    if (!address || typeof address === "string") {
+      throw new Error("无法分配七牛 mock 上传端口");
     }
 
-    const chunks: Buffer[] = [];
-    request.on("data", (chunk) => {
-      chunks.push(Buffer.from(chunk));
-    });
-    request.on("end", () => {
-      qiniuUploadCount += 1;
-      qiniuUploadBodies.push(Buffer.concat(chunks).toString("latin1"));
-      response.writeHead(200, { "Content-Type": "application/json" });
-      response.end('{"hash":"feedback","key":"feedback.png"}');
-    });
-  });
-  qiniuUploadServer.listen(0, "127.0.0.1");
-  await once(qiniuUploadServer, "listening");
-  const qiniuUploadAddress = qiniuUploadServer.address();
-
-  if (!qiniuUploadAddress || typeof qiniuUploadAddress === "string") {
-    throw new Error("无法分配七牛 mock 上传端口");
+    qiniuUploadUrls.push(`http://127.0.0.1:${address.port}`);
   }
 
   const child = spawn(
@@ -157,7 +183,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
         QINIU_DOMAIN: "https://cdn.example.test",
         QINIU_PREFIX: "wechat-test",
         QINIU_UPLOAD_TIMEOUT_MS: "30000",
-        QINIU_UPLOAD_URL: `http://127.0.0.1:${qiniuUploadAddress.port}`,
+        QINIU_UPLOAD_URLS: qiniuUploadUrls.join(","),
         SESSION_SECRET: "wechat-feedback-session-secret",
         SUPERADMIN: "wechat-feedback-admin",
         SUPERADMINPASSWORD: "wechat-feedback-password",
@@ -177,8 +203,12 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
 
   context.after(async () => {
     await stopChild(child);
-    qiniuUploadServer.close();
-    await once(qiniuUploadServer, "close");
+    await Promise.all(
+      qiniuUploadServers.map(async (server) => {
+        server.close();
+        await once(server, "close");
+      }),
+    );
     await rm(storageDir, { force: true, recursive: true });
     await rm(dataDir, { force: true, recursive: true });
   });
@@ -258,6 +288,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.equal(wechat.anonymousQuota?.used, 1);
     assert.equal(wechat.anonymousQuota?.remaining, 499);
     assert.equal(qiniuUploadAttemptCount, 3);
+    assert.deepEqual(qiniuEndpointAttempts, [1, 1, 1]);
     assert.equal(qiniuUploadCount, 1);
     assert.equal(
       (
@@ -537,4 +568,73 @@ test("七牛上传为完整 TLS 和请求链路保留可配置超时预算", () 
     () => parseQiniuUploadTimeoutMs("not-a-number"),
     QiniuConfigurationError,
   );
+});
+
+test("七牛 SDK 默认自动发现区域，旧标准域名只作为首选并补齐备用节点", async () => {
+  const automatic = createQiniuSdkConfig(createFeedbackQiniuConfig());
+
+  assert.equal(automatic.useHttpsDomain, true);
+  assert.equal(automatic.regionsProvider, null);
+
+  const compatible = createQiniuSdkConfig(
+    createFeedbackQiniuConfig(["https://upload-z2.qiniup.com"]),
+  );
+  const regions = await compatible.regionsProvider?.getRegions();
+  const uploadHosts =
+    regions?.[0].services.up.map((endpoint) => endpoint.host) ??
+    [];
+
+  assert.deepEqual(uploadHosts.slice(0, 3), [
+    "upload-z2.qiniup.com",
+    "up-z2.qiniup.com",
+    "up-z2.qbox.me",
+  ]);
+});
+
+test("七牛 SDK 耗尽所有上传节点时保留底层网络错误", async (context) => {
+  const attempts = [0, 0, 0];
+  const servers = attempts.map((_, endpointIndex) =>
+    createHttpServer((request) => {
+      attempts[endpointIndex] += 1;
+      request.socket.destroy();
+    }),
+  );
+  const uploadUrls: string[] = [];
+
+  for (const server of servers) {
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+
+    if (!address || typeof address === "string") {
+      throw new Error("无法分配七牛失败链路 mock 端口");
+    }
+
+    uploadUrls.push(`http://127.0.0.1:${address.port}`);
+  }
+
+  context.after(async () => {
+    await Promise.all(
+      servers.map(async (server) => {
+        server.close();
+        await once(server, "close");
+      }),
+    );
+  });
+
+  await assert.rejects(
+    uploadImageBufferToQiniu(
+      Buffer.from("qiniu-feedback"),
+      "png",
+      createFeedbackQiniuConfig(uploadUrls),
+    ),
+    (error: unknown) => {
+      assert.ok(error instanceof QiniuUploadError);
+      assert.match(error.message, /已尝试区域查询和上传链路中的所有可用节点/);
+      assert.ok(error.cause instanceof Error);
+      assert.equal(error.code, "ECONNRESET");
+      return true;
+    },
+  );
+  assert.deepEqual(attempts, [1, 1, 1]);
 });

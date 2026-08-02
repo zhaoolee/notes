@@ -119,6 +119,9 @@ Vite，普通编辑仍可使用，但 `/api/export`、`/api/archive` 和图片�
 - `POST /api/images/import`：上传图片或从 URL 下载图片
 - `POST /api/export`：将 Markdown 导出为 PNG
 - `POST /api/archive`：生成包含 Markdown、HTML、图片和字体的 ZIP
+- `POST /api/workspace/archive`：提交当前完整工作区并创建整体导出任务
+- `GET /api/workspace/archive/:jobId`：读取整体导出的便签收集、压缩与就绪进度
+- `GET /api/workspace/archive/:jobId/download`：下载已完成的工作区 ZIP
 - `POST /api/wechat`：上传文章图片到七牛并生成带内联样式的公众号富文本；
   请求可携带 `footerBrand`、`footerLogoUrl` 与 `footerVia` 自定义底部署名
 - `GET /images/*`：读取持久化图片与导出结果
@@ -164,6 +167,28 @@ Skill 不维护另一套标签字段。便签管理和长图导出统一读取�
 
 归档不启动 Playwright。后端收集 Markdown 中的图片，将资源写入 ZIP，并通过 React 服务端渲染生成独立 `index.html`。OPPOSans 字体会根据文章内容裁剪为 WOFF2。
 
+设置“账号与同步”中的整体导出面向完整工作区，与分享面板的当前便签离线归档相互
+独立。前端显式提交当前浏览器中的 `NoteWorkspace`，因此匿名用户也能导出只存在于
+`localStorage` 的便签；登录用户提交的则是已经在页面中完成云同步的当前工作区
+快照。后端异步逐张收集 Markdown 图片并提供任务进度，完成后生成以下结构：
+
+```text
+锤子便签-<时间>/
+  导出说明.md
+  <自定义文件夹>/
+    <便签标题>.md
+    <便签标题>.assets/<相关图片>
+  _未分类/
+  _回收站/
+```
+
+Markdown 内的图片地址会改写为同名 `.assets` 目录中的相对路径；重复标题和文件夹名
+会追加序号，路径分隔符和跨平台非法字符会被安全替换。空文件夹会保留。整体导出
+包含回收站中尚可恢复的便签；任一相关图片无法读取时任务明确失败，不能静默生成
+缺图归档。当前任务并发限制为 2 个、单次最多 2,000 张便签、压缩前最多 512MB，
+服务端最多暂存 8 个任务且 ZIP 总量不超过 640MB；成功下载后立即释放，未下载结果
+最多保留 30 分钟。
+
 ## 微信公众号复制链路
 
 桌面分享预览和手机分享面板都提供“复制到公众号”。前端先调用
@@ -174,11 +199,13 @@ Skill 不维护另一套标签字段。便签管理和长图导出统一读取�
 后端把它与正文图片一起按内容哈希去重并上传。按当前产品约定，公众号正文和
 自定义 Logo 的七牛对象直接使用 `QINIU_DOMAIN` 返回的公开地址；生产配置明确为
 `http://tmp-blog.fangyuanxiaozhan.com`，不再改写成本站 `/qiniu/` HTTPS 代理。
-七牛上传连接发生临时网络错误时，同一上传请求最多重试三次；单次完整上传默认
-保留 30 秒，可通过 `QINIU_UPLOAD_TIMEOUT_MS` 在 10 秒到 5 分钟之间调整。生产
-环境应通过 `QINIU_UPLOAD_URL` 直接指定 Bucket 区域查询返回的优先上传域名，
-避免先访问错误区域再等待 400 提示。返回给公众号的公开 HTTP 地址和对象键保持
-不变。
+七牛上传使用官方 Node SDK：默认根据 AK 与 Bucket 查询区域，并在区域查询服务和
+上传服务返回的多个节点之间故障转移；某个节点发生 DNS、连接或响应错误后会继续
+尝试下一节点，不再对同一固定域名重试三次后直接失败。单节点完整请求默认保留
+30 秒，可通过 `QINIU_UPLOAD_TIMEOUT_MS` 在 10 秒到 5 分钟之间调整。已有部署的
+`QINIU_UPLOAD_URL` 只作为兼容首选节点；当它是七牛标准区域域名时，SDK 仍会补齐
+同区域备用节点。上传地址的 HTTPS 与 `QINIU_DOMAIN` 返回给公众号的公开 HTTP
+地址职责独立，公开地址和对象键保持不变。
 内置页脚锤子图和编辑器、预览、同步使用的普通图片仍保留
 `https://notes.fangyuanxiaozhan.com/images/...`。复制结果不包含微信会拒绝的
 Data URL。
@@ -271,8 +298,9 @@ PNG 导出、离线归档和公众号复制共同复用。顶层图片装裱容�
 七牛配置按以下顺序读取：
 
 1. 环境变量 `QINIU_ACCESS_KEY`、`QINIU_SECRET_KEY`、`QINIU_BUCKET`、
-   `QINIU_DOMAIN`，可选 `QINIU_PREFIX`、`QINIU_UPLOAD_URL` 和
-   `QINIU_UPLOAD_TIMEOUT_MS`。
+   `QINIU_DOMAIN`，可选 `QINIU_PREFIX`、`QINIU_UPLOAD_TIMEOUT_MS`；兼容首选节点
+   使用 `QINIU_UPLOAD_URL`，诊断私有网关时可用 `QINIU_UPLOAD_URLS` 提供逗号分隔
+   的同协议节点。
 2. `QINIU_CONFIG_PATH` 指向的 JSON。
 3. 仓库根目录 `qiniu.json`。
 4. 本地相邻项目 `../upload-local-image-to-qiniu/qiniu.json`。
@@ -281,8 +309,8 @@ PNG 导出、离线归档和公众号复制共同复用。顶层图片装裱容�
 `QINIU_PREFIX` 字段。仓库根目录的 `.env` 由 `npm run dev` 和 Docker Compose
 自动加载，文件已被 Git 和 Docker 构建上下文忽略；可复制 `.env.example` 后填写
 本地密钥。本地开发未提供 `.env` 时仍会复用相邻项目配置。生产环境应通过部署
-平台的环境变量或 Secret 注入。若七牛默认上传域名返回区域提示，服务
-会自动切换到提示的区域上传地址并缓存该结果。
+平台的环境变量或 Secret 注入。没有上传地址覆盖时，由官方 SDK 查询 Bucket 区域
+并使用查询结果中的主备上传节点；旧配置中的标准区域域名也不会成为唯一节点。
 
 管理员凭据只从服务端的 `SUPERADMIN`、`SUPERADMINPASSWORD` 读取；不要使用
 `VITE_` 前缀。生产环境还应配置独立的高熵 `SESSION_SECRET`。账号密码只保存

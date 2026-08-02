@@ -8,6 +8,7 @@ import {
 import { importImageFile } from "../lib/images.js";
 import { HERMES_SKILL_INSTALL_INSTRUCTION_PREVIEW } from "../lib/hermes.js";
 import { THEME_OPTIONS } from "../lib/themes.js";
+import type { WorkspaceArchiveProgress } from "../lib/export.js";
 import type { ThemePreferenceId } from "../types/app.js";
 
 interface SettingsPanelProps {
@@ -26,7 +27,10 @@ interface SettingsPanelProps {
     | "resetting"
     | "reset";
   isHermesSkillDownloading?: boolean;
+  isWorkspaceArchiveExporting?: boolean;
   selectedTheme: ThemePreferenceId;
+  workspaceArchiveError?: string;
+  workspaceArchiveProgress?: WorkspaceArchiveProgress | null;
   onAiEnabledChange?: (enabled: boolean) => void;
   onChangePassword?: () => void;
   onClose: () => void;
@@ -39,6 +43,7 @@ interface SettingsPanelProps {
   onLogin?: () => void;
   onLogout?: () => void;
   onThemeChange: (themeId: ThemePreferenceId) => void;
+  onWorkspaceArchiveExport?: () => void;
 }
 
 const SETTINGS_CATEGORIES = [
@@ -65,7 +70,10 @@ export function SettingsPanel({
   footerVia = DEFAULT_FOOTER_VIA,
   hermesSkillLinkActionState = "idle",
   isHermesSkillDownloading = false,
+  isWorkspaceArchiveExporting = false,
   selectedTheme,
+  workspaceArchiveError = "",
+  workspaceArchiveProgress = null,
   onAiEnabledChange = () => undefined,
   onChangePassword,
   onClose,
@@ -78,6 +86,7 @@ export function SettingsPanel({
   onLogin,
   onLogout,
   onThemeChange,
+  onWorkspaceArchiveExport = () => undefined,
 }: SettingsPanelProps) {
   const [category, setCategory] = useState<SettingsCategory>("general");
   const [isFooterLogoUploading, setIsFooterLogoUploading] = useState(false);
@@ -411,6 +420,64 @@ export function SettingsPanel({
                     </span>
                   </button>
                 )}
+              </section>
+
+              <section className="settings-group" aria-label="数据导出">
+                <div className="settings-group-heading">
+                  <strong>数据导出</strong>
+                  <small>保存当前工作区的完整离线副本。</small>
+                </div>
+                <div className="settings-card settings-workspace-export-card">
+                  <button
+                    type="button"
+                    className="settings-row settings-workspace-export-action"
+                    disabled={isWorkspaceArchiveExporting}
+                    onClick={onWorkspaceArchiveExport}
+                  >
+                    <span className="settings-row-label">
+                      导出全部便签
+                      <small>
+                        保留文件夹层级，并把每张便签保存为 Markdown 及相关图片
+                      </small>
+                    </span>
+                    <span className="settings-row-value">
+                      {isWorkspaceArchiveExporting
+                        ? `${workspaceArchiveProgress?.percent ?? 0}%`
+                        : workspaceArchiveProgress?.percent === 100
+                          ? "已完成"
+                          : "导出 ZIP"}
+                      <span className="settings-row-chevron" aria-hidden="true">›</span>
+                    </span>
+                  </button>
+                  {workspaceArchiveProgress ? (
+                    <div
+                      className="settings-workspace-export-progress"
+                      role="progressbar"
+                      aria-label="全部便签导出进度"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={workspaceArchiveProgress.percent}
+                    >
+                      <span className="settings-workspace-export-progress-track">
+                        <span
+                          className="settings-workspace-export-progress-value"
+                          style={{ width: `${workspaceArchiveProgress.percent}%` }}
+                        />
+                      </span>
+                      <span className="settings-workspace-export-progress-copy">
+                        {workspaceArchiveProgress.message}
+                        {workspaceArchiveProgress.totalNotes > 0
+                          ? ` · ${workspaceArchiveProgress.completedNotes}/${workspaceArchiveProgress.totalNotes} 张`
+                          : ""}
+                      </span>
+                    </div>
+                  ) : null}
+                  {workspaceArchiveError ? (
+                    <p className="settings-workspace-export-error" role="alert">
+                      {workspaceArchiveError}
+                    </p>
+                  ) : null}
+                </div>
               </section>
             </section>
 

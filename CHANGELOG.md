@@ -2,6 +2,17 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.0] - 2026-08-02
+
+### 新增
+
+- 设置中的“账号与同步”现可导出全部便签：ZIP 会保留文件夹层级，把每张便签保存为 Markdown 并打包相关图片；导出期间会显示实时进度。
+
+### 修复
+
+- 公众号图片上传改用七牛官方 Node SDK，自动发现 Bucket 区域并在多个上传节点间故障转移；单个节点短时断线时不再原地重试三次后直接放弃。
+- 七牛上传彻底失败时保留 `ECONNRESET` 等底层网络原因，便于从生产日志区分 DNS、连接和响应阶段故障。
+
 ## [1.2.0] - 2026-08-02
 
 ### 新增
@@ -26,5 +37,6 @@
 - PC 版便签操作栏右侧按钮调整为“AI、删除、分享”的顺序，与 APP 版详情操作保持一致。
 - 重置 Hermes 安装链接前会明确提示旧链接立即失效，并要求二次确认，避免误触轮换。
 
+[1.3.0]: https://github.com/zhaoolee/notes/compare/1.2.0...1.3.0
 [1.2.0]: https://github.com/zhaoolee/notes/compare/1.1.0...1.2.0
 [1.1.0]: https://github.com/zhaoolee/notes/compare/1.0.0...1.1.0

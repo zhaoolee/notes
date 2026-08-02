@@ -166,6 +166,48 @@ test("底部显示设置提供四角格、Logo 上传、双文本编辑、恢复
   );
 });
 
+test("账号设置可整体导出全部便签并显示真实任务进度", () => {
+  const noop = () => undefined;
+  const html = renderToStaticMarkup(
+    createElement(SettingsPanel, {
+      isWorkspaceArchiveExporting: true,
+      selectedTheme: "default",
+      workspaceArchiveProgress: {
+        percent: 63,
+        message: "正在收集便签（3/5）",
+        completedNotes: 3,
+        totalNotes: 5,
+      },
+      onClose: noop,
+      onThemeChange: noop,
+      onWorkspaceArchiveExport: noop,
+    }),
+  );
+  const appSource = readFileSync("src/App.tsx", "utf8");
+  const exportSource = readFileSync("src/lib/export.ts", "utf8");
+  const serverSource = readFileSync("server/index.ts", "utf8");
+  const styles = readFileSync("src/styles.css", "utf8");
+
+  assert.match(html, /数据导出/);
+  assert.match(html, /导出全部便签/);
+  assert.match(html, /每张便签保存为 Markdown 及相关图片/);
+  assert.match(html, /role="progressbar"/);
+  assert.match(html, /aria-valuenow="63"/);
+  assert.match(html, /正在收集便签（3\/5） · 3\/5 张/);
+  assert.match(html, />63%/);
+  assert.match(
+    styles,
+    /\.settings-workspace-export-progress-value\s*\{[^}]*transition:\s*width 220ms ease;/s,
+  );
+  assert.match(appSource, /exportNoteWorkspaceArchive\(/);
+  assert.match(appSource, /getCurrentWorkspace\(\)/);
+  assert.match(exportSource, /\/api\/workspace\/archive\/\$\{job\.id\}/);
+  assert.match(serverSource, /"\/api\/workspace\/archive"/);
+  assert.match(serverSource, /"_未分类"/);
+  assert.match(serverSource, /"_回收站"/);
+  assert.match(serverSource, /\.assets/);
+});
+
 test("分享面板承接存图、复制和归档", () => {
   const noop = () => undefined;
   const html = renderToStaticMarkup(
