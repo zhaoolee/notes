@@ -4,8 +4,8 @@
 - 可用来分享与openclaw的对话记录。
 - 完美复刻锤子便签网页版和PC版，支持多便签，分类存储。
 - 支持Docker一键私有化部署
-- 纯WEB应用，无需安装任何App。
-- 支持PC端和手机版，打开即用。
+- 纯WEB应用，无需安装任何App，打开即用
+- 支持PC端和手机版，多端数据同步，支持公网部署
 - 支持图片插入。
 - 支持一键粘贴到公众号助手。
 - 支持直接导出便签为图片，或复制为markdown格式进行分享。
@@ -30,10 +30,13 @@ clawhub地址 https://clawhub.ai/zhaoolee/notes-export-api
 ![](./README.assets/3c37864955b98ac6036e757737a00e88c86c433316dbdd4260dd4dfeb8ec08e4.png)
 
 
-
 ## 支持自定义底部品牌标识(点击就能改)
 
 只要你喜欢，可以把底部的「锤子便签」改成「凿子便签」或「榔头便签」
+
+![](./README.assets/6180552c8f2fd5a9671a3f6d102271235fa9407c0aa0989897be85b048552c97.png)
+
+
 
 | 凿子便签 | 榔头便签 |
 | --- | --- |
@@ -47,58 +50,72 @@ clawhub地址 https://clawhub.ai/zhaoolee/notes-export-api
 
 ![](./README.assets/6cfa5f69414ba904b1211b9fa1147209967c6010a6a69b4c8567a7ba90fdbfff.gif)
 
+## 支持接入DeepSeek，修正语法错误，重点加粗，通俗化润色
+
+![](./README.assets/44a5d5ab4aad2f44f713be9d06275c7bf8a8c73f22c124af7675bfbe81d17adb.png)
+
+## 零配置，复制即可将权限导入hermes agent
+
+复制一行专属链接，粘贴给Hermes Agent或OpenClaw，即可获取包含登身份认证的skill包，实现人机协同
+
+![](./README.assets/f55eff05358e9737802f402a474c6a37263c8c46be50b8dff504f78f63250cae.png)
+
+## 支持多用户隔离
+
+可以给AI分配一个账号，人类分配一个账号，数据严格隔离
+
+![](./README.assets/0c079169e397b53644b312e54561db9c1da8477806ff290fa36eb7bfb7701178.png)
+
+
+## 支持一键粘贴到公众号助手
+
+在手机的网页写完，直接一键粘贴到公众号即可发送，文本格式和图片，统统自动处理好！
+
+![](./README.assets/ef2ef8e599f5afb747e1c78f8bbb38bc4ce8209070cb699552607507dac63b6b.gif)
 
 ## 网页版
 
-地址：[https://notes.fangyuanxiaozhan.com](https://notes.fangyuanxiaozhan.com)
 
 | 暖白纸感 | 深夜便签 |
 | --- | --- |
-| ![](./README.assets/d88b356e6901cd2412df55a0569ba29341f0ed6955ef1dbb7cd5040b2a61d813.png) | ![](./README.assets/b72b6a36d0c367f292807a59bdb41057e433efae404a83eb68e228ec63abebc5.png) |
+| ![](./README.assets/9182e3af534b27a1daac8cb9d301abe6935214ded96539df96b58727830a22bb.png) | ![](./README.assets/07b3426e6f163673cd4e0a1ebaf7e88f798aafcb795b7cb87dafce4643ba766b.png) |
 | ![](./README.assets/28d864deb17cb0ec9d9a7740392ca8bed1e71d3dabee8cc7cbb821d17f74176c.png) | ![](./README.assets/53da5ab92d9aaecb9d246124fd6db1592f528b3b5c1793b9c1bbdcec7beafddb.png) |
 
 
+## Skill 服务地址
 
+便签管理和 PNG 导出统一使用 `NOTES_API_BASE_URL`，可写入
+`skills/notes-export-api/.env`，或通过 `--base-url` 传入：
 
+```dotenv
+NOTES_API_BASE_URL=http://127.0.0.1:18080
+```
 
+认证及完整配置见 [`skills/notes-export-api/SKILL.md`](./skills/notes-export-api/SKILL.md)。
 
+## 使用 Docker Hub 镜像部署
 
+单镜像同时包含 Web 前端和后端服务，便签管理、图片导入和 PNG 导出均可在本地
+运行。公众号复制和 AI 等可选功能需另行配置相应服务。
 
-
-## Skill 服务地址说明
-
-- Web 应用本体可完全本地自托管，不依赖 `notes.fangyuanxiaozhan.com`
-- 便签管理和长图导出统一使用 `NOTES_API_BASE_URL`
-- 可在 `skills/notes-export-api/.env` 中设置
-  `NOTES_API_BASE_URL=http://127.0.0.1:18080`，或给两个脚本传 `--base-url`
-- 工作区管理优先使用 `NOTES_API_TOKEN`；Token 缺失时可临时填写用户名和密码，
-  首次成功运行会自动写入 Token 并从 `.env` 移除账号密码
-- 未提供服务地址时脚本直接报错，不自动探测或回退线上地址
-
-
-## 使用 Docker Hub 镜像部署本项目
-
-这个项目已经支持打包为单个镜像，不依赖 `notes.fangyuanxiaozhan.com` 也能运行：
-
-- 镜像内同时包含前端静态资源和后端导出服务
-- 容器启动后直接访问 `http://127.0.0.1:18080`
-- 导入图片和导出的便签 PNG 都会落在挂载出来的 `storage/images`
-- 容器内部固定监听 `3001`，对外默认映射到 `18080`
-
-使用 `docker run` 启动：
+需要登录、多端同步或 Skill 工作区管理时，先复制 `.env.example`，并配置
+`SUPERADMIN`、`SUPERADMINPASSWORD` 和高熵 `SESSION_SECRET`：
 
 ```bash
-mkdir -p ./storage/images
+cp .env.example .env
+mkdir -p ./storage/images ./storage/data
 
 docker run -d \
   --restart unless-stopped \
   --name notes \
-  -p 18080:3001 \
+  -p 127.0.0.1:18080:3001 \
+  --env-file .env \
   -v "$(pwd)/storage/images:/app/storage/images" \
+  -v "$(pwd)/storage/data:/app/storage/data" \
   zhaoolee/notes:latest
 ```
 
-说明：
-- 使用 `--restart unless-stopped` 后，Docker/宿主机重启后容器会自动拉起；如果手动执行 `docker stop notes`，则不会被自动重启
-- 若 `18080` 已被占用，可改成别的外部端口，例如 `-p 18081:3001`
-- `storage/images` 建议挂载到宿主机，否则容器删除后上传图片会一起丢失
+启动后访问 `http://127.0.0.1:18080`。`storage/images` 保存图片和导出的 PNG，
+`storage/data` 保存账号与云端工作区，两者都应持久化和备份。仅使用匿名编辑与导出
+时可省略 `--env-file .env`；需要局域网访问时可将端口映射改为
+`-p 18080:3001`，公网部署应使用 HTTPS 反向代理。

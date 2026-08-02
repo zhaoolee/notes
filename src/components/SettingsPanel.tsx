@@ -46,9 +46,13 @@ const SETTINGS_CATEGORIES = [
   { id: "personalization", label: "个性化" },
   { id: "account", label: "账号与同步" },
   { id: "extensions", label: "工具与扩展" },
+  { id: "about", label: "关于" },
 ] as const;
 
 type SettingsCategory = (typeof SETTINGS_CATEGORIES)[number]["id"];
+
+const PROJECT_REPOSITORY_URL = "https://github.com/zhaoolee/notes";
+const CHANGELOG_URL = "/changelog";
 
 export function SettingsPanel({
   aiAvailable = false,
@@ -534,6 +538,53 @@ export function SettingsPanel({
                     ) : null}
                   </div>
                 </article>
+              </section>
+            </section>
+
+            <section
+              id="settings-pane-about"
+              className="settings-pane"
+              aria-labelledby="settings-about-title"
+              hidden={category !== "about"}
+            >
+              <header className="settings-pane-header">
+                <h3 id="settings-about-title">关于</h3>
+                <p>查看锤子便签 Skill 的开源项目。</p>
+              </header>
+
+              <section className="settings-card" aria-label="开源项目">
+                <a
+                  className="settings-row settings-about-link"
+                  href={PROJECT_REPOSITORY_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`在 GitHub 打开开源项目：${PROJECT_REPOSITORY_URL}`}
+                >
+                  <span className="settings-row-label">
+                    开源地址
+                    <small>{PROJECT_REPOSITORY_URL}</small>
+                  </span>
+                  <span className="settings-row-value">
+                    GitHub
+                    <span className="settings-row-chevron" aria-hidden="true">›</span>
+                  </span>
+                </a>
+                <a
+                  className="settings-row settings-about-link"
+                  href={CHANGELOG_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="在新标签页打开更新日志"
+                >
+                  <span className="settings-row-label">
+                    更新日志
+                    <small>查看版本新增、变更和修复记录</small>
+                  </span>
+                  <span className="settings-row-value">
+                    查看
+                    <span className="settings-row-chevron" aria-hidden="true">›</span>
+                  </span>
+                </a>
               </section>
             </section>
           </div>

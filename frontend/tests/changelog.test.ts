@@ -49,7 +49,7 @@ test("CHANGELOG 使用固定的人类可读格式记录正式版本", () => {
   assert.doesNotMatch(changelog, /^## \[未发布\]/m);
   assert.match(
     changelog,
-    /^\[1\.1\.0\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.0\.0\.\.\.1\.1\.0$/m,
+    /^\[1\.2\.0\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.1\.0\.\.\.1\.2\.0$/m,
   );
 });
 
@@ -60,9 +60,9 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
   assert.match(sections[0]?.content ?? "", /^# 更新日志/m);
   assert.equal(
     sections[1]?.heading,
-    "[1.1.0](https://github.com/zhaoolee/notes/compare/1.0.0...1.1.0) - 2026-08-02",
+    "[1.2.0](https://github.com/zhaoolee/notes/compare/1.1.0...1.2.0) - 2026-08-02",
   );
-  assert.match(sections[1]?.content ?? "", /新增 `\/changelog` 独立页面/);
+  assert.match(sections[1]?.content ?? "", /设置新增“关于”栏目/);
 });
 
 test("changelog 独立页面复用锤子便签预览结构", () => {
@@ -77,7 +77,7 @@ test("changelog 独立页面复用锤子便签预览结构", () => {
   assert.match(html, /class="sheet-frame sheet-frame-outer"/);
   assert.match(html, />更新日志</);
   assert.match(html, />新增</);
-  assert.match(html, /href="https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.0\.0\.\.\.1\.1\.0"/);
+  assert.match(html, /href="https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.1\.0\.\.\.1\.2\.0"/);
   assert.match(html, /href="\/" aria-label="返回锤子便签"/);
 });
 

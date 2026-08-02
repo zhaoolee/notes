@@ -6546,6 +6546,18 @@ body,
   line-height: 16px;
 }
 
+.settings-about-link {
+  text-decoration: none;
+}
+
+.settings-about-link .settings-row-label small {
+  overflow-wrap: anywhere;
+}
+
+.settings-about-link + .settings-about-link {
+  border-top: 1px solid var(--panel-border);
+}
+
 .login-dialog-backdrop {
   position: fixed;
   z-index: 120;

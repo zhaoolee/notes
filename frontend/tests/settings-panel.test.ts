@@ -29,8 +29,9 @@ test("设置页只保留长期偏好，不混入当前便签操作", () => {
   assert.ok(
     html.indexOf("常规") < html.indexOf("个性化") &&
       html.indexOf("个性化") < html.indexOf("账号与同步") &&
-      html.indexOf("账号与同步") < html.indexOf("工具与扩展"),
-    "设置分类应按常规、个性化、账号与同步、工具与扩展排列",
+      html.indexOf("账号与同步") < html.indexOf("工具与扩展") &&
+      html.indexOf("工具与扩展") < html.indexOf("关于"),
+    "设置分类应按常规、个性化、账号与同步、工具与扩展、关于排列",
   );
   assert.match(html, /账号与同步/);
   assert.match(html, /登录账号/);
@@ -42,6 +43,13 @@ test("设置页只保留长期偏好，不混入当前便签操作", () => {
   assert.match(html, /个性化/);
   assert.match(html, /由测试发送/);
   assert.match(html, /via Feedback/);
+  assert.match(html, /id="settings-pane-about"/);
+  assert.match(html, /开源地址/);
+  assert.match(html, /href="https:\/\/github\.com\/zhaoolee\/notes"/);
+  assert.match(html, /href="\/changelog"/);
+  assert.match(html, /查看版本新增、变更和修复记录/);
+  assert.match(html, /target="_blank"/);
+  assert.match(html, /rel="noopener noreferrer"/);
   assert.doesNotMatch(html, /新建空白便签/);
   assert.doesNotMatch(html, /插入图片/);
   assert.doesNotMatch(html, /加载示例/);
