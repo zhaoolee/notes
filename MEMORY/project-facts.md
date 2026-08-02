@@ -1435,3 +1435,27 @@
   顺序固定为“AI → 删除 → 分享”。AI 不可用时，删除与分享仍保持靠右。
 - 最终 78 项前端 feedback、12 项后端 feedback、完整 TypeScript 检查和生产构建
   通过；`1596 × 1000` PC 与 `390 × 844` 手机浏览器验收确认两端操作组均无回归。
+
+## 2026-08-02：设置“关于”与 1.2.0 生产发布
+
+- 设置新增第五个“关于”栏目；“开源地址”指向
+  `https://github.com/zhaoolee/notes`，“更新日志”指向 `/changelog`，两者均在新标签页
+  打开。生产站 `1280 × 900` 桌面与 `390 × 844` 手机无头浏览器真实点击验证通过。
+- 根目录版本与锁文件已同步为 `1.2.0`，`CHANGELOG.md` 置顶归档为
+  `## [1.2.0] - 2026-08-02`。GitHub `dev`、注释标签 `1.2.0` 与生产 detached HEAD
+  均精确指向 `add77a0a85b52f68e9ee9cb3faab7d76de3ef51e`。
+- 发布前完整备份位于
+  `/home/hermes/backups/notes/notes-1.1.0-pre-1.2.0-add77a0.tar.gz`，大小
+  `78,997,907` 字节，共 127 个归档条目，包含 `storage/images` 与 `storage/data`。
+  生产 `notes-data.json` 为容器持有的 `root:root / 0600` 文件，SSH 用户无免密 sudo；
+  应继续通过后端容器将两个目录打包到标准输出，再写入仓库外路径，并使用
+  `gzip -t`、归档目录和 SHA-256 校验完整性。备份包含账号与安装链接数据，必须限制访问。
+- 新生产镜像为 backend `c84a56d598d`、frontend `5bb8d0bd24a7`。两个容器均为
+  running、重启次数为 0，本机与公网健康检查成功，AI 状态可用，首页、
+  `/changelog` 和 `/superadmin` 均返回 200，近期日志无关键错误。
+- 容器重建前后 `notes-data.json` SHA-256 一度完全一致；随后线上用户连续成功执行
+  `PUT /api/workspace`，仅工作区分区发生正常变化，用户与 Hermes 安装链接的数量和
+  分区哈希保持不变，不能用旧备份覆盖这些新写入。匿名 PNG 冒烟生成有效
+  `1980 × 1089`、`50,423` 字节图片，使 `storage/images` 从 123 增至 124。
+- 精确发布提交的 78 项前端 feedback、12 项后端 feedback、完整类型检查和生产构建
+  全部通过；构建只保留既有的单 chunk 超过 `500kB` 提示。
