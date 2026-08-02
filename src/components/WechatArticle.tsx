@@ -35,7 +35,8 @@ const colors = {
   text: "#665749",
 };
 
-const NOTE_SCALE = 2;
+// 微信不会像便签预览那样把 2× 桌面画布整体缩小；1.4× 对应约 17px 正文。
+const NOTE_SCALE = 1.4;
 
 function scaledPx(value: number): string {
   return `${Number((value * NOTE_SCALE).toFixed(4))}px`;

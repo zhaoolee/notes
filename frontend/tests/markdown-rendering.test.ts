@@ -402,6 +402,8 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
       markdown: [
         "[公众号居中正文]",
         "",
+        "# 公众号一级标题",
+        "",
         "## **0x01**",
         "",
         "> 话题：AI 理财建议",
@@ -431,7 +433,7 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.match(html, /data-smartisan-paper="true"/);
   assert.match(
     html,
-    /data-smartisan-paper="true" style="[^"]*padding:30px 13\.3334px 0[^"]*padding-bottom:12%[^"]*max-width:660px[^"]*border:0[^"]*background-color:#fffcf7/,
+    /data-smartisan-paper="true" style="[^"]*padding:21px 9\.3334px 0[^"]*padding-bottom:12%[^"]*max-width:462px[^"]*border:0[^"]*background-color:#fffcf7/,
   );
   assert.match(html, /background-color:#fffcf7/);
   assert.match(html, /data-smartisan-frame="outer"/);
@@ -478,10 +480,10 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
     ).length,
     1,
   );
-  assert.match(html, /<td style="padding:4px;border:0"><section data-smartisan-frame="inner"/);
+  assert.match(html, /<td style="padding:2\.8px;border:0"><section data-smartisan-frame="inner"/);
   assert.match(
     html,
-    /data-smartisan-frame="inner" style="[^"]*padding:63px 39\.6666px 28px[^"]*font-size:24\.32px[^"]*line-height:1\.8/,
+    /data-smartisan-frame="inner" style="[^"]*padding:44\.1px 27\.7666px 19\.6px[^"]*font-size:17\.024px[^"]*line-height:1\.8/,
   );
   assert.match(html, /<td data-smartisan-corner="top-left"/);
   assert.doesNotMatch(
@@ -492,20 +494,24 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.doesNotMatch(html, /<header[^>]*text-align:center/);
   assert.match(
     html,
-    /<p style="[^"]*font-size:24\.32px[^"]*font-weight:400[^"]*line-height:1\.8[^"]*text-align:center[^"]*">公众号居中正文<\/p>/,
+    /<p style="[^"]*font-size:17\.024px[^"]*font-weight:400[^"]*line-height:1\.8[^"]*text-align:center[^"]*">公众号居中正文<\/p>/,
   );
   assert.match(
     html,
-    /<h2 style="[^"]*font-weight:700[^"]*line-height:1\.35[^"]*font-size:29\.44px[^"]*"><strong[^>]*>0x01<\/strong><\/h2>/,
+    /<h1 style="[^"]*font-size:28\.672px[^"]*">公众号一级标题<\/h1>/,
+  );
+  assert.match(
+    html,
+    /<h2 style="[^"]*font-weight:700[^"]*line-height:1\.35[^"]*font-size:20\.608px[^"]*"><strong[^>]*>0x01<\/strong><\/h2>/,
   );
   assert.doesNotMatch(html, /<header[^>]*border-bottom/);
   assert.match(
     html,
-    /<blockquote style="[^"]*margin:16px 0[^"]*border:0[^"]*background-color:transparent[^"]*font-size:28\.16px/,
+    /<blockquote style="[^"]*margin:11\.2px 0[^"]*border:0[^"]*background-color:transparent[^"]*font-size:19\.712px/,
   );
   assert.match(
     html,
-    /<span aria-hidden="true" style="[^"]*width:29\.44px[^"]*font-size:45\.44px[^>]*>“<\/span>话题：AI 理财建议/,
+    /<span aria-hidden="true" style="[^"]*width:20\.608px[^"]*font-size:31\.808px[^>]*>“<\/span>话题：AI 理财建议/,
   );
   assert.match(html, /<strong[^>]*>鼓励\u2060<\/strong>vibe coding/);
   assert.doesNotMatch(html, /<\/strong>[\u00a0\u2060]vibe coding/);
@@ -516,10 +522,10 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.match(html, /<a href="https:\/\/example\.com" style=/);
   assert.match(html, /data-smartisan-image="true"/);
   assert.match(html, /data-smartisan-image-frame="android"/);
-  assert.match(html, /padding:6px/);
+  assert.match(html, /padding:4\.2px/);
   assert.match(html, /border:1px solid #ebe8e3/);
   assert.match(html, /background-color:#ffffff/);
-  assert.match(html, /box-shadow:0 2px 6px rgba\(88,70,52,0\.07\)/);
+  assert.match(html, /box-shadow:0 1\.4px 4\.2px rgba\(88,70,52,0\.07\)/);
   assert.match(
     html,
     /<ol start="9" style="[^"]*box-sizing:border-box[^"]*width:100% !important[^"]*max-width:100% !important[^"]*list-style-position:outside/,
@@ -531,7 +537,7 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
     html,
     /<li\b[^>]*>(?:(?!<\/li>)[\s\S])*data-smartisan-image="true"/,
   );
-  assert.match(html, /data-smartisan-image="true"[^>]*margin:24px auto 4px/);
+  assert.match(html, /data-smartisan-image="true"[^>]*margin:16\.8px auto 2\.8px/);
   assert.doesNotMatch(html, /<li style="[^"]*overflow:hidden/);
   assert.match(
     html,
@@ -546,7 +552,7 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.match(html, /via Notes Skill/);
   assert.match(
     html,
-    /<section data-smartisan-footer="true" style="[^"]*margin:60px 20px 0[^"]*font-size:0[^"]*line-height:20\.48px/,
+    /<section data-smartisan-footer="true" style="[^"]*margin:42px 14px 0[^"]*font-size:0[^"]*line-height:14\.336px/,
   );
   assert.doesNotMatch(html, /<footer(?:\s|>)/);
   assert.doesNotMatch(html, /<table data-smartisan-footer="true"/);
