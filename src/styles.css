@@ -885,18 +885,19 @@ body,
 .settings-tool-icon {
   width: 44px;
   height: 44px;
-  display: grid;
-  place-items: center;
+  display: block;
   border-radius: 11px;
-  background: linear-gradient(145deg, #8b796b, #64564c);
-  color: #fff;
-  font-size: 1rem;
-  font-weight: 750;
+  object-fit: cover;
   box-shadow: 0 3px 8px rgba(49, 38, 31, 0.18);
 }
 
 .settings-tool-copy {
   min-width: 0;
+}
+
+.settings-tool-details {
+  min-width: 0;
+  grid-column: 1 / -1;
 }
 
 .settings-tool-copy h4 {
@@ -906,7 +907,7 @@ body,
 }
 
 .settings-tool-copy p,
-.settings-tool-copy small {
+.settings-tool-details small {
   color: var(--muted);
   font-size: 0.74rem;
   line-height: 1.55;
@@ -916,13 +917,10 @@ body,
   margin: 0;
 }
 
-.settings-tool-copy .settings-tool-prompt {
-  margin-top: 10px;
+.settings-tool-details .settings-tool-prompt {
   padding: 10px 12px;
-  border-left: 3px solid color-mix(in srgb, var(--ink) 40%, var(--panel-border));
-  border-radius: 0 7px 7px 0;
+  border-radius: 8px;
   background: color-mix(in srgb, var(--selector-active) 52%, transparent);
-  color: var(--ink);
   overflow-wrap: anywhere;
 }
 
@@ -964,17 +962,19 @@ body,
   opacity: 0.58;
 }
 
-.settings-tool-copy .settings-tool-prompt-text {
+.settings-tool-details .settings-tool-prompt-text {
   margin: 0;
-  color: var(--ink);
+  color: color-mix(in srgb, var(--ink) 46%, var(--muted));
+  font-size: 0.76rem;
+  line-height: 1.62;
 }
 
-.settings-tool-copy small {
+.settings-tool-details small {
   margin-top: 8px;
   display: block;
 }
 
-.settings-tool-copy code {
+.settings-tool-details code {
   margin-left: 4px;
   padding: 2px 5px;
   border-radius: 4px;
@@ -995,7 +995,7 @@ body,
 }
 
 .settings-tool-actions {
-  grid-column: 2;
+  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -5029,12 +5029,12 @@ body,
   }
 
   .settings-tool-copy p,
-  .settings-tool-copy small {
+  .settings-tool-details small {
     color: #868a92;
   }
 
-  .settings-tool-copy .settings-tool-prompt-text {
-    color: #575b66;
+  .settings-tool-details .settings-tool-prompt-text {
+    color: #70747d;
   }
 
   .settings-tool-action {
@@ -7647,11 +7647,11 @@ body,
   .app-layout[data-theme="smartisan-dark"] .settings-group-heading small,
   .app-layout[data-theme="smartisan-dark"] .settings-account-copy small,
   .app-layout[data-theme="smartisan-dark"] .settings-tool-copy p,
-  .app-layout[data-theme="smartisan-dark"] .settings-tool-copy small {
+  .app-layout[data-theme="smartisan-dark"] .settings-tool-details small {
     color: #777477;
   }
 
-  .app-layout[data-theme="smartisan-dark"] .settings-tool-copy .settings-tool-prompt-text {
+  .app-layout[data-theme="smartisan-dark"] .settings-tool-details .settings-tool-prompt-text {
     color: #aaa6aa;
   }
 

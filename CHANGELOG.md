@@ -2,6 +2,18 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.2] - 2026-08-03
+
+### 变更
+
+- 设置“工具与扩展”中的 Hermes Skill 改用专属人物图片图标，不再显示字母 H。
+- Hermes Skill 的安装指令、链接说明和操作按钮现在铺满扩展卡片可用宽度，减少长指令换行并改善信息层级。
+- Hermes Skill 安装指令移除容易误解为引用块的左侧竖线，并降低正文的字号与颜色层级，让主要标题和操作更突出。
+
+### 修复
+
+- 跨端同步文章排序时会继续选中当前设备正在查看的同一篇便签，不再停留在原列表位置并自动切换正文。
+
 ## [1.3.1] - 2026-08-03
 
 ### 修复
@@ -43,6 +55,7 @@
 - PC 版便签操作栏右侧按钮调整为“AI、删除、分享”的顺序，与 APP 版详情操作保持一致。
 - 重置 Hermes 安装链接前会明确提示旧链接立即失效，并要求二次确认，避免误触轮换。
 
+[1.3.2]: https://github.com/zhaoolee/notes/compare/1.3.1...1.3.2
 [1.3.1]: https://github.com/zhaoolee/notes/compare/1.3.0...1.3.1
 [1.3.0]: https://github.com/zhaoolee/notes/compare/1.2.0...1.3.0
 [1.2.0]: https://github.com/zhaoolee/notes/compare/1.1.0...1.2.0

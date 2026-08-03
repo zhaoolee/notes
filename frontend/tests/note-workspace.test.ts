@@ -25,6 +25,7 @@ import {
   orderNoteDocuments,
   parseNoteWorkspace,
   reorderNormalNoteDocuments,
+  resolveWorkspaceActiveNote,
   restoreNoteFromTrash,
   toggleNotePinned,
   toggleNoteStarred,
@@ -454,6 +455,53 @@ test("便签选择始终按唯一 ID 加载对应正文而非列表位置", () =
   assert.match(
     storeSource,
     /selectNote:\s*\(noteId\)\s*=>\s*\{[\s\S]*getNoteDocumentById\(get\(\)\.notes,\s*noteId\);[\s\S]*activeNoteId:\s*note\.id,[\s\S]*markdown:\s*note\.markdown,/s,
+  );
+});
+
+test("跨端排序更新保留当前设备选中的便签 ID", () => {
+  const firstNote = createNoteDocument("# 第一篇", 1_000, 0);
+  const secondNote = createNoteDocument("# 第二篇", 2_000, 1);
+  const selectedThirdNote = createNoteDocument("# 第三篇", 3_000, 2);
+  const fourthNote = createNoteDocument("# 第四篇", 4_000, 3);
+  const reorderedNotes = reorderNormalNoteDocuments(
+    [firstNote, secondNote, selectedThirdNote, fourthNote],
+    selectedThirdNote.id,
+    fourthNote.id,
+  );
+  const cloudWorkspace = {
+    activeNoteId: fourthNote.id,
+    folders: [],
+    notes: reorderedNotes,
+    version: 1 as const,
+  };
+
+  assert.deepEqual(
+    orderNoteDocuments(reorderedNotes).map((note) => note.id),
+    [firstNote.id, secondNote.id, fourthNote.id, selectedThirdNote.id],
+  );
+  assert.equal(
+    resolveWorkspaceActiveNote(cloudWorkspace, selectedThirdNote.id)?.id,
+    selectedThirdNote.id,
+  );
+  assert.equal(
+    resolveWorkspaceActiveNote(cloudWorkspace, "missing-note")?.id,
+    fourthNote.id,
+  );
+
+  const appSource = readFileSync("src/App.tsx", "utf8");
+  const storeSource = readFileSync("src/store/useAppStore.ts", "utf8");
+
+  assert.match(
+    appSource,
+    /replaceWorkspace\(cloud\.workspace, \{\s*preserveActiveNote: true,\s*\}\);/s,
+  );
+  assert.match(
+    appSource,
+    /const workspace = getCurrentWorkspace\(\);[\s\S]*void saveCloudWorkspace\(workspace\)[\s\S]*\}, \[\s*authStatus,\s*authUser,\s*folders,\s*noteDocuments,\s*\]\);/s,
+  );
+  assert.match(
+    storeSource,
+    /options\?\.preserveActiveNote \? state\.activeNoteId : undefined/,
   );
 });
 

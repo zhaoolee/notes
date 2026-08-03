@@ -326,6 +326,44 @@ test("Hermes Skill 支持下载、复制完整安装指令和主动重置安装�
   const settingsSource = readFileSync("src/components/SettingsPanel.tsx", "utf8");
   const styles = readFileSync("src/styles.css", "utf8");
 
+  assert.ok(existsSync("public/hermes-skill-icon.png"));
+  assert.match(
+    settingsSource,
+    /className="settings-tool-icon"[\s\S]*src="\/hermes-skill-icon\.png"[\s\S]*alt=""/s,
+  );
+  assert.doesNotMatch(
+    settingsSource,
+    /<span className="settings-tool-icon"[^>]*>H<\/span>/,
+  );
+  assert.match(
+    styles,
+    /\.settings-tool-icon\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;[^}]*object-fit:\s*cover;/s,
+  );
+  assert.match(settingsSource, /className="settings-tool-details"/);
+  assert.match(
+    styles,
+    /\.settings-tool-details\s*\{[^}]*grid-column:\s*1\s*\/\s*-1;/s,
+  );
+  assert.match(
+    styles,
+    /\.settings-tool-actions\s*\{[^}]*grid-column:\s*1\s*\/\s*-1;/s,
+  );
+  assert.match(
+    styles,
+    /\.settings-tool-details \.settings-tool-prompt\s*\{[^}]*border-radius:\s*8px;[^}]*background:/s,
+  );
+  assert.doesNotMatch(
+    styles,
+    /\.settings-tool-details \.settings-tool-prompt\s*\{[^}]*border-left:/s,
+  );
+  assert.match(
+    styles,
+    /\.settings-tool-details \.settings-tool-prompt-text\s*\{[^}]*color:\s*color-mix\(in srgb, var\(--ink\) 46%, var\(--muted\)\);[^}]*font-size:\s*0\.76rem;[^}]*line-height:\s*1\.62;/s,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width:\s*640px\)[\s\S]*\.settings-tool-details \.settings-tool-prompt-text\s*\{[^}]*color:\s*#70747d;/s,
+  );
   assert.match(settingsSource, /settings-hermes-skill-row/);
   assert.match(settingsSource, /settings-tool-prompt-action/);
   assert.match(settingsSource, /settings-tool-action-reset/);

@@ -8,6 +8,7 @@ import {
   moveNoteToFolder,
   moveNoteToTrash,
   reorderNormalNoteDocuments,
+  resolveWorkspaceActiveNote,
   restoreNoteFromTrash,
   toggleNotePinned,
   toggleNoteStarred,
@@ -42,7 +43,10 @@ interface AppStoreState {
   selectNote: (noteId: string) => void;
   requestDeleteNote: (noteId: string) => void;
   requestPermanentlyDeleteNote: (noteId: string) => void;
-  replaceWorkspace: (workspace: NoteWorkspace) => void;
+  replaceWorkspace: (
+    workspace: NoteWorkspace,
+    options?: { preserveActiveNote?: boolean },
+  ) => void;
   restoreNote: (noteId: string) => void;
   reorderNotes: (activeNoteId: string, overNoteId: string) => void;
   moveNoteToFolder: (noteId: string, folderId: string | null) => void;
@@ -212,24 +216,26 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
       },
     });
   },
-  replaceWorkspace: (workspace) => {
-    const activeNote =
-      workspace.notes.find((note) => note.id === workspace.activeNoteId) ??
-      workspace.notes[0];
+  replaceWorkspace: (workspace, options) =>
+    set((state) => {
+      const activeNote = resolveWorkspaceActiveNote(
+        workspace,
+        options?.preserveActiveNote ? state.activeNoteId : undefined,
+      );
 
-    if (!activeNote) {
-      return;
-    }
+      if (!activeNote) {
+        return {};
+      }
 
-    set({
-      activeNoteId: activeNote.id,
-      exportError: "",
-      folders: workspace.folders,
-      markdown: activeNote.markdown,
-      notes: workspace.notes,
-      pendingAction: null,
-    });
-  },
+      return {
+        activeNoteId: activeNote.id,
+        exportError: "",
+        folders: workspace.folders,
+        markdown: activeNote.markdown,
+        notes: workspace.notes,
+        pendingAction: null,
+      };
+    }),
   restoreNote: (noteId) =>
     set((state) => ({
       notes: restoreNoteFromTrash(state.notes, noteId),

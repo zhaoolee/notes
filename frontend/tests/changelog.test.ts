@@ -42,7 +42,7 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
     assert.match(changelog, /^## \[未发布\]\n\n### \S+\n\n- \S/m);
     assert.match(
       changelog,
-      /^\[未发布\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.3\.1\.\.\.HEAD$/m,
+      /^\[未发布\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.3\.2\.\.\.HEAD$/m,
     );
   }
 
@@ -56,6 +56,10 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
   }
 
   assert.doesNotMatch(changelog, /^- [0-9a-f]{7,40}\s+/m);
+  assert.match(
+    changelog,
+    /^\[1\.3\.2\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.3\.1\.\.\.1\.3\.2$/m,
+  );
   assert.match(
     changelog,
     /^\[1\.3\.1\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.3\.0\.\.\.1\.3\.1$/m,
@@ -80,24 +84,31 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
   if (hasUnreleasedSection) {
     assert.equal(
       sections[1]?.heading,
-      "[未发布](https://github.com/zhaoolee/notes/compare/1.3.1...HEAD)",
+      "[未发布](https://github.com/zhaoolee/notes/compare/1.3.2...HEAD)",
     );
-    assert.match(sections[1]?.content ?? "", /AI“重点加粗”/);
   }
   assert.equal(
     sections[latestReleaseSectionIndex]?.heading,
-    "[1.3.1](https://github.com/zhaoolee/notes/compare/1.3.0...1.3.1) - 2026-08-03",
+    "[1.3.2](https://github.com/zhaoolee/notes/compare/1.3.1...1.3.2) - 2026-08-03",
   );
   assert.match(
     sections[latestReleaseSectionIndex]?.content ?? "",
-    /AI“重点加粗”/,
+    /跨端同步文章排序/,
   );
   assert.equal(
     sections[latestReleaseSectionIndex + 1]?.heading,
-    "[1.3.0](https://github.com/zhaoolee/notes/compare/1.2.0...1.3.0) - 2026-08-02",
+    "[1.3.1](https://github.com/zhaoolee/notes/compare/1.3.0...1.3.1) - 2026-08-03",
   );
   assert.match(
     sections[latestReleaseSectionIndex + 1]?.content ?? "",
+    /AI“重点加粗”/,
+  );
+  assert.equal(
+    sections[latestReleaseSectionIndex + 2]?.heading,
+    "[1.3.0](https://github.com/zhaoolee/notes/compare/1.2.0...1.3.0) - 2026-08-02",
+  );
+  assert.match(
+    sections[latestReleaseSectionIndex + 2]?.content ?? "",
     /导出全部便签/,
   );
 });

@@ -530,12 +530,19 @@ export function SettingsPanel({
                   <strong>外部扩展</strong>
                 </div>
                 <article className="settings-tool-card">
-                  <span className="settings-tool-icon" aria-hidden="true">H</span>
+                  <img
+                    className="settings-tool-icon"
+                    src="/hermes-skill-icon.png"
+                    alt=""
+                    aria-hidden="true"
+                  />
                   <div className="settings-tool-copy">
                     <h4>Hermes Skill</h4>
                     <p>
                       把下面这句话直接发给 Hermes，它会自行下载、解压并安装：
                     </p>
+                  </div>
+                  <div className="settings-tool-details">
                     <div className="settings-tool-prompt">
                       <div className="settings-tool-prompt-header">
                         <span className="settings-tool-prompt-label">安装指令</span>

@@ -185,6 +185,20 @@ export function getNoteDocumentById(
   return notes.find((note) => note.id === noteId) ?? null;
 }
 
+export function resolveWorkspaceActiveNote(
+  workspace: NoteWorkspace,
+  preferredActiveNoteId?: string,
+): NoteDocument | null {
+  return (
+    (preferredActiveNoteId
+      ? getNoteDocumentById(workspace.notes, preferredActiveNoteId)
+      : null) ??
+    getNoteDocumentById(workspace.notes, workspace.activeNoteId) ??
+    workspace.notes[0] ??
+    null
+  );
+}
+
 export function toggleNoteStarred(
   notes: NoteDocument[],
   noteId: string,

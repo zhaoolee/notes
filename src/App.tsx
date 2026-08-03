@@ -456,16 +456,21 @@ export default function App() {
       return;
     }
 
-    const workspace: NoteWorkspace = {
+    if (canUseCloudWorkspace(authUser)) {
+      return;
+    }
+
+    persistNoteWorkspace({
       activeNoteId,
       folders,
       notes: noteDocuments,
       version: 1,
-    };
+    });
+    setCloudSyncState("local");
+  }, [activeNoteId, authStatus, authUser, folders, noteDocuments]);
 
-    if (!canUseCloudWorkspace(authUser)) {
-      persistNoteWorkspace(workspace);
-      setCloudSyncState("local");
+  useEffect(() => {
+    if (authStatus !== "ready" || !canUseCloudWorkspace(authUser)) {
       return;
     }
 
@@ -477,6 +482,8 @@ export default function App() {
       skipNextCloudSaveRef.current = false;
       return;
     }
+
+    const workspace = getCurrentWorkspace();
 
     if (cloudSaveTimeoutRef.current !== null) {
       window.clearTimeout(cloudSaveTimeoutRef.current);
@@ -499,7 +506,6 @@ export default function App() {
         });
     }, CLOUD_SAVE_DELAY_MS);
   }, [
-    activeNoteId,
     authStatus,
     authUser,
     folders,
@@ -524,7 +530,9 @@ export default function App() {
           ) {
             cloudRevisionRef.current = cloud.updatedAt ?? 0;
             skipNextCloudSaveRef.current = true;
-            replaceWorkspace(cloud.workspace);
+            replaceWorkspace(cloud.workspace, {
+              preserveActiveNote: true,
+            });
             setCloudSyncError("");
             setCloudSyncState("synced");
           }
