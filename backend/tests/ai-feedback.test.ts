@@ -270,6 +270,10 @@ test("启动探测成功后只向登录用户返回逐条 AI 建议且不写工�
     JSON.stringify(completionRequest.body),
     /如果没有需要修改的地方.*suggestions.*\[\]/,
   );
+  assert.match(
+    JSON.stringify(completionRequest.body),
+    /必须把标点移到粗体标记外.*\*\*句子\*\*。下一句.*禁止写成 \*\*句子。\*\*下一句/,
+  );
 
   const workspaceResponse = await fetch(`${baseUrl}/api/workspace`, {
     headers: { Cookie: cookie },

@@ -11,7 +11,7 @@ const packageVersion = JSON.parse(
   readFileSync("package.json", "utf8"),
 ) as { version: string };
 
-test("CHANGELOG 使用固定的人类可读格式记录正式版本", () => {
+test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本", () => {
   const secondLevelHeadings = Array.from(
     changelog.matchAll(/^##\s+(.+)$/gm),
     (match) => match[1],
@@ -28,10 +28,23 @@ test("CHANGELOG 使用固定的人类可读格式记录正式版本", () => {
     "修复",
     "安全",
   ]);
+  const hasUnreleasedSection = secondLevelHeadings[0] === "[未发布]";
+  const latestReleaseIndex = hasUnreleasedSection ? 1 : 0;
 
   assert.match(changelog, /^# 更新日志\n/);
-  assert.equal(secondLevelHeadings[0], `[${packageVersion.version}] - 2026-08-02`);
+  assert.equal(
+    secondLevelHeadings[latestReleaseIndex],
+    `[${packageVersion.version}] - 2026-08-03`,
+  );
   assert.ok(categoryHeadings.length > 0);
+
+  if (hasUnreleasedSection) {
+    assert.match(changelog, /^## \[未发布\]\n\n### \S+\n\n- \S/m);
+    assert.match(
+      changelog,
+      /^\[未发布\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.3\.1\.\.\.HEAD$/m,
+    );
+  }
 
   for (const category of categoryHeadings) {
     assert.ok(allowedCategories.has(category), `不支持的更新日志分类：${category}`);
@@ -43,7 +56,10 @@ test("CHANGELOG 使用固定的人类可读格式记录正式版本", () => {
   }
 
   assert.doesNotMatch(changelog, /^- [0-9a-f]{7,40}\s+/m);
-  assert.doesNotMatch(changelog, /^## \[未发布\]/m);
+  assert.match(
+    changelog,
+    /^\[1\.3\.1\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.3\.0\.\.\.1\.3\.1$/m,
+  );
   assert.match(
     changelog,
     /^\[1\.3\.0\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.2\.0\.\.\.1\.3\.0$/m,
@@ -56,19 +72,34 @@ test("CHANGELOG 使用固定的人类可读格式记录正式版本", () => {
 
 test("changelog 解析器保留便签分节并解析版本比较链接", () => {
   const sections = getChangelogSections(changelog);
+  const hasUnreleasedSection = /^## \[未发布\]/m.test(changelog);
+  const latestReleaseSectionIndex = hasUnreleasedSection ? 2 : 1;
 
   assert.equal(sections[0]?.heading, "");
   assert.match(sections[0]?.content ?? "", /^# 更新日志/m);
+  if (hasUnreleasedSection) {
+    assert.equal(
+      sections[1]?.heading,
+      "[未发布](https://github.com/zhaoolee/notes/compare/1.3.1...HEAD)",
+    );
+    assert.match(sections[1]?.content ?? "", /AI“重点加粗”/);
+  }
   assert.equal(
-    sections[1]?.heading,
+    sections[latestReleaseSectionIndex]?.heading,
+    "[1.3.1](https://github.com/zhaoolee/notes/compare/1.3.0...1.3.1) - 2026-08-03",
+  );
+  assert.match(
+    sections[latestReleaseSectionIndex]?.content ?? "",
+    /AI“重点加粗”/,
+  );
+  assert.equal(
+    sections[latestReleaseSectionIndex + 1]?.heading,
     "[1.3.0](https://github.com/zhaoolee/notes/compare/1.2.0...1.3.0) - 2026-08-02",
   );
-  assert.match(sections[1]?.content ?? "", /导出全部便签/);
-  assert.equal(
-    sections[2]?.heading,
-    "[1.2.0](https://github.com/zhaoolee/notes/compare/1.1.0...1.2.0) - 2026-08-02",
+  assert.match(
+    sections[latestReleaseSectionIndex + 1]?.content ?? "",
+    /导出全部便签/,
   );
-  assert.match(sections[2]?.content ?? "", /设置新增“关于”栏目/);
 });
 
 test("changelog 独立页面复用锤子便签预览结构", () => {
@@ -83,7 +114,7 @@ test("changelog 独立页面复用锤子便签预览结构", () => {
   assert.match(html, /class="sheet-frame sheet-frame-outer"/);
   assert.match(html, />更新日志</);
   assert.match(html, />新增</);
-  assert.match(html, /href="https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.2\.0\.\.\.1\.3\.0"/);
+  assert.match(html, /href="https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.3\.0\.\.\.1\.3\.1"/);
   assert.match(html, /href="\/" aria-label="返回锤子便签"/);
 });
 

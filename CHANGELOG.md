@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.1] - 2026-08-03
+
+### 修复
+
+- AI“重点加粗”现在会被明确要求避开中文句末标点与后续正文之间的无效 Markdown 边界，降低预览把加粗标记显示成星号的概率。
+
 ## [1.3.0] - 2026-08-02
 
 ### 新增
@@ -37,6 +43,7 @@
 - PC 版便签操作栏右侧按钮调整为“AI、删除、分享”的顺序，与 APP 版详情操作保持一致。
 - 重置 Hermes 安装链接前会明确提示旧链接立即失效，并要求二次确认，避免误触轮换。
 
+[1.3.1]: https://github.com/zhaoolee/notes/compare/1.3.0...1.3.1
 [1.3.0]: https://github.com/zhaoolee/notes/compare/1.2.0...1.3.0
 [1.2.0]: https://github.com/zhaoolee/notes/compare/1.1.0...1.2.0
 [1.1.0]: https://github.com/zhaoolee/notes/compare/1.0.0...1.1.0
