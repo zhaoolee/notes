@@ -35,26 +35,26 @@ const colors = {
   text: "#665749",
 };
 
-// 微信不会像便签预览那样把 2× 桌面画布整体缩小；1.4× 对应约 17px 正文。
-const NOTE_SCALE = 1.4;
+// 微信使用紧凑正文尺寸；1.4× 只负责便签框体与留白，不再放大字体。
+const LAYOUT_SCALE = 1.4;
 
 function scaledPx(value: number): string {
-  return `${Number((value * NOTE_SCALE).toFixed(4))}px`;
+  return `${Number((value * LAYOUT_SCALE).toFixed(4))}px`;
 }
 
 function scaledRem(value: number): string {
   return scaledPx(value * 16);
 }
 
-const bodyFontSize = scaledRem(0.76);
-const bodyLineHeight = 1.8;
-const quoteIndent = scaledRem(0.92);
+const bodyFontSize = "15px";
+const bodyLineHeight = 1.75;
+const quoteIndent = "18px";
 
 const baseHeadingStyle: CSSProperties = {
   color: colors.heading,
-  fontWeight: 700,
+  fontWeight: 600,
   letterSpacing: "0.03em",
-  lineHeight: 1.28,
+  lineHeight: 1.32,
 };
 
 const bodyParagraphStyle: CSSProperties = {
@@ -114,7 +114,7 @@ function renderBlockquoteChildren(children: ReactNode): ReactNode {
               width: quoteIndent,
               color: colors.quoteMark,
               fontFamily: 'Georgia,"Times New Roman",serif',
-              fontSize: scaledRem(1.42),
+              fontSize: "26px",
               fontWeight: 400,
               lineHeight: 0.82,
               textIndent: "0",
@@ -138,7 +138,7 @@ const components: Components = {
       style={{
         ...baseHeadingStyle,
         margin: "0",
-        fontSize: scaledRem(1.28),
+        fontSize: "22px",
       }}
     >
       {children}
@@ -149,7 +149,7 @@ const components: Components = {
       style={{
         ...baseHeadingStyle,
         margin: "0",
-        fontSize: scaledRem(0.92),
+        fontSize: "17px",
       }}
     >
       {children}
@@ -160,7 +160,7 @@ const components: Components = {
       style={{
         ...baseHeadingStyle,
         margin: "0",
-        fontSize: "1.17em",
+        fontSize: "16px",
       }}
     >
       {children}
@@ -171,19 +171,19 @@ const components: Components = {
       style={{
         ...baseHeadingStyle,
         margin: "0",
-        fontSize: "1em",
+        fontSize: "15px",
       }}
     >
       {children}
     </h4>
   ),
   h5: ({ children }) => (
-    <h5 style={{ ...baseHeadingStyle, margin: "0", fontSize: "0.83em" }}>
+    <h5 style={{ ...baseHeadingStyle, margin: "0", fontSize: "14px" }}>
       {children}
     </h5>
   ),
   h6: ({ children }) => (
-    <h6 style={{ ...baseHeadingStyle, margin: "0", fontSize: "0.67em" }}>
+    <h6 style={{ ...baseHeadingStyle, margin: "0", fontSize: "13px" }}>
       {children}
     </h6>
   ),
@@ -218,7 +218,7 @@ const components: Components = {
       style={{
         display: "inline",
         color: "inherit",
-        fontWeight: 700,
+        fontWeight: 600,
         whiteSpace: "normal",
       }}
     >
@@ -245,9 +245,9 @@ const components: Components = {
         border: "0",
         backgroundColor: "transparent",
         color: colors.muted,
-        fontSize: scaledRem(0.88),
+        fontSize: bodyFontSize,
         fontWeight: 400,
-        lineHeight: 1.48,
+        lineHeight: 1.64,
         overflowWrap: "anywhere",
         wordBreak: "break-word",
       }}
@@ -319,7 +319,7 @@ const components: Components = {
         color: className ? colors.text : "#8a6548",
         fontFamily:
           '"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
-        fontSize: className ? scaledRem(0.72) : "0.9em",
+        fontSize: className ? "13px" : "0.9em",
         fontWeight: 400,
       }}
     >
@@ -336,7 +336,7 @@ const components: Components = {
         borderRadius: "0",
         background: "rgba(243,236,225,0.9)",
         color: "rgba(97,79,61,0.94)",
-        fontSize: scaledRem(0.72),
+        fontSize: "13px",
         fontWeight: 400,
         lineHeight: 1.62,
         whiteSpace: "pre-wrap",
@@ -393,7 +393,7 @@ const components: Components = {
           width: "100%",
           borderCollapse: "collapse",
           color: colors.text,
-          fontSize: scaledRem(0.74),
+          fontSize: "14px",
           fontWeight: 400,
           lineHeight: 1.52,
         }}
@@ -409,7 +409,7 @@ const components: Components = {
         border: `1px solid ${colors.border}`,
         background: "rgba(243,236,225,0.65)",
         color: colors.heading,
-        fontWeight: 700,
+        fontWeight: 600,
         textAlign: "left",
       }}
     >
@@ -463,8 +463,8 @@ function SectionHeading({ children }: { children: string }) {
             ...baseHeadingStyle,
             margin: "0",
             color: colors.heading,
-            fontSize: scaledRem(0.92),
-            lineHeight: 1.35,
+            fontSize: "17px",
+            lineHeight: 1.4,
             textAlign: "start",
           }}
         >
@@ -706,8 +706,6 @@ export function WechatArticle({
                     fontWeight: 400,
                     lineHeight: bodyLineHeight,
                     letterSpacing: "0.03em",
-                    WebkitTextStroke:
-                      "0.3px rgba(102,87,73,0.62)",
                     overflowWrap: "anywhere",
                     wordBreak: "break-word",
                   }}

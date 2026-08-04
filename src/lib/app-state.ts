@@ -16,6 +16,8 @@ import {
   FOOTER_LOGO_URL_MAX_LENGTH,
   FOOTER_TEXT_MAX_LENGTH,
   FOOTER_VIA_STORAGE_KEY,
+  LEGACY_DEFAULT_FOOTER_BRAND,
+  LEGACY_DEFAULT_FOOTER_VIA,
 } from "./footer";
 
 export {
@@ -134,18 +136,28 @@ export function persistAiEnabled(enabled: boolean): void {
 }
 
 export function getInitialFooterBrand(): string {
-  return (
-    readSearchParam("footerBrand") ??
-    readStoredValue(FOOTER_BRAND_STORAGE_KEY) ??
-    DEFAULT_FOOTER_BRAND
+  const searchParam = readSearchParam("footerBrand");
+  if (searchParam !== null) {
+    return searchParam.slice(0, FOOTER_TEXT_MAX_LENGTH);
+  }
+
+  const storedBrand = readStoredValue(FOOTER_BRAND_STORAGE_KEY);
+  return (storedBrand === LEGACY_DEFAULT_FOOTER_BRAND
+    ? DEFAULT_FOOTER_BRAND
+    : storedBrand ?? DEFAULT_FOOTER_BRAND
   ).slice(0, FOOTER_TEXT_MAX_LENGTH);
 }
 
 export function getInitialFooterVia(): string {
-  return (
-    readSearchParam("footerVia") ??
-    readStoredValue(FOOTER_VIA_STORAGE_KEY) ??
-    DEFAULT_FOOTER_VIA
+  const searchParam = readSearchParam("footerVia");
+  if (searchParam !== null) {
+    return searchParam.slice(0, FOOTER_TEXT_MAX_LENGTH);
+  }
+
+  const storedVia = readStoredValue(FOOTER_VIA_STORAGE_KEY);
+  return (storedVia === LEGACY_DEFAULT_FOOTER_VIA
+    ? DEFAULT_FOOTER_VIA
+    : storedVia ?? DEFAULT_FOOTER_VIA
   ).slice(0, FOOTER_TEXT_MAX_LENGTH);
 }
 

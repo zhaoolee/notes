@@ -15,7 +15,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { NoteSheet } from "../src/components/NoteSheet.js";
 import { WechatArticle } from "../src/components/WechatArticle.js";
 import {
+  DEFAULT_FOOTER_BRAND,
   DEFAULT_FOOTER_LOGO_URL,
+  DEFAULT_FOOTER_VIA,
   FOOTER_LOGO_URL_MAX_LENGTH,
 } from "../src/lib/footer.js";
 import { splitSections } from "../src/lib/markdown.js";
@@ -1013,8 +1015,8 @@ function buildArchiveFontFaceCss(fonts: ArchiveFont[]): string {
 }
 
 function renderArchiveNoteSheet(markdown: string, footer: FooterConfig): string {
-  const footerBrand = footer.brand ?? "由锤子便签发送";
-  const footerVia = footer.via ?? "via Smartisan Notes";
+  const footerBrand = footer.brand ?? DEFAULT_FOOTER_BRAND;
+  const footerVia = footer.via ?? DEFAULT_FOOTER_VIA;
 
   return renderToStaticMarkup(
     createElement(NoteSheet, {
@@ -2020,8 +2022,8 @@ function getUniqueArchiveFilename(images: ArchiveImage[], filename: string): str
 function buildArchiveSubsetText(markdown: string, footer: FooterConfig): string {
   return [
     markdown,
-    footer.brand ?? "由锤子便签发送",
-    footer.via ?? "via Smartisan Notes",
+    footer.brand ?? DEFAULT_FOOTER_BRAND,
+    footer.via ?? DEFAULT_FOOTER_VIA,
     "不要因为走得太远，就忘了当初为什么出发。Don't forget why you started just because you've come so far.",
   ].join("\n");
 }
@@ -2875,10 +2877,10 @@ async function prepareWechatArticle(
       defaultWechatFooterHammerUrl;
   const html = renderToStaticMarkup(
     createElement(WechatArticle, {
-      footerBrand: options.footer.brand ?? "由锤子便签发送",
+      footerBrand: options.footer.brand ?? DEFAULT_FOOTER_BRAND,
       markdown: wechatMarkdown,
       footerHammerUrl,
-      footerVia: options.footer.via ?? "via Smartisan Notes",
+      footerVia: options.footer.via ?? DEFAULT_FOOTER_VIA,
     }),
   ).replace(
     /<link\b[^>]*\brel="preload"[^>]*\bas="image"[^>]*\/?>/gi,

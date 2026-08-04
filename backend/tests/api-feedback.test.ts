@@ -391,9 +391,13 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.doesNotMatch(wechat.html, /<header[^>]*text-align:center/);
     assert.match(
       wechat.html,
-      /<p style="[^"]*font-size:17\.024px[^"]*font-weight:400[^"]*line-height:1\.8[^"]*text-align:center[^"]*">公众号测试<\/p>/,
+      /<p style="[^"]*font-size:15px[^"]*font-weight:400[^"]*line-height:1\.75[^"]*text-align:center[^"]*">公众号测试<\/p>/,
     );
-    assert.match(wechat.html, /<strong[^>]*>加粗正文<\/strong>/);
+    assert.match(
+      wechat.html,
+      /<strong[^>]*font-weight:600[^>]*>加粗正文<\/strong>/,
+    );
+    assert.doesNotMatch(wechat.html, /-webkit-text-stroke/);
     assert.match(
       wechat.html,
       /<strong[^>]*>鼓励\u2060<\/strong>vibe coding/,

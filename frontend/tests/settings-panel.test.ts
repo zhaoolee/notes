@@ -5,6 +5,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SettingsPanel } from "../../src/components/SettingsPanel.js";
 import { SharePanel } from "../../src/components/SharePanel.js";
+import {
+  DEFAULT_FOOTER_BRAND,
+  DEFAULT_FOOTER_VIA,
+} from "../../src/lib/footer.js";
 import { buildHermesSkillInstallInstruction } from "../../src/lib/hermes.js";
 
 test("设置页只保留长期偏好，不混入当前便签操作", () => {
@@ -139,6 +143,16 @@ test("底部显示设置提供四角格、Logo 上传、双文本编辑、恢复
   assert.match(
     footerSource,
     /FOOTER_VIA_STORAGE_KEY = "notes\.footerVia"/,
+  );
+  assert.equal(DEFAULT_FOOTER_BRAND, "由开源锤子便签发送");
+  assert.equal(DEFAULT_FOOTER_VIA, "Powered by zhaoolee/notes");
+  assert.match(
+    stateSource,
+    /storedBrand === LEGACY_DEFAULT_FOOTER_BRAND\s*\? DEFAULT_FOOTER_BRAND/,
+  );
+  assert.match(
+    stateSource,
+    /storedVia === LEGACY_DEFAULT_FOOTER_VIA\s*\? DEFAULT_FOOTER_VIA/,
   );
   assert.match(
     stateSource,

@@ -2,6 +2,16 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.3] - 2026-08-04
+
+### 变更
+
+- 便签底部默认署名改为“由开源锤子便签发送 / Powered by zhaoolee/notes”，已有默认设置也会自动更新。
+
+### 修复
+
+- 复制到微信公众号的正文、引用和标题改用紧凑字号，并移除全局文字描边、降低粗体字重，避免发布后整篇文字过大过粗。
+
 ## [1.3.2] - 2026-08-03
 
 ### 变更
@@ -55,6 +65,7 @@
 - PC 版便签操作栏右侧按钮调整为“AI、删除、分享”的顺序，与 APP 版详情操作保持一致。
 - 重置 Hermes 安装链接前会明确提示旧链接立即失效，并要求二次确认，避免误触轮换。
 
+[1.3.3]: https://github.com/zhaoolee/notes/compare/1.3.2...1.3.3
 [1.3.2]: https://github.com/zhaoolee/notes/compare/1.3.1...1.3.2
 [1.3.1]: https://github.com/zhaoolee/notes/compare/1.3.0...1.3.1
 [1.3.0]: https://github.com/zhaoolee/notes/compare/1.2.0...1.3.0

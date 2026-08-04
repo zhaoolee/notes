@@ -483,8 +483,9 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.match(html, /<td style="padding:2\.8px;border:0"><section data-smartisan-frame="inner"/);
   assert.match(
     html,
-    /data-smartisan-frame="inner" style="[^"]*padding:44\.1px 27\.7666px 19\.6px[^"]*font-size:17\.024px[^"]*line-height:1\.8/,
+    /data-smartisan-frame="inner" style="[^"]*padding:44\.1px 27\.7666px 19\.6px[^"]*font-size:15px[^"]*line-height:1\.75/,
   );
+  assert.doesNotMatch(html, /-webkit-text-stroke/);
   assert.match(html, /<td data-smartisan-corner="top-left"/);
   assert.doesNotMatch(
     html,
@@ -494,30 +495,31 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.doesNotMatch(html, /<header[^>]*text-align:center/);
   assert.match(
     html,
-    /<p style="[^"]*font-size:17\.024px[^"]*font-weight:400[^"]*line-height:1\.8[^"]*text-align:center[^"]*">公众号居中正文<\/p>/,
+    /<p style="[^"]*font-size:15px[^"]*font-weight:400[^"]*line-height:1\.75[^"]*text-align:center[^"]*">公众号居中正文<\/p>/,
   );
   assert.match(
     html,
-    /<h1 style="[^"]*font-size:28\.672px[^"]*">公众号一级标题<\/h1>/,
+    /<h1 style="[^"]*font-weight:600[^"]*font-size:22px[^"]*">公众号一级标题<\/h1>/,
   );
   assert.match(
     html,
-    /<h2 style="[^"]*font-weight:700[^"]*line-height:1\.35[^"]*font-size:20\.608px[^"]*"><strong[^>]*>0x01<\/strong><\/h2>/,
+    /<h2 style="[^"]*font-weight:600[^"]*line-height:1\.4[^"]*font-size:17px[^"]*"><strong[^>]*font-weight:600[^>]*>0x01<\/strong><\/h2>/,
   );
   assert.doesNotMatch(html, /<header[^>]*border-bottom/);
   assert.match(
     html,
-    /<blockquote style="[^"]*margin:11\.2px 0[^"]*border:0[^"]*background-color:transparent[^"]*font-size:19\.712px/,
+    /<blockquote style="[^"]*margin:11\.2px 0[^"]*border:0[^"]*background-color:transparent[^"]*font-size:15px[^"]*line-height:1\.64/,
   );
   assert.match(
     html,
-    /<span aria-hidden="true" style="[^"]*width:20\.608px[^"]*font-size:31\.808px[^>]*>“<\/span>话题：AI 理财建议/,
+    /<span aria-hidden="true" style="[^"]*width:18px[^"]*font-size:26px[^>]*>“<\/span>话题：AI 理财建议/,
   );
+  assert.match(html, /<strong[^>]*font-weight:600[^>]*>粗体<\/strong>/);
   assert.match(html, /<strong[^>]*>鼓励\u2060<\/strong>vibe coding/);
   assert.doesNotMatch(html, /<\/strong>[\u00a0\u2060]vibe coding/);
   assert.match(
     html,
-    /<p style="[^"]*color:#665749[^"]*line-height:1\.8/,
+    /<p style="[^"]*color:#665749[^"]*line-height:1\.75/,
   );
   assert.match(html, /<a href="https:\/\/example\.com" style=/);
   assert.match(html, /data-smartisan-image="true"/);
