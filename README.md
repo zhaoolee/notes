@@ -2,6 +2,8 @@
 
 ![](./README.assets/e99a408cc01fdffd81fca6dcafc4152b171f0be7d7003032338443197f9e23da.png)
 
+![](./README.assets/a1cc07be6396cb67288b2cebacc26b6746aa0409d976f230b762fcc467706ccc.gif)
+
 - 一个锤子便签风格的导出器，支持**暖白纸感**，**深夜便签**两个主题。
 - 可用来分享与openclaw的对话记录。
 - 完美复刻锤子便签网页版和PC版，支持多便签，分类存储。
@@ -58,9 +60,9 @@ clawhub地址 https://clawhub.ai/zhaoolee/notes-export-api
 
 ## 零配置，复制即可将权限导入hermes agent
 
-复制一行专属链接，粘贴给Hermes Agent或OpenClaw，即可获取包含登身份认证的skill包，实现人机协同
+登陆后，复制一行专属链接，粘贴给Hermes Agent或OpenClaw，即可获取包含登身份认证的skill包，实现人机协同
 
-![](./README.assets/f55eff05358e9737802f402a474c6a37263c8c46be50b8dff504f78f63250cae.png)
+![](./README.assets/c7cacf577167ab7ed8ca053b1bc0f68486959ba0dd2e662e8182cee37ed5283b.png)
 
 ## 支持多用户隔离
 
