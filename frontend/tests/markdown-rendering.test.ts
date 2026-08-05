@@ -620,7 +620,7 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.doesNotMatch(html, /\[公众号居中正文\]/);
 });
 
-test("WechatArticle 为五种卡片主题生成互不共享的内联配色", () => {
+test("WechatArticle 为六种卡片主题生成互不共享的内联配色", () => {
   const themes = Object.keys(NOTE_CARD_THEME_STYLES) as NoteCardThemeId[];
 
   assert.deepEqual(themes, [
@@ -629,6 +629,7 @@ test("WechatArticle 为五种卡片主题生成互不共享的内联配色", () 
     "apple-notes",
     "apple-notes-light",
     "bear",
+    "telegraph",
   ]);
 
   for (const theme of themes) {
@@ -662,4 +663,54 @@ test("WechatArticle 为五种卡片主题生成互不共享的内联配色", () 
     );
     assert.equal(html.includes(">▎</span>"), style.layout === "bear");
   }
+});
+
+test("WechatArticle 为 Telegra.ph 保留原站正文节奏与引用线", () => {
+  const html = renderToStaticMarkup(
+    createElement(WechatArticle, {
+      footerBrand: "Telegra.ph 排版测试",
+      footerHammerUrl: "https://cdn.example.com/hammer.png",
+      footerVia: "via Feedback",
+      markdown: "# Telegraph 标题\n\n正文与[链接](https://example.com)\n\n> 引用内容",
+      theme: "telegraph",
+    }),
+  );
+
+  assert.match(html, /data-note-card-theme="telegraph"/);
+  assert.match(html, /font-size:18px;[^\"]*line-height:1\.58/);
+  assert.match(html, /line-height:1\.0625;[^\"]*font-size:32px/);
+  assert.match(html, /height:0\.667em/);
+  assert.match(html, /border-bottom:0\.1em solid rgba\(0,0,0,0\.7\)/);
+  assert.match(html, /border-left:3px solid #000000/);
+  assert.match(html, /font-style:italic/);
+  assert.doesNotMatch(html, />[“▎]<\/span>引用内容/);
+});
+
+test("WechatArticle 只为 Bear 收紧分节间隔并保持既有空行", () => {
+  const markdown = "正文一\n\n正文二\n\n## Bear 分节\n\n正文三";
+  const bearHtml = renderToStaticMarkup(
+    createElement(WechatArticle, {
+      footerBrand: "Bear 排版测试",
+      footerHammerUrl: "https://cdn.example.com/hammer.png",
+      footerVia: "via Feedback",
+      markdown,
+      theme: "bear",
+    }),
+  );
+  const defaultHtml = renderToStaticMarkup(
+    createElement(WechatArticle, {
+      footerBrand: "默认排版测试",
+      footerHammerUrl: "https://cdn.example.com/hammer.png",
+      footerVia: "via Feedback",
+      markdown,
+      theme: "default",
+    }),
+  );
+
+  assert.match(bearHtml, /height:0\.704em/);
+  assert.match(bearHtml, /margin:0\.704em 0 0/);
+  assert.match(bearHtml, /margin:0 0 0\.704em/);
+  assert.match(defaultHtml, /height:0\.704em/);
+  assert.doesNotMatch(defaultHtml, /margin:0\.704em 0 0/);
+  assert.doesNotMatch(defaultHtml, /margin:0 0 0\.704em/);
 });

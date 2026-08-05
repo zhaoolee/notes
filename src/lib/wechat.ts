@@ -52,7 +52,7 @@ async function prepareWechatArticle(
 
   if (result.theme !== theme) {
     throw new Error(
-      "公众号服务尚未更新到当前配色版本，请重启后端服务后再复制。",
+      "公众号服务尚未更新到当前主题版本，请重启后端服务后再复制。",
     );
   }
 

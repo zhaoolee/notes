@@ -10,15 +10,16 @@ import {
   NOTE_CARD_THEME_STORAGE_KEY,
 } from "../../src/lib/themes.js";
 
-test("预览卡片配色清单只包含可直接渲染的主题", () => {
+test("预览主题清单只包含可直接渲染的主题", () => {
   assert.deepEqual(
     NOTE_CARD_THEME_OPTIONS.map(({ id, label }) => ({ id, label })),
     [
       { id: "default", label: "暖白质感" },
       { id: "smartisan-dark", label: "深夜便签" },
-      { id: "apple-notes", label: "iPhone 深色" },
       { id: "apple-notes-light", label: "iPhone 浅色" },
+      { id: "apple-notes", label: "iPhone 深色" },
       { id: "bear", label: "Bear 便签" },
+      { id: "telegraph", label: "Telegra.ph" },
     ],
   );
   assert.equal(NOTE_CARD_THEME_STORAGE_KEY, "notes.previewCardTheme");
@@ -27,6 +28,7 @@ test("预览卡片配色清单只包含可直接渲染的主题", () => {
   assert.equal(isNoteCardThemeId("apple-notes"), true);
   assert.equal(isNoteCardThemeId("apple-notes-light"), true);
   assert.equal(isNoteCardThemeId("bear"), true);
+  assert.equal(isNoteCardThemeId("telegraph"), true);
   assert.equal(isNoteCardThemeId("system"), false);
 });
 
@@ -52,12 +54,13 @@ test("PreviewPanel 把独立配色限定在便签卡片并提供浮动入口", (
   );
   assert.match(html, /class="preview-theme-control"/);
   assert.match(html, /class="preview-theme-trigger"/);
-  assert.match(html, /aria-label="切换预览卡片配色，当前深夜便签"/);
-  assert.match(html, />配色</);
+  assert.match(html, /aria-label="切换预览主题，当前深夜便签"/);
+  assert.match(html, />主题</);
+  assert.doesNotMatch(html, /卡片配色|>配色</);
   assert.doesNotMatch(html, /class="preview-stage"[^>]*data-preview-theme=/);
 });
 
-test("预览配色浮窗支持移动端点按、点外关闭和 Escape 收起", () => {
+test("预览主题浮窗支持移动端点按、点外关闭和 Escape 收起", () => {
   const previewSource = readFileSync("src/components/PreviewPanel.tsx", "utf8");
   const styles = readFileSync("src/styles.css", "utf8");
 
@@ -85,6 +88,82 @@ test("预览配色浮窗支持移动端点按、点外关闭和 Escape 收起", 
   );
 });
 
+test("锤子便签明暗配色共用用户指定图标并仅给暗色叠加遮罩", () => {
+  const styles = readFileSync("src/styles.css", "utf8");
+  const icon = readFileSync("public/smartisan-theme-icon.png");
+
+  assert.equal(icon.toString("ascii", 1, 4), "PNG");
+  assert.equal(icon.readUInt32BE(16), 1024);
+  assert.equal(icon.readUInt32BE(20), 1024);
+  assert.match(
+    styles,
+    /\.preview-theme-trigger-swatch\[data-preview-theme="default"\],\s*\.preview-theme-swatch\[data-preview-theme="default"\]\s*\{[^}]*background:\s*#e5c486 url\("\/smartisan-theme-icon\.png"\) center \/ cover\s*no-repeat;/s,
+  );
+  assert.match(
+    styles,
+    /\.preview-theme-trigger-swatch\[data-preview-theme="smartisan-dark"\],\s*\.preview-theme-swatch\[data-preview-theme="smartisan-dark"\]\s*\{[^}]*background-image:\s*linear-gradient\(rgba\(0, 0, 0, 0\.52\), rgba\(0, 0, 0, 0\.52\)\),\s*url\("\/smartisan-theme-icon\.png"\);[^}]*background-size:\s*cover;/s,
+  );
+  assert.match(
+    styles,
+    /\.preview-theme-trigger-swatch\[data-preview-theme="default"\] i,\s*\.preview-theme-trigger-swatch\[data-preview-theme="smartisan-dark"\] i,[\s\S]*?\{[^}]*display:\s*none;/s,
+  );
+});
+
+test("Bear 配色入口使用用户指定的内置图标", () => {
+  const styles = readFileSync("src/styles.css", "utf8");
+  const icon = readFileSync("public/bear-theme-icon.png");
+
+  assert.equal(icon.toString("ascii", 1, 4), "PNG");
+  assert.equal(icon.readUInt32BE(16), 512);
+  assert.equal(icon.readUInt32BE(20), 512);
+  assert.match(
+    styles,
+    /\.preview-theme-trigger-swatch\[data-preview-theme="bear"\],\s*\.preview-theme-swatch\[data-preview-theme="bear"\]\s*\{[^}]*background:\s*#cb1622 url\("\/bear-theme-icon\.png"\) center \/ cover no-repeat;/s,
+  );
+  assert.match(
+    styles,
+    /\.preview-theme-trigger-swatch\[data-preview-theme="bear"\] i\s*\{[^}]*display:\s*none;/s,
+  );
+});
+
+test("Telegra.ph 配色入口使用官网声明的 T 字母图标", () => {
+  const styles = readFileSync("src/styles.css", "utf8");
+  const icon = readFileSync("public/telegraph-theme-icon.png");
+
+  assert.equal(icon.toString("ascii", 1, 4), "PNG");
+  assert.equal(icon.readUInt32BE(16), 512);
+  assert.equal(icon.readUInt32BE(20), 512);
+  assert.match(
+    styles,
+    /\.preview-theme-trigger-swatch\[data-preview-theme="telegraph"\],\s*\.preview-theme-swatch\[data-preview-theme="telegraph"\]\s*\{[^}]*background:\s*#ffffff url\("\/telegraph-theme-icon\.png"\) center \/ cover no-repeat;/s,
+  );
+  assert.match(
+    styles,
+    /\.preview-theme-trigger-swatch\[data-preview-theme="telegraph"\] i\s*\{[^}]*display:\s*none;/s,
+  );
+});
+
+test("iPhone 备忘录明暗配色共用用户指定图标并仅给暗色叠加遮罩", () => {
+  const styles = readFileSync("src/styles.css", "utf8");
+  const icon = readFileSync("public/apple-notes-theme-icon.png");
+
+  assert.equal(icon.toString("ascii", 1, 4), "PNG");
+  assert.equal(icon.readUInt32BE(16), 1024);
+  assert.equal(icon.readUInt32BE(20), 1024);
+  assert.match(
+    styles,
+    /\.preview-theme-trigger-swatch\[data-preview-theme="apple-notes-light"\],\s*\.preview-theme-swatch\[data-preview-theme="apple-notes-light"\]\s*\{[^}]*background:\s*#ffffff url\("\/apple-notes-theme-icon\.png"\) center \/ cover\s*no-repeat;/s,
+  );
+  assert.match(
+    styles,
+    /\.preview-theme-trigger-swatch\[data-preview-theme="apple-notes"\],\s*\.preview-theme-swatch\[data-preview-theme="apple-notes"\]\s*\{[^}]*background-image:\s*linear-gradient\(rgba\(0, 0, 0, 0\.52\), rgba\(0, 0, 0, 0\.52\)\),\s*url\("\/apple-notes-theme-icon\.png"\);[^}]*background-size:\s*cover;/s,
+  );
+  assert.match(
+    styles,
+    /\.preview-theme-trigger-swatch\[data-preview-theme="apple-notes"\] i,\s*\.preview-theme-trigger-swatch\[data-preview-theme="apple-notes-light"\] i\s*\{[^}]*display:\s*none;/s,
+  );
+});
+
 test("卡片主题覆盖完整纸张 token，页面其余区域继续使用全局主题", () => {
   const appSource = readFileSync("src/App.tsx", "utf8");
   const styles = readFileSync("src/styles.css", "utf8");
@@ -104,7 +183,7 @@ test("卡片主题覆盖完整纸张 token，页面其余区域继续使用全�
   const exportSource = readFileSync("src/lib/export.ts", "utf8");
   assert.match(
     exportSource,
-    /response\.headers\.get\("X-Export-Theme"\)[\s\S]*renderedTheme !== theme[\s\S]*导出服务尚未更新到当前配色版本/s,
+    /response\.headers\.get\("X-Export-Theme"\)[\s\S]*renderedTheme !== theme[\s\S]*导出服务尚未更新到当前主题版本/s,
   );
   assert.match(
     exportSource,
@@ -137,7 +216,15 @@ test("卡片主题覆盖完整纸张 token，页面其余区域继续使用全�
   );
   assert.match(
     styles,
-    /\.preview-card-theme\[data-preview-theme="bear"\] \.note-copy\s*\{[^}]*font-size:\s*max\(calc\(0\.5rem \* var\(--note-scale\)\), 12px\);[^}]*line-height:\s*1\.755;[^}]*letter-spacing:\s*0;[^}]*-webkit-text-stroke:\s*0;/s,
+    /\.preview-card-theme\[data-preview-theme="telegraph"\]\s*\{[^}]*--telegraph-block-gap:\s*max\(calc\(0\.375rem \* var\(--note-scale\)\), 10\.5px\);[^}]*--sheet-surface:\s*#ffffff;[^}]*--note-heading:\s*rgba\(0, 0, 0, 0\.8\);[^}]*--note-copy:\s*rgba\(0, 0, 0, 0\.8\);[^}]*--note-code-bg:\s*#f5f8fc;/s,
+  );
+  assert.match(
+    styles,
+    /\.preview-card-theme\[data-preview-theme="bear"\]\s*\{[^}]*--bear-block-gap:\s*max\(calc\(0\.33rem \* var\(--note-scale\)\), 8\.448px\);/s,
+  );
+  assert.match(
+    styles,
+    /\.preview-card-theme\[data-preview-theme="bear"\] \.note-copy\s*\{[^}]*font-size:\s*max\(calc\(0\.46875rem \* var\(--note-scale\)\), 12px\);[^}]*line-height:\s*1\.755;[^}]*letter-spacing:\s*0;[^}]*-webkit-text-stroke:\s*0;/s,
   );
   assert.match(
     styles,
@@ -145,11 +232,31 @@ test("卡片主题覆盖完整纸张 token，页面其余区域继续使用全�
   );
   assert.match(
     styles,
-    /\.preview-card-theme\[data-preview-theme="bear"\] \.note-copy \.markdown-blank-line\s*\{[^}]*height:\s*1\.755em;/s,
+    /\.preview-card-theme\[data-preview-theme="bear"\] \.note-copy \.markdown-blank-line\s*\{[^}]*height:\s*var\(--bear-block-gap\);/s,
+  );
+  assert.match(
+    styles,
+    /\.preview-card-theme\[data-preview-theme="bear"\] \.note-section\.has-heading\s*\{[^}]*margin-top:\s*var\(--bear-block-gap\);/s,
+  );
+  assert.match(
+    styles,
+    /\.preview-card-theme\[data-preview-theme="bear"\] \.note-index\s*\{[^}]*margin-bottom:\s*var\(--bear-block-gap\);/s,
   );
   assert.match(
     styles,
     /\.preview-card-theme\[data-preview-theme="bear"\] \.note-copy h1\s*\{[^}]*padding-block:\s*0\.8em 0\.33em;/s,
+  );
+  assert.match(
+    styles,
+    /\.preview-card-theme\[data-preview-theme="telegraph"\] \.note-copy\s*\{[^}]*font-size:\s*max\(calc\(0\.5625rem \* var\(--note-scale\)\), 16px\);[^}]*line-height:\s*1\.58;[^}]*letter-spacing:\s*0;[^}]*-webkit-text-stroke:\s*0;/s,
+  );
+  assert.match(
+    styles,
+    /\.preview-card-theme\[data-preview-theme="telegraph"\] \.note-copy blockquote\s*\{[^}]*padding-left:\s*calc\(7\.5px \* var\(--note-scale\)\);[^}]*border-left:\s*calc\(1\.5px \* var\(--note-scale\)\) solid #000000;[^}]*font-style:\s*italic;/s,
+  );
+  assert.match(
+    styles,
+    /\.preview-card-theme\[data-preview-theme="telegraph"\] \.note-copy a\s*\{[^}]*color:\s*inherit;[^}]*border-bottom:\s*0\.1em solid rgba\(0, 0, 0, 0\.7\);/s,
   );
   assert.match(
     styles,

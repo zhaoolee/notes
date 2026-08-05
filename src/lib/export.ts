@@ -221,7 +221,7 @@ async function tryServerExport(
 
       if (renderedTheme !== theme) {
         throw new ExportError(
-          "导出服务尚未更新到当前配色版本，请重启后端服务后再保存图片。",
+          "导出服务尚未更新到当前主题版本，请重启后端服务后再保存图片。",
           {
             status: 409,
             retriable: false,
@@ -287,7 +287,7 @@ export async function exportMarkdownArchive(
 
   if (response.headers.get("X-Archive-Theme") !== theme) {
     throw new ExportError(
-      "归档服务尚未更新到当前配色版本，请重启后端服务后再下载。",
+      "归档服务尚未更新到当前主题版本，请重启后端服务后再下载。",
       {
         status: 409,
         retriable: false,

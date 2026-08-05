@@ -3,7 +3,8 @@ export type NoteCardThemeId =
   | ThemeId
   | "apple-notes"
   | "apple-notes-light"
-  | "bear";
+  | "bear"
+  | "telegraph";
 export type ThemePreferenceId = ThemeId | "system";
 
 export type CopyState = "idle" | "copied" | "failed";

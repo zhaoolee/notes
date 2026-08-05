@@ -52,7 +52,6 @@ export function ChangelogPage({ markdown }: ChangelogPageProps) {
 
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
-    document.title = "更新日志 · 锤子便签";
   }, [theme]);
 
   useEffect(() => {

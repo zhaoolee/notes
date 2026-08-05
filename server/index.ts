@@ -1582,6 +1582,10 @@ ${fontFaceCss}
         display: flex;
       }
 
+      body[data-note-card-theme="bear"] {
+        --bear-block-gap: max(calc(0.33rem * var(--note-scale)), 8.448px);
+      }
+
       body[data-note-card-theme="bear"] .note-sheet {
         padding:
           calc(20px * var(--note-scale))
@@ -1603,7 +1607,7 @@ ${fontFaceCss}
       }
 
       body[data-note-card-theme="bear"] .note-section.has-heading {
-        margin-top: 1.755em;
+        margin-top: var(--bear-block-gap);
       }
 
       body[data-note-card-theme="bear"] .note-section.has-heading:first-child {
@@ -1611,14 +1615,14 @@ ${fontFaceCss}
       }
 
       body[data-note-card-theme="bear"] .note-index {
-        margin-bottom: 1.755em;
+        margin-bottom: var(--bear-block-gap);
       }
 
       body[data-note-card-theme="bear"] .note-index h2,
       body[data-note-card-theme="bear"] .note-index h2 strong {
         color: var(--note-heading);
         font-family: var(--note-font);
-        font-size: max(calc(0.8rem * var(--note-scale)), 18px);
+        font-size: max(calc(0.75rem * var(--note-scale)), 18px);
         font-weight: 400;
         line-height: 1.521;
         padding-block: 0.66em 0.27em;
@@ -1626,7 +1630,7 @@ ${fontFaceCss}
 
       body[data-note-card-theme="bear"] .note-copy {
         color: var(--note-copy);
-        font-size: max(calc(0.5rem * var(--note-scale)), 12px);
+        font-size: max(calc(0.46875rem * var(--note-scale)), 12px);
         line-height: 1.755;
         letter-spacing: 0;
         -webkit-text-stroke: 0;
@@ -1644,24 +1648,24 @@ ${fontFaceCss}
       }
 
       body[data-note-card-theme="bear"] .note-copy h1 {
-        font-size: max(calc(0.94rem * var(--note-scale)), 22px);
+        font-size: max(calc(0.9375rem * var(--note-scale)), 22px);
         padding-block: 0.8em 0.33em;
       }
 
       body[data-note-card-theme="bear"] .note-copy h2 {
-        font-size: max(calc(0.8rem * var(--note-scale)), 18px);
+        font-size: max(calc(0.75rem * var(--note-scale)), 18px);
         padding-block: 0.66em 0.27em;
       }
 
       body[data-note-card-theme="bear"] .note-copy h3 {
-        font-size: max(calc(0.6rem * var(--note-scale)), 15px);
+        font-size: max(calc(0.5953125rem * var(--note-scale)), 15px);
         padding-block: 0.53em 0.27em;
       }
 
       body[data-note-card-theme="bear"] .note-copy h4,
       body[data-note-card-theme="bear"] .note-copy h5,
       body[data-note-card-theme="bear"] .note-copy h6 {
-        font-size: max(calc(0.5rem * var(--note-scale)), 12px);
+        font-size: max(calc(0.46875rem * var(--note-scale)), 12px);
         padding-block: 0.4em 0.27em;
       }
 
@@ -1670,12 +1674,19 @@ ${fontFaceCss}
       }
 
       body[data-note-card-theme="bear"] .note-copy .markdown-blank-line {
-        height: 1.755em;
+        height: var(--bear-block-gap);
       }
 
       body[data-note-card-theme="bear"] .note-copy code,
       body[data-note-card-theme="bear"] .note-copy pre {
         border-radius: 0.25em;
+      }
+
+      body[data-note-card-theme="bear"] .note-copy pre {
+        margin: 0;
+        padding: 0 0.5em;
+        font-size: max(calc(0.4265625rem * var(--note-scale)), 11px);
+        line-height: 1.755;
       }
 
       body[data-note-card-theme="bear"] .note-copy blockquote {
@@ -1722,6 +1733,201 @@ ${fontFaceCss}
 
       body[data-note-card-theme="bear"] .sheet-footer {
         margin-top: calc(24px * var(--note-scale));
+      }
+
+      body[data-note-card-theme="telegraph"] {
+        --telegraph-block-gap: max(calc(0.375rem * var(--note-scale)), 10.5px);
+      }
+
+      body[data-note-card-theme="telegraph"] .note-sheet {
+        padding:
+          calc(10.5px * var(--note-scale))
+          calc(10.5px * var(--note-scale))
+          calc(21px * var(--note-scale));
+      }
+
+      body[data-note-card-theme="telegraph"] .sheet-frame,
+      body[data-note-card-theme="telegraph"] .sheet-corner {
+        display: none;
+      }
+
+      body[data-note-card-theme="telegraph"] .sheet-inner {
+        padding: 0;
+      }
+
+      body[data-note-card-theme="telegraph"] .note-section.is-document-title {
+        margin-top: 0;
+      }
+
+      body[data-note-card-theme="telegraph"] .note-section.is-document-title .note-centered-line {
+        margin-bottom: 0;
+        text-align: left;
+      }
+
+      body[data-note-card-theme="telegraph"] .note-section.has-heading {
+        margin-top: calc(9px * var(--note-scale));
+      }
+
+      body[data-note-card-theme="telegraph"] .note-section.has-heading:first-child {
+        margin-top: 0;
+      }
+
+      body[data-note-card-theme="telegraph"] .note-index {
+        margin-bottom: calc(4.5px * var(--note-scale));
+      }
+
+      body[data-note-card-theme="telegraph"] .note-index h2,
+      body[data-note-card-theme="telegraph"] .note-index h2 strong {
+        color: var(--note-heading);
+        font-family: var(--note-heading-font);
+        font-size: max(calc(0.875rem * var(--note-scale)), 24px);
+        font-weight: 700;
+        line-height: 1.1;
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy {
+        color: var(--note-copy);
+        font-size: max(calc(0.5625rem * var(--note-scale)), 16px);
+        line-height: 1.58;
+        letter-spacing: 0;
+        -webkit-text-stroke: 0;
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy h1,
+      body[data-note-card-theme="telegraph"] .note-copy h2,
+      body[data-note-card-theme="telegraph"] .note-copy h3,
+      body[data-note-card-theme="telegraph"] .note-copy h4,
+      body[data-note-card-theme="telegraph"] .note-copy h5,
+      body[data-note-card-theme="telegraph"] .note-copy h6 {
+        color: var(--note-heading);
+        font-family: var(--note-heading-font);
+        font-weight: 700;
+        letter-spacing: 0;
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy h1 {
+        padding-block:
+          calc(10.5px * var(--note-scale))
+          calc(6px * var(--note-scale));
+        font-size: max(calc(1rem * var(--note-scale)), 28px);
+        line-height: 1.0625;
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy h2 {
+        padding-block:
+          calc(9px * var(--note-scale))
+          calc(3.5px * var(--note-scale));
+        font-size: max(calc(0.75rem * var(--note-scale)), 21px);
+        line-height: 1.1;
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy h3 {
+        padding-block:
+          calc(9px * var(--note-scale))
+          calc(4.5px * var(--note-scale));
+        font-size: max(calc(0.875rem * var(--note-scale)), 24px);
+        line-height: 1.1;
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy h4,
+      body[data-note-card-theme="telegraph"] .note-copy h5,
+      body[data-note-card-theme="telegraph"] .note-copy h6 {
+        padding-block:
+          calc(9px * var(--note-scale))
+          calc(3.5px * var(--note-scale));
+        font-size: max(calc(0.75rem * var(--note-scale)), 21px);
+        line-height: 1.1;
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy strong {
+        font-weight: 700;
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy a {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 0.1em solid rgba(0, 0, 0, 0.7);
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy .markdown-blank-line {
+        height: var(--telegraph-block-gap);
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy code,
+      body[data-note-card-theme="telegraph"] .note-copy pre {
+        border-radius: 0;
+        font-family: Menlo, "Courier New", Courier, monospace;
+        font-size: max(calc(0.5rem * var(--note-scale)), 14px);
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy code {
+        padding: 0.0556em 0.1667em;
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy pre {
+        margin: calc(7px * var(--note-scale)) 0;
+        padding:
+          calc(3.5px * var(--note-scale))
+          calc(10.5px * var(--note-scale));
+        line-height: 1.58;
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy pre code {
+        padding: 0;
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy blockquote {
+        margin:
+          calc(9px * var(--note-scale))
+          calc(10.5px * var(--note-scale))
+          calc(8px * var(--note-scale))
+          0;
+        padding-left: calc(7.5px * var(--note-scale));
+        border-left: calc(1.5px * var(--note-scale)) solid #000000;
+        color: var(--note-copy);
+        font-family: var(--note-font);
+        font-size: inherit;
+        font-style: italic;
+        line-height: inherit;
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy blockquote::before {
+        content: none;
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy ul,
+      body[data-note-card-theme="telegraph"] .note-copy ol {
+        margin: calc(10.5px * var(--note-scale)) 0;
+        padding-left: calc(15px * var(--note-scale));
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy li + li {
+        margin-top: calc(7px * var(--note-scale));
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy table {
+        margin: calc(10.5px * var(--note-scale)) 0;
+        font-size: inherit;
+        line-height: inherit;
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy img.note-image-frame {
+        margin: 0 auto calc(8px * var(--note-scale));
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      body[data-note-card-theme="telegraph"] .note-copy hr {
+        width: 50%;
+        margin: calc(15px * var(--note-scale)) auto;
+      }
+
+      body[data-note-card-theme="telegraph"] .sheet-footer {
+        margin-top: calc(15px * var(--note-scale));
+        padding-bottom: 0;
+        font-family: var(--note-heading-font);
       }
 
       @media (max-width: 720px) {

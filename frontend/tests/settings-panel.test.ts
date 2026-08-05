@@ -257,6 +257,21 @@ test("分享面板承接存图、复制和归档", () => {
 
 test("移动分享面板复现原版贴底操作层", () => {
   const styles = readFileSync("src/styles.css", "utf8");
+  const mobileStyles = styles.slice(
+    styles.indexOf("@media (max-width: 640px)"),
+    styles.indexOf("@keyframes share-backdrop-in"),
+  );
+  const topbarZIndex = Number(
+    mobileStyles.match(/\.app-topbar\s*\{[^}]*z-index:\s*(\d+);/s)?.[1],
+  );
+  const themeControlZIndex = Number(
+    styles.match(/\.preview-theme-control\s*\{[^}]*z-index:\s*(\d+);/s)?.[1],
+  );
+
+  assert.ok(
+    topbarZIndex > themeControlZIndex,
+    "分享面板所在的移动顶栏层叠上下文应高于预览主题按钮",
+  );
 
   assert.match(
     styles,

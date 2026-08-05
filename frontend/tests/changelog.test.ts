@@ -42,7 +42,7 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
     assert.match(changelog, /^## \[未发布\]\n\n### \S+\n\n- \S/m);
     assert.match(
       changelog,
-      /^\[未发布\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.3\.3\.\.\.HEAD$/m,
+      /^\[未发布\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.5\.0\.\.\.HEAD$/m,
     );
   }
 
@@ -56,6 +56,10 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
   }
 
   assert.doesNotMatch(changelog, /^- [0-9a-f]{7,40}\s+/m);
+  assert.match(
+    changelog,
+    /^\[1\.5\.0\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.4\.0\.\.\.1\.5\.0$/m,
+  );
   assert.match(
     changelog,
     /^\[1\.4\.0\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.3\.3\.\.\.1\.4\.0$/m,
@@ -92,47 +96,59 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
   if (hasUnreleasedSection) {
     assert.equal(
       sections[1]?.heading,
-      "[未发布](https://github.com/zhaoolee/notes/compare/1.3.3...HEAD)",
+      "[未发布](https://github.com/zhaoolee/notes/compare/1.5.0...HEAD)",
+    );
+    assert.match(
+      sections[1]?.content ?? "",
+      /第六种.*Telegra\.ph.*公众号复制/,
     );
   }
   assert.equal(
     sections[latestReleaseSectionIndex]?.heading,
-    "[1.4.0](https://github.com/zhaoolee/notes/compare/1.3.3...1.4.0) - 2026-08-05",
+    "[1.5.0](https://github.com/zhaoolee/notes/compare/1.4.0...1.5.0) - 2026-08-05",
   );
   assert.match(
     sections[latestReleaseSectionIndex]?.content ?? "",
-    /五种便签样式.*相互隔离/,
+    /第六种.*Telegra\.ph.*公众号复制/,
   );
   assert.equal(
     sections[latestReleaseSectionIndex + 1]?.heading,
-    "[1.3.3](https://github.com/zhaoolee/notes/compare/1.3.2...1.3.3) - 2026-08-04",
+    "[1.4.0](https://github.com/zhaoolee/notes/compare/1.3.3...1.4.0) - 2026-08-05",
   );
   assert.match(
     sections[latestReleaseSectionIndex + 1]?.content ?? "",
-    /公众号.*过大过粗/,
+    /五种便签样式.*相互隔离/,
   );
   assert.equal(
     sections[latestReleaseSectionIndex + 2]?.heading,
-    "[1.3.2](https://github.com/zhaoolee/notes/compare/1.3.1...1.3.2) - 2026-08-03",
+    "[1.3.3](https://github.com/zhaoolee/notes/compare/1.3.2...1.3.3) - 2026-08-04",
   );
   assert.match(
     sections[latestReleaseSectionIndex + 2]?.content ?? "",
-    /跨端同步文章排序/,
+    /公众号.*过大过粗/,
   );
   assert.equal(
     sections[latestReleaseSectionIndex + 3]?.heading,
-    "[1.3.1](https://github.com/zhaoolee/notes/compare/1.3.0...1.3.1) - 2026-08-03",
+    "[1.3.2](https://github.com/zhaoolee/notes/compare/1.3.1...1.3.2) - 2026-08-03",
   );
   assert.match(
     sections[latestReleaseSectionIndex + 3]?.content ?? "",
-    /AI“重点加粗”/,
+    /跨端同步文章排序/,
   );
   assert.equal(
     sections[latestReleaseSectionIndex + 4]?.heading,
-    "[1.3.0](https://github.com/zhaoolee/notes/compare/1.2.0...1.3.0) - 2026-08-02",
+    "[1.3.1](https://github.com/zhaoolee/notes/compare/1.3.0...1.3.1) - 2026-08-03",
   );
   assert.match(
     sections[latestReleaseSectionIndex + 4]?.content ?? "",
+    /AI“重点加粗”/,
+  );
+  assert.equal(
+    sections[latestReleaseSectionIndex + 5]?.heading,
+    "[1.3.0](https://github.com/zhaoolee/notes/compare/1.2.0...1.3.0) - 2026-08-02",
+  );
+  assert.match(
+    sections[latestReleaseSectionIndex + 5]?.content ?? "",
     /导出全部便签/,
   );
 });
@@ -162,7 +178,14 @@ test("前端入口和生产镜像都包含 changelog 页面所需文件", () => 
   assert.match(mainSource, /import changelogMarkdown from "\.\.\/CHANGELOG\.md\?raw"/);
   assert.match(mainSource, /pathname === "\/changelog"/);
   assert.match(mainSource, /<ChangelogPage markdown=\{changelogMarkdown\} \/>/);
-  assert.match(styles, /\.changelog-main\s*\{/);
+  assert.match(
+    styles,
+    /@media \(min-width: 641px\)\s*\{\s*\.changelog-page\s*\{[^}]*height:\s*100dvh;[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s,
+  );
+  assert.match(
+    styles,
+    /\.changelog-main\s*\{[^}]*overflow:\s*auto;[^}]*overscroll-behavior:\s*contain;/s,
+  );
   assert.match(
     styles,
     /\.changelog-preview-stage\s*\{[^}]*--note-sheet-width:\s*calc\(330px \* var\(--note-scale\)\);/s,

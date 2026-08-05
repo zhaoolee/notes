@@ -41,19 +41,24 @@ export const NOTE_CARD_THEME_OPTIONS: NoteCardThemeOption[] = [
     description: "低亮暗色",
   },
   {
-    id: "apple-notes",
-    label: "iPhone 深色",
+    id: "apple-notes-light",
+    label: "iPhone 浅色",
     description: "Apple 备忘录质感",
   },
   {
-    id: "apple-notes-light",
-    label: "iPhone 浅色",
+    id: "apple-notes",
+    label: "iPhone 深色",
     description: "Apple 备忘录质感",
   },
   {
     id: "bear",
     label: "Bear 便签",
     description: "红色极简排版",
+  },
+  {
+    id: "telegraph",
+    label: "Telegra.ph",
+    description: "简洁出版排版",
   },
 ];
 

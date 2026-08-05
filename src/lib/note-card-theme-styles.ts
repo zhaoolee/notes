@@ -1,6 +1,10 @@
 import type { NoteCardThemeId } from "../types/app.js";
 
-export type NoteCardThemeLayout = "smartisan" | "apple" | "bear";
+export type NoteCardThemeLayout =
+  | "smartisan"
+  | "apple"
+  | "bear"
+  | "telegraph";
 
 export interface NoteCardThemeColors {
   accent: string;
@@ -26,6 +30,7 @@ export interface NoteCardThemeColors {
 export interface NoteCardThemeStyle {
   colors: NoteCardThemeColors;
   fontFamily: string;
+  headingFontFamily: string;
   footerLogoFilter: string;
   footerLogoOpacity: number;
   id: NoteCardThemeId;
@@ -40,6 +45,10 @@ const appleFont =
   '-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro SC","PingFang SC","Helvetica Neue",Arial,sans-serif';
 const bearFont =
   '"Avenir Next","AvenirNext-Regular",Avenir,-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",Arial,sans-serif';
+const telegraphSerifFont =
+  'Georgia,Cambria,"Times New Roman","Noto Serif SC","Songti SC",serif';
+const telegraphSansFont =
+  '"Lucida Grande",-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",Arial,sans-serif';
 
 export const NOTE_CARD_THEME_STYLES: Record<
   NoteCardThemeId,
@@ -49,6 +58,7 @@ export const NOTE_CARD_THEME_STYLES: Record<
     id: "default",
     layout: "smartisan",
     fontFamily: smartisanFont,
+    headingFontFamily: smartisanFont,
     paperShadow: "0 24px 42px rgba(89,65,34,0.12)",
     wechatPaperShadow: "0 16.8px 29.4px rgba(89,65,34,0.12)",
     footerLogoFilter: "none",
@@ -78,6 +88,7 @@ export const NOTE_CARD_THEME_STYLES: Record<
     id: "smartisan-dark",
     layout: "smartisan",
     fontFamily: smartisanFont,
+    headingFontFamily: smartisanFont,
     paperShadow: "0 32px 72px rgba(0,0,0,0.42)",
     wechatPaperShadow: "0 22.4px 50.4px rgba(0,0,0,0.42)",
     footerLogoFilter: "grayscale(1) brightness(0.56) contrast(2.4)",
@@ -107,6 +118,7 @@ export const NOTE_CARD_THEME_STYLES: Record<
     id: "apple-notes",
     layout: "apple",
     fontFamily: appleFont,
+    headingFontFamily: appleFont,
     paperShadow: "0 28px 64px rgba(0,0,0,0.34)",
     wechatPaperShadow: "0 19.6px 44.8px rgba(0,0,0,0.34)",
     footerLogoFilter: "grayscale(1) brightness(0.7) contrast(1.3)",
@@ -136,6 +148,7 @@ export const NOTE_CARD_THEME_STYLES: Record<
     id: "apple-notes-light",
     layout: "apple",
     fontFamily: appleFont,
+    headingFontFamily: appleFont,
     paperShadow: "0 28px 64px rgba(64,52,28,0.16)",
     wechatPaperShadow: "0 19.6px 44.8px rgba(64,52,28,0.16)",
     footerLogoFilter: "none",
@@ -165,6 +178,7 @@ export const NOTE_CARD_THEME_STYLES: Record<
     id: "bear",
     layout: "bear",
     fontFamily: bearFont,
+    headingFontFamily: bearFont,
     paperShadow: "0 24px 54px rgba(68,68,68,0.12)",
     wechatPaperShadow: "0 16.8px 37.8px rgba(68,68,68,0.12)",
     footerLogoFilter: "grayscale(1)",
@@ -188,6 +202,36 @@ export const NOTE_CARD_THEME_STYLES: Record<
       quoteMark: "#dd4c4f",
       tableHead: "#f3f5f7",
       text: "#444444",
+    },
+  },
+  telegraph: {
+    id: "telegraph",
+    layout: "telegraph",
+    fontFamily: telegraphSerifFont,
+    headingFontFamily: telegraphSansFont,
+    paperShadow: "0 18px 48px rgba(0,0,0,0.1)",
+    wechatPaperShadow: "0 12.6px 33.6px rgba(0,0,0,0.1)",
+    footerLogoFilter: "grayscale(1)",
+    footerLogoOpacity: 0.5,
+    colors: {
+      accent: "rgba(0,0,0,0.8)",
+      border: "#c9cdd1",
+      code: "#f5f8fc",
+      codeText: "rgba(0,0,0,0.8)",
+      footer: "#79828b",
+      footerVia: "#a0a7ae",
+      frame: "transparent",
+      heading: "rgba(0,0,0,0.8)",
+      imageFrame: "transparent",
+      imageMat: "transparent",
+      imageShadow: "transparent",
+      paper: "#ffffff",
+      pre: "#f5f8fc",
+      preText: "rgba(0,0,0,0.8)",
+      quote: "rgba(0,0,0,0.8)",
+      quoteMark: "#000000",
+      tableHead: "#f5f8fc",
+      text: "rgba(0,0,0,0.8)",
     },
   },
 };
@@ -228,5 +272,7 @@ export function buildNoteCardThemeCssVariables(
     `--footer-icon: ${colors.footer}`,
     `--default-footer-logo-filter: ${style.footerLogoFilter}`,
     `--default-footer-logo-opacity: ${style.footerLogoOpacity}`,
+    `--note-font: ${style.fontFamily}`,
+    `--note-heading-font: ${style.headingFontFamily}`,
   ].join(";\n        ") + ";";
 }

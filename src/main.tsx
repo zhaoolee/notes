@@ -4,7 +4,10 @@ import changelogMarkdown from "../CHANGELOG.md?raw";
 import App from "./App";
 import { ChangelogPage } from "./components/ChangelogPage";
 import { SuperAdminPage } from "./components/SuperAdminPage";
+import { getPageTitle } from "./lib/page-title";
 import "./styles.css";
+
+document.title = getPageTitle(window.location.hostname);
 
 const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
 const rootPage =

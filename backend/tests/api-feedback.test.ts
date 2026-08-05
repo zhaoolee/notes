@@ -38,7 +38,7 @@ interface WechatPreparation {
   imageCount: number;
   uploadedImageCount: number;
   reusedImageCount: number;
-  theme: "default" | "smartisan-dark" | "apple-notes" | "apple-notes-light" | "bear";
+  theme: "default" | "smartisan-dark" | "apple-notes" | "apple-notes-light" | "bear" | "telegraph";
 }
 
 function createFeedbackQiniuConfig(uploadUrls: string[] = []): QiniuConfig {
@@ -309,6 +309,80 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     );
     assert.match(themedArchiveHtml, /class="note-apple-toolbar"/);
 
+    const bearArchiveResponse = await fetch(`${baseUrl}/api/archive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        markdown: "正文一\n\n正文二\n\n## Bear 分节\n\n正文三",
+        theme: "bear",
+      }),
+    });
+    assert.equal(bearArchiveResponse.status, 200);
+    assert.equal(bearArchiveResponse.headers.get("X-Archive-Theme"), "bear");
+    const bearArchiveEntries = readZipEntries(
+      Buffer.from(await bearArchiveResponse.arrayBuffer()),
+    );
+    const bearArchiveHtmlEntry = Array.from(bearArchiveEntries.entries())
+      .find(([filename]) => filename.endsWith("/index.html"));
+    assert.ok(bearArchiveHtmlEntry);
+    const bearArchiveHtml = bearArchiveHtmlEntry[1].toString("utf8");
+    assert.match(bearArchiveHtml, /<body data-note-card-theme="bear">/);
+    assert.match(
+      bearArchiveHtml,
+      /--bear-block-gap: max\(calc\(0\.33rem \* var\(--note-scale\)\), 8\.448px\);/,
+    );
+    assert.match(
+      bearArchiveHtml,
+      /font-size: max\(calc\(0\.46875rem \* var\(--note-scale\)\), 12px\);/,
+    );
+    assert.match(
+      bearArchiveHtml,
+      /\.note-copy \.markdown-blank-line \{\s*height: var\(--bear-block-gap\);/,
+    );
+    assert.doesNotMatch(bearArchiveHtml, /data-note-apple-toolbar="true"/);
+
+    const telegraphArchiveResponse = await fetch(`${baseUrl}/api/archive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        markdown: "# Telegraph 标题\n\n正文\n\n> 引用",
+        theme: "telegraph",
+      }),
+    });
+    assert.equal(telegraphArchiveResponse.status, 200);
+    assert.equal(
+      telegraphArchiveResponse.headers.get("X-Archive-Theme"),
+      "telegraph",
+    );
+    const telegraphArchiveEntries = readZipEntries(
+      Buffer.from(await telegraphArchiveResponse.arrayBuffer()),
+    );
+    const telegraphArchiveHtmlEntry = Array.from(
+      telegraphArchiveEntries.entries(),
+    ).find(([filename]) => filename.endsWith("/index.html"));
+    assert.ok(telegraphArchiveHtmlEntry);
+    const telegraphArchiveHtml = telegraphArchiveHtmlEntry[1].toString("utf8");
+    assert.match(
+      telegraphArchiveHtml,
+      /<body data-note-card-theme="telegraph">/,
+    );
+    assert.match(
+      telegraphArchiveHtml,
+      /--telegraph-block-gap: max\(calc\(0\.375rem \* var\(--note-scale\)\), 10\.5px\);/,
+    );
+    assert.match(
+      telegraphArchiveHtml,
+      /font-size: max\(calc\(0\.5625rem \* var\(--note-scale\)\), 16px\);/,
+    );
+    assert.match(
+      telegraphArchiveHtml,
+      /border-left: calc\(1\.5px \* var\(--note-scale\)\) solid #000000;/,
+    );
+    assert.doesNotMatch(
+      telegraphArchiveHtml,
+      /data-note-apple-toolbar="true"/,
+    );
+
     const invalidArchiveThemeResponse = await fetch(`${baseUrl}/api/archive`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -546,6 +620,28 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.match(bearWechat.html, /color:#dd4c4f/);
     assert.match(bearWechat.html, />▎<\/span>Bear 引用/);
     assert.doesNotMatch(bearWechat.html, /data-note-apple-toolbar="true"/);
+
+    const telegraphWechatResponse = await fetch(`${baseUrl}/api/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        markdown: "# Telegraph 标题\n\n正文与[链接](https://example.com)\n\n> 引用",
+        theme: "telegraph",
+      }),
+    });
+    assert.equal(telegraphWechatResponse.status, 200);
+    const telegraphWechat =
+      (await telegraphWechatResponse.json()) as WechatPreparation;
+    assert.equal(telegraphWechat.theme, "telegraph");
+    assert.match(telegraphWechat.html, /data-note-card-theme="telegraph"/);
+    assert.match(telegraphWechat.html, /font-size:18px/);
+    assert.match(telegraphWechat.html, /line-height:1\.58/);
+    assert.match(telegraphWechat.html, /height:0\.667em/);
+    assert.match(telegraphWechat.html, /border-left:3px solid #000000/);
+    assert.doesNotMatch(
+      telegraphWechat.html,
+      /data-note-apple-toolbar="true"/,
+    );
 
     const invalidWechatThemeResponse = await fetch(`${baseUrl}/api/wechat`, {
       method: "POST",

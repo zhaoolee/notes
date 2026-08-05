@@ -38,15 +38,19 @@ MEMORY/                  经测试确认的长期事实
 
 `src/App.tsx` 是页面编排入口。便签集合、当前便签、主题、导出状态和确认操作由 `src/store/useAppStore.ts` 管理。
 
+页面入口会根据访问 Host 设置浏览器标题：域名（包括生产域名）使用“开源版锤子便签”，IPv4 或 IPv6 地址访问时使用“本地化开源版锤子便签”。所有前端路由共用这条规则，子页面不能再次覆盖标题。
+
 主题设置区分持久化的“偏好”和实际渲染的“主题”：偏好可为 `system`、`default`
 或 `smartisan-dark`，其中 `system` 通过 `prefers-color-scheme` 解析为后两者之一并
 监听系统明暗变化。页面 CSS 使用解析后的全局主题；预览卡片另有持久化的
 `notes.previewCardTheme` 覆盖值，当前可为 `default`、`smartisan-dark`、
-`apple-notes`、`apple-notes-light` 或 `bear`。浮动配色器只在 `.preview-card-theme` 边界内
+`apple-notes`、`apple-notes-light`、`bear` 或 `telegraph`。浮动主题选择器只在 `.preview-card-theme` 边界内
 重定义便签纸、正文、边框、图片和页脚 Token，不改变木纹舞台或页面其余区域。
-PNG 导出使用当前卡片配色，Playwright 也只接收最终的
-`default | smartisan-dark | apple-notes | apple-notes-light | bear`，不能把 `system`
-发送给后端导出接口。`apple-notes*` 与 `bear` 只属于卡片主题，不能用作页面全局外观偏好；Playwright 页面从
+选项的展示顺序由 `NOTE_CARD_THEME_OPTIONS` 唯一决定；Apple 两项固定为
+`apple-notes-light` 在前、`apple-notes` 在后，调整顺序不能改写主题 ID 或存储值。
+PNG 导出使用当前卡片主题，Playwright 也只接收最终的
+`default | smartisan-dark | apple-notes | apple-notes-light | bear | telegraph`，不能把 `system`
+发送给后端导出接口。`apple-notes*`、`bear` 与 `telegraph` 只属于卡片主题，不能用作页面全局外观偏好；Playwright 页面从
 `theme` 查询参数优先恢复卡片主题，保证该配色可由后端稳定导出。
 保存 PNG、下载当前便签离线归档和复制到公众号都会显式传递同一个最终卡片主题。
 `/api/export` 与 `/api/archive` 分别用 `X-Export-Theme`、`X-Archive-Theme` 回显
@@ -54,11 +58,32 @@ PNG 导出使用当前卡片配色，Playwright 也只接收最终的
 缺失或不一致表示后端仍是旧版本，必须中止保存、下载或复制并提示重启服务。三个
 接口收到显式但未知的主题时都返回 `400`，不能静默回退到 `default`。
 
+`telegraph` 是独立的出版排版布局：正文使用 Georgia/Cambria/Times 衬线字体栈和
+`18px / 1.58` 节奏，标题使用 Lucida Grande/系统无衬线字体，Markdown 空行映射为
+原站 `12px` 段距；链接使用继承色下边线，引用使用 `3px` 黑色左线，代码块使用
+`#f5f8fc`。该主题在 `src/styles.css`、离线归档内嵌 CSS 与 `WechatArticle` 中分别
+以 `telegraph` 作用域实现，不能复用 Bear 或锤子便签的排版选择器。
+
+卡片主题选择器的视觉图标仍由主题自身作用域控制。Bear 使用
+`public/bear-theme-icon.png`，同一资源同时用于右下角当前主题按钮与展开后的主题
+列表；CSS 必须使用 `/bear-theme-icon.png` 的 public 根路径，不能把图片编码进样式表。
+锤子便签明暗主题共用 `public/smartisan-theme-icon.png`：`default` 入口直接显示原图，
+`smartisan-dark` 入口在同一路径上叠加半透明黑色渐变；两处均使用
+`center / cover`，不能维护两份明暗位图。
+Apple 深浅主题共用 `public/apple-notes-theme-icon.png`：浅色入口直接显示原图，深色
+入口在同一路径上叠加半透明黑色渐变；两处均使用 `center / cover`，不能维护两份可能
+漂移的明暗位图。
+Telegra.ph 使用其官网 `og:image` 声明的 `512 × 512` 黑色 T 标识，落盘为
+`public/telegraph-theme-icon.png`，并通过 `/telegraph-theme-icon.png` 同时用于上述
+两个入口；不要再用 CSS 横线模拟该站图标。
+
 `/changelog` 是独立的前端页面入口。Vite 构建时把项目根目录的 `CHANGELOG.md`
 作为原始 Markdown 打包进页面，`ChangelogPage` 使用与普通预览相同的
 `splitSections`、`MarkdownText` 和 `NoteSheet` 渲染链路，并复用当前主题与响应式
-便签缩放；因此开发服务器、Nginx SPA 回退和 Express 单容器回退均可直接访问该
-路径。两个前端生产 Dockerfile 必须把 `CHANGELOG.md` 复制进构建上下文。
+便签缩放；桌面端把页面固定在动态视口高度内，由 `.changelog-main` 承担唯一的纵向
+滚动，保证顶栏固定且鼠标滚轮不会被非滚动的内层容器截断。开发服务器、Nginx SPA
+回退和 Express 单容器回退均可直接访问该路径。两个前端生产 Dockerfile 必须把
+`CHANGELOG.md` 复制进构建上下文。
 
 移动端沿用原版的页面职责：设置是独立全屏偏好页，只保存背景主题等长期选项；插图和完成属于编辑态，删除和分享属于预览态。保存图片、复制 Markdown 和下载归档由分享面板统一承接。
 
@@ -180,6 +205,9 @@ Skill 不维护另一套标签字段。便签管理和长图导出统一读取�
 ## 归档链路
 
 归档不启动 Playwright。后端收集 Markdown 中的图片，将资源写入 ZIP，并通过 React 服务端渲染生成独立 `index.html`。OPPOSans 字体会根据文章内容裁剪为 WOFF2。
+归档页面的内嵌 CSS 由 `server/index.ts` 独立生成，因此卡片排版变更必须与
+`src/styles.css` 同步维护；Bear 的 `15px / 1.755` 正文和 `0.704em` 有效块间距
+在两处保持一致，不能让下载后的 HTML 回退到旧排版。
 
 设置“账号与同步”中的整体导出面向完整工作区，与分享面板的当前便签离线归档相互
 独立。前端显式提交当前浏览器中的 `NoteWorkspace`，因此匿名用户也能导出只存在于
@@ -248,7 +276,9 @@ Data URL。
 框体留白、段落空行、图片衬边和署名继续使用 `1.4×` 移动
 布局比例，纸张最大宽度为 `462px`；文字不再随框体同步放大，正文固定为
 `15px / 1.75`，H1 为 `22px / 1.32`，H2 为 `17px / 1.4`，引用为
-`15px / 1.64`；Bear 正文沿用约 `1.755` 行高和普通标题字重。公众号正文不添加
+`15px / 1.64`；Bear 正文沿用 `15px / 1.755` 与普通标题字重，但它的 Markdown
+空行和 `##` 分节间隔独立收紧为 `0.704em`，不把完整正文行框重复叠加到块间距。
+公众号正文不添加
 文字描边，非 Bear 主题的标题和 Markdown 粗体使用 `600` 字重，避免系统字体回退
 后出现整篇偏粗；同时继续避免旧版标题下划线和引用色块。底部保留
 上述可配置署名。首行 `[文字]` 会去除方括号，

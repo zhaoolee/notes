@@ -95,9 +95,9 @@ function NoteCardThemePicker({ value, onChange }: NoteCardThemePickerProps) {
           className="preview-theme-popover"
           id={popoverId}
           role="menu"
-          aria-label="选择预览卡片配色"
+          aria-label="选择预览主题"
         >
-          <p className="preview-theme-popover-title">卡片配色</p>
+          <p className="preview-theme-popover-title">主题</p>
           <div className="preview-theme-options">
             {NOTE_CARD_THEME_OPTIONS.map((option) => {
               const isActive = option.id === value;
@@ -134,7 +134,7 @@ function NoteCardThemePicker({ value, onChange }: NoteCardThemePickerProps) {
         ref={triggerRef}
         type="button"
         className="preview-theme-trigger"
-        aria-label={`切换预览卡片配色，当前${activeOption?.label ?? "默认配色"}`}
+        aria-label={`切换预览主题，当前${activeOption?.label ?? "默认主题"}`}
         aria-controls={popoverId}
         aria-expanded={isOpen}
         aria-haspopup="menu"
@@ -149,7 +149,7 @@ function NoteCardThemePicker({ value, onChange }: NoteCardThemePickerProps) {
           <i />
           <i />
         </span>
-        <span>配色</span>
+        <span>主题</span>
       </button>
     </div>
   );
