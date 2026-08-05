@@ -1780,3 +1780,28 @@
 - 真实后端反馈已解压 `apple-notes` 离线 ZIP，确认 `index.html` 包含深色纸面、金色
   强调色、Apple 工具栏及正确主题属性；同一测试确认 Bear 公众号 HTML 回显 Bear、
   使用红色强调且不包含 Apple 工具栏，未知归档和公众号主题均返回 `400`。
+
+## 2026-08-05：1.4.0 五主题产物隔离生产发布
+
+- 根版本、锁文件、更新日志、GitHub 注释标签 `1.4.0` 与生产 detached HEAD 均精确
+  指向 `eac4264a838ff83973c542cfa8f0b4c5db24b3ac`；GitHub `main` 已包含该发布，
+  上一可回滚版本为 `1.3.3/73026014e97f9e14f55d24bba8fc21a74740d2db`。
+- 发布前备份位于
+  `/home/hermes/backups/notes/releases/1.4.0-20260805T053629Z-predeploy`，包含 182 个
+  文件、约 104KB 数据和 156MB 图片。`notes-data.json` 的备份与上线后运行文件
+  SHA-256 均为 `361b1834107026d22e221e0629d8d7fbed29aef987ca00a6f35737a78bf779c4`，
+  证明本次容器重建未改写账号和云工作区数据。
+- 生产镜像为 frontend `3b532367fe67`、backend `39eafd638609`；两个容器均使用
+  `unless-stopped`，上线后三分钟仍稳定运行。本机和公网健康检查返回
+  `{"ok":true}`，AI 状态返回 `{"available":true}`，启动与最终日志没有持续重启、
+  Playwright 或存储权限错误。生产 `.env` 的管理员、会话、匿名额度、七牛和 AI
+  配置均已确认存在，检查过程未输出任何值。
+- 公网五种 `/api/wechat` 请求都返回 HTTP 200、正确 `theme` 和各自独立的
+  `data-note-card-theme`；`apple-notes` 归档回显 `X-Archive-Theme` 并生成 69,577
+  字节 ZIP，`apple-notes-light` 图片导出回显 `X-Export-Theme` 并生成 68,170 字节
+  PNG。标准匿名 Skill 另生成有效 `1980 × 1089`、42,696 字节 PNG。
+- 无头浏览器确认桌面与 `390 × 844` 手机首页均可见，页面标题为“开源版锤子便签”；
+  `/changelog` 返回 200，首个二级标题为 `1.4.0 - 2026-08-05`。发布源码的前端 88
+  项、后端 15 项 feedback、完整类型检查和生产构建全部通过；构建只保留既有的单
+  chunk 超过 500 kB 提示。本次没有使用真实账号改写云工作区，也没有上传新的七牛
+  图片，避免给生产用户数据和匿名额度制造额外副作用。
