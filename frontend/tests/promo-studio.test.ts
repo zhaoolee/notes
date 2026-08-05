@@ -242,6 +242,7 @@ test("多页图片可调整前后顺序且取景参数可随图片一起移动",
 
 test("两个宣传图页面提供独立路由、上传控件和下载入口", () => {
   const mainSource = readFileSync("src/main.tsx", "utf8");
+  const viteConfig = readFileSync("vite.config.ts", "utf8");
   const componentSource = readFileSync(
     "src/components/PromoStudioPage.tsx",
     "utf8",
@@ -256,6 +257,8 @@ test("两个宣传图页面提供独立路由、上传控件和下载入口", ()
 
   assert.match(mainSource, /pathname === "\/promo\/editor"/);
   assert.match(mainSource, /pathname === "\/promo\/pages"/);
+  assert.match(viteConfig, /base:\s*"\/"/);
+  assert.doesNotMatch(viteConfig, /base:\s*"\.\/"/);
   assert.match(editorMarkup, /单图聚焦/);
   assert.match(editorMarkup, /选择产品截图/);
   assert.match(editorMarkup, /上下取景/);

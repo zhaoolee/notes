@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.6.1] - 2026-08-05
+
+### 修复
+
+- 修复生产环境中“单图聚焦”和“多页层叠”宣传页因嵌套路由错误加载静态资源而显示空白的问题。
+
 ## [1.6.0] - 2026-08-05
 
 ### 新增
@@ -133,6 +139,7 @@
 - PC 版便签操作栏右侧按钮调整为“AI、删除、分享”的顺序，与 APP 版详情操作保持一致。
 - 重置 Hermes 安装链接前会明确提示旧链接立即失效，并要求二次确认，避免误触轮换。
 
+[1.6.1]: https://github.com/zhaoolee/notes/compare/1.6.0...1.6.1
 [1.6.0]: https://github.com/zhaoolee/notes/compare/1.5.1...1.6.0
 [1.5.1]: https://github.com/zhaoolee/notes/compare/1.5.0...1.5.1
 [1.5.0]: https://github.com/zhaoolee/notes/compare/1.4.0...1.5.0
