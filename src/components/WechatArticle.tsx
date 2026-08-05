@@ -320,7 +320,7 @@ function createMarkdownComponents(
   blockquote: ({ children }) => (
     <blockquote
       style={{
-        margin: isTelegraph ? "18px 21px 16px 0" : `${scaledPx(8)} 0`,
+        margin: isTelegraph ? "18px 21px 16px 6px" : `${scaledPx(8)} 0`,
         padding: isTelegraph ? "0 0 0 15px" : "0",
         border: "0",
         borderLeft: isTelegraph ? "3px solid #000000" : "0",

@@ -1,8 +1,19 @@
 # 开源版锤子便签
 
+
+![](./README.assets/aab7c89dace491a0c90f98d04f53ab503e755968249ea9a89521f56b69eedeac.png)
+
 ![](./README.assets/e99a408cc01fdffd81fca6dcafc4152b171f0be7d7003032338443197f9e23da.png)
 
-![](./README.assets/a1cc07be6396cb67288b2cebacc26b6746aa0409d976f230b762fcc467706ccc.gif)
+![](./README.assets/fdf4b92e91f316425ce457400a9219fe91afbd8d87668c32a2c488579f2ac116.png)
+
+| 支持手机版 | 一键发送公众号 |
+| --- | --- |
+| ![](./README.assets/a1cc07be6396cb67288b2cebacc26b6746aa0409d976f230b762fcc467706ccc.gif) | ![](./README.assets/ef2ef8e599f5afb747e1c78f8bbb38bc4ce8209070cb699552607507dac63b6b.gif) |
+
+
+
+
 
 - 一个锤子便签风格的导出器，预览与图片导出支持**暖白纸感**、**深夜便签**、**iPhone 备忘录深浅模式**和 **Bear 极简排版**。
 - 可用来分享与openclaw的对话记录。
@@ -31,21 +42,15 @@ clawhub地址 https://clawhub.ai/zhaoolee/notes-export-api
 联网获取最近一周 AI 相关的新闻，将新闻转化为 markdown 生成便签图片，把便签图片绝对路径返回给我，把图片往“下载”文件夹复制一份
 ```
 
-![](./README.assets/3c37864955b98ac6036e757737a00e88c86c433316dbdd4260dd4dfeb8ec08e4.png)
-
-
 ## 支持自定义底部品牌标识(点击就能改)
 
 只要你喜欢，可以把底部的「锤子便签」改成「凿子便签」或「榔头便签」
 
-![](./README.assets/6180552c8f2fd5a9671a3f6d102271235fa9407c0aa0989897be85b048552c97.png)
+
+![](./README.assets/e8549f76a4254c998d4b8aa2eb5be0bef5ecfcf3ddd56ee119cb159f993a3d67.png)
 
 
 
-| 凿子便签 | 榔头便签 |
-| --- | --- |
-| ![](./README.assets/c5e025d66a5eba7b90de20699f731d6bec50a1f8b544ead80a0d06b1c74762d9.png) | ![](./README.assets/f55082151251b2c2e46ec1461af49e2e7959a5200a7e1b18ec53103fd32352a5.png) |
-| ![](./README.assets/252bbc1aae48f7b29fb77efbcb31d596642a6e85b671967b1a4e8a4d20794cf1.png) | ![](./README.assets/17668abc4f5b993db188b6deacc22b737974378412511ed30d90ee91e567cda2.png) |
 
 ## 支持下载文章，包含网页，markdown以及管理的图片资源
 
@@ -75,7 +80,12 @@ clawhub地址 https://clawhub.ai/zhaoolee/notes-export-api
 
 在手机的网页写完，直接一键粘贴到公众号即可发送，文本格式和图片，统统自动处理好！
 
-![](./README.assets/ef2ef8e599f5afb747e1c78f8bbb38bc4ce8209070cb699552607507dac63b6b.gif)
+## 支持子公司和各类知名主题
+
+| 子公司主题  | 母公司主题 |
+| --- | --- |
+| ![](./README.assets/526e1a90ca99914fdd811d22c53202e5c22c18c103b926baaab709728abac20e.png) | ![](./README.assets/23b514e3546014b65d00b7b0b655c3350cd4546a462e152538021010a750822e.png) |
+
 
 ## 网页版
 

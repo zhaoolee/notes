@@ -1566,6 +1566,16 @@ ${fontFaceCss}
         display: none;
       }
 
+      body[data-note-card-theme^="apple-notes"] .sheet-inner {
+        padding-right: 0;
+        padding-left: 0;
+      }
+
+      body[data-note-card-theme^="apple-notes"] .note-sheet {
+        padding-right: calc(12px * var(--note-scale));
+        padding-left: calc(12px * var(--note-scale));
+      }
+
       body[data-note-card-theme^="apple-notes"] .note-copy {
         letter-spacing: 0.01em;
         line-height: 1.65;
@@ -1703,7 +1713,7 @@ ${fontFaceCss}
         box-sizing: content-box;
         top: 0.2em;
         bottom: auto;
-        left: 1em;
+        left: 0;
         width: 0.13em;
         height: calc(100% - 0.4em);
         border: 0.0667em solid var(--note-link);
@@ -1882,7 +1892,7 @@ ${fontFaceCss}
           calc(9px * var(--note-scale))
           calc(10.5px * var(--note-scale))
           calc(8px * var(--note-scale))
-          0;
+          calc(3px * var(--note-scale));
         padding-left: calc(7.5px * var(--note-scale));
         border-left: calc(1.5px * var(--note-scale)) solid #000000;
         color: var(--note-copy);

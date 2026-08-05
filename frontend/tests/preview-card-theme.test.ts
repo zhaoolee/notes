@@ -236,7 +236,7 @@ test("卡片主题覆盖完整纸张 token，页面其余区域继续使用全�
   );
   assert.match(
     styles,
-    /\.preview-card-theme\[data-preview-theme="bear"\] \.note-copy blockquote::before\s*\{[^}]*content:\s*"";[^}]*box-sizing:\s*content-box;[^}]*top:\s*0\.2em;[^}]*bottom:\s*auto;[^}]*left:\s*1em;[^}]*width:\s*0\.13em;[^}]*height:\s*calc\(100% - 0\.4em\);[^}]*border:\s*0\.0667em solid var\(--bear-accent\);[^}]*font-size:\s*inherit;/s,
+    /\.preview-card-theme\[data-preview-theme="bear"\] \.note-copy blockquote::before\s*\{[^}]*content:\s*"";[^}]*box-sizing:\s*content-box;[^}]*top:\s*0\.2em;[^}]*bottom:\s*auto;[^}]*left:\s*0;[^}]*width:\s*0\.13em;[^}]*height:\s*calc\(100% - 0\.4em\);[^}]*border:\s*0\.0667em solid var\(--bear-accent\);[^}]*font-size:\s*inherit;/s,
   );
   assert.match(
     styles,
@@ -260,7 +260,7 @@ test("卡片主题覆盖完整纸张 token，页面其余区域继续使用全�
   );
   assert.match(
     styles,
-    /\.preview-card-theme\[data-preview-theme="telegraph"\] \.note-copy blockquote\s*\{[^}]*padding-left:\s*calc\(7\.5px \* var\(--note-scale\)\);[^}]*border-left:\s*calc\(1\.5px \* var\(--note-scale\)\) solid #000000;[^}]*font-style:\s*italic;/s,
+    /\.preview-card-theme\[data-preview-theme="telegraph"\] \.note-copy blockquote\s*\{[^}]*margin:\s*calc\(9px \* var\(--note-scale\)\)\s*calc\(10\.5px \* var\(--note-scale\)\)\s*calc\(8px \* var\(--note-scale\)\)\s*calc\(3px \* var\(--note-scale\)\);[^}]*padding-left:\s*calc\(7\.5px \* var\(--note-scale\)\);[^}]*border-left:\s*calc\(1\.5px \* var\(--note-scale\)\) solid #000000;[^}]*font-style:\s*italic;/s,
   );
   assert.match(
     styles,
@@ -268,7 +268,11 @@ test("卡片主题覆盖完整纸张 token，页面其余区域继续使用全�
   );
   assert.match(
     styles,
-    /\.preview-card-theme\[data-preview-theme\^="apple-notes"\] \.note-sheet\s*\{[^}]*border-radius:\s*0;/s,
+    /\.preview-card-theme\[data-preview-theme\^="apple-notes"\] \.note-sheet\s*\{[^}]*padding-right:\s*calc\(12px \* var\(--note-scale\)\);[^}]*padding-left:\s*calc\(12px \* var\(--note-scale\)\);[^}]*border-radius:\s*0;/s,
+  );
+  assert.match(
+    styles,
+    /\.preview-card-theme\[data-preview-theme\^="apple-notes"\] \.sheet-inner\s*\{[^}]*padding-right:\s*0;[^}]*padding-left:\s*0;/s,
   );
   assert.match(
     styles,
@@ -284,6 +288,10 @@ test("卡片主题覆盖完整纸张 token，页面其余区域继续使用全�
   );
   assert.doesNotMatch(styles, /\.note-apple-share::before/);
   const serverSource = readFileSync("server/index.ts", "utf8");
+  assert.match(
+    serverSource,
+    /body\[data-note-card-theme\^="apple-notes"\] \.sheet-inner\s*\{[^}]*padding-right:\s*0;[^}]*padding-left:\s*0;[^}]*\}\s*body\[data-note-card-theme\^="apple-notes"\] \.note-sheet\s*\{[^}]*padding-right:\s*calc\(12px \* var\(--note-scale\)\);[^}]*padding-left:\s*calc\(12px \* var\(--note-scale\)\);/s,
+  );
   assert.match(
     serverSource,
     /new Set<NoteCardThemeId>\([\s\S]*Object\.keys\(NOTE_CARD_THEME_STYLES\)/s,

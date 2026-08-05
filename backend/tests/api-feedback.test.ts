@@ -307,13 +307,17 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
       themedArchiveHtml,
       /body\[data-note-card-theme\^="apple-notes"\] \.note-apple-toolbar/,
     );
+    assert.match(
+      themedArchiveHtml,
+      /body\[data-note-card-theme\^="apple-notes"\] \.sheet-inner \{\s*padding-right: 0;\s*padding-left: 0;\s*\}\s*body\[data-note-card-theme\^="apple-notes"\] \.note-sheet \{\s*padding-right: calc\(12px \* var\(--note-scale\)\);\s*padding-left: calc\(12px \* var\(--note-scale\)\);/,
+    );
     assert.match(themedArchiveHtml, /class="note-apple-toolbar"/);
 
     const bearArchiveResponse = await fetch(`${baseUrl}/api/archive`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        markdown: "正文一与**重点文字**\n\n正文二\n\n## Bear 分节\n\n正文三",
+        markdown: "正文一与**重点文字**\n\n> Bear 引用\n\n正文二\n\n## Bear 分节\n\n正文三",
         theme: "bear",
       }),
     });
@@ -342,6 +346,10 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.match(
       bearArchiveHtml,
       /body\[data-note-card-theme="bear"\] \.note-copy strong \{\s*color: var\(--note-link\);\s*font-weight: 700;/,
+    );
+    assert.match(
+      bearArchiveHtml,
+      /body\[data-note-card-theme="bear"\] \.note-copy blockquote::before \{[\s\S]*?left: 0;/,
     );
     assert.match(bearArchiveHtml, /<strong>重点文字<\/strong>/);
     assert.doesNotMatch(bearArchiveHtml, /data-note-apple-toolbar="true"/);
@@ -378,6 +386,10 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.match(
       telegraphArchiveHtml,
       /font-size: max\(calc\(0\.5625rem \* var\(--note-scale\)\), 16px\);/,
+    );
+    assert.match(
+      telegraphArchiveHtml,
+      /margin:\s*calc\(9px \* var\(--note-scale\)\)\s*calc\(10\.5px \* var\(--note-scale\)\)\s*calc\(8px \* var\(--note-scale\)\)\s*calc\(3px \* var\(--note-scale\)\);/,
     );
     assert.match(
       telegraphArchiveHtml,

@@ -681,6 +681,7 @@ test("WechatArticle 为 Telegra.ph 保留原站正文节奏与引用线", () => 
   assert.match(html, /line-height:1\.0625;[^\"]*font-size:32px/);
   assert.match(html, /height:0\.667em/);
   assert.match(html, /border-bottom:0\.1em solid rgba\(0,0,0,0\.7\)/);
+  assert.match(html, /margin:18px 21px 16px 6px/);
   assert.match(html, /border-left:3px solid #000000/);
   assert.match(html, /font-style:italic/);
   assert.doesNotMatch(html, />[“▎]<\/span>引用内容/);
