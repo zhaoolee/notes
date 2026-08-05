@@ -40,8 +40,19 @@ MEMORY/                  经测试确认的长期事实
 
 主题设置区分持久化的“偏好”和实际渲染的“主题”：偏好可为 `system`、`default`
 或 `smartisan-dark`，其中 `system` 通过 `prefers-color-scheme` 解析为后两者之一并
-监听系统明暗变化。页面 CSS、PNG 导出和 Playwright 渲染只接收解析后的
-`default | smartisan-dark`，不能把 `system` 发送给后端导出接口。
+监听系统明暗变化。页面 CSS 使用解析后的全局主题；预览卡片另有持久化的
+`notes.previewCardTheme` 覆盖值，当前可为 `default`、`smartisan-dark`、
+`apple-notes`、`apple-notes-light` 或 `bear`。浮动配色器只在 `.preview-card-theme` 边界内
+重定义便签纸、正文、边框、图片和页脚 Token，不改变木纹舞台或页面其余区域。
+PNG 导出使用当前卡片配色，Playwright 也只接收最终的
+`default | smartisan-dark | apple-notes | apple-notes-light | bear`，不能把 `system`
+发送给后端导出接口。`apple-notes*` 与 `bear` 只属于卡片主题，不能用作页面全局外观偏好；Playwright 页面从
+`theme` 查询参数优先恢复卡片主题，保证该配色可由后端稳定导出。
+保存 PNG、下载当前便签离线归档和复制到公众号都会显式传递同一个最终卡片主题。
+`/api/export` 与 `/api/archive` 分别用 `X-Export-Theme`、`X-Archive-Theme` 回显
+实际采用的主题；`/api/wechat` 在 JSON 中返回 `theme`。前端逐字比对请求值与回显值，
+缺失或不一致表示后端仍是旧版本，必须中止保存、下载或复制并提示重启服务。三个
+接口收到显式但未知的主题时都返回 `400`，不能静默回退到 `default`。
 
 `/changelog` 是独立的前端页面入口。Vite 构建时把项目根目录的 `CHANGELOG.md`
 作为原始 Markdown 打包进页面，`ChangelogPage` 使用与普通预览相同的
@@ -80,7 +91,7 @@ ID 恢复当前便签及编辑 / 预览状态；无效 ID 回到列表。hash �
 
 普通删除是软删除：便签移入回收站后不再出现在全部、加星或文件夹分类中，可从回收站恢复；永久删除只在回收站内提供。删除自定义文件夹只解除便签的文件夹归属，不删除便签内容。当前便签可在详情元数据栏切换文件夹。
 
-`src/lib/markdown.ts` 使用二级标题 `##` 拆分便签区块，并把首个非空行的整行 `[文字]` 语法转换为不带方括号的居中正文行。这项语法只改变水平对齐，不提升为标题，也不额外改变字号、字重、颜色、行高或间距。只有文档顶部的整行方括号会触发该规则，正文中的 `[文字]`、Markdown 链接和图片保持普通 GFM 语义。`src/components/MarkdownText.tsx` 负责 GFM 渲染，并为图片输出统一的 `note-image-frame` 标记；`src/components/NoteSheet.tsx` 是网页预览、Playwright 导出和归档 HTML 共用的便签组件。普通预览、PNG 导出和离线归档通过同一组 CSS 复现安卓长图图片的暖灰细线、白色衬边和极轻阴影，选择器覆盖段落、列表项等全部 Markdown 上下文；公众号富文本则由 `WechatArticle` 输出等价内联样式。
+`src/lib/markdown.ts` 使用二级标题 `##` 拆分便签区块，并把首个非空行的整行 `[文字]` 语法转换为不带方括号的居中正文行。这项语法只改变水平对齐，不提升为标题，也不额外改变字号、字重、颜色、行高或间距。只有文档顶部的整行方括号会触发该规则，正文中的 `[文字]`、Markdown 链接和图片保持普通 GFM 语义。`src/components/MarkdownText.tsx` 负责 GFM 渲染，并为图片输出统一的 `note-image-frame` 标记；`src/components/NoteSheet.tsx` 是网页预览、Playwright 导出和归档 HTML 共用的便签组件。普通预览、PNG 导出和离线归档使用同一主题身份与排版结构；`src/lib/note-card-theme-styles.ts` 为归档和公众号提供五套不可变颜色配置。公众号富文本由 `WechatArticle` 按请求主题创建独立的内联样式上下文，不能使用模块级可变主题或复用上一次请求的颜色。
 
 前端通过同源 `/api` 和 `/images` 路径访问后端。开发时由 Vite 代理，双容器生产环境由 Nginx 代理，单容器生产环境由 Express 同时提供 API 和静态文件。
 
@@ -120,12 +131,13 @@ Vite，普通编辑仍可使用，但 `/api/export`、`/api/archive` 和图片�
   可逐条确认的原子修改建议；接口本身不写工作区
 - `POST /api/images/import`：上传图片或从 URL 下载图片
 - `POST /api/export`：将 Markdown 导出为 PNG
-- `POST /api/archive`：生成包含 Markdown、HTML、图片和字体的 ZIP
+- `POST /api/archive`：按 `theme` 生成包含 Markdown、主题化 HTML、图片和字体的 ZIP
 - `POST /api/workspace/archive`：提交当前完整工作区并创建整体导出任务
 - `GET /api/workspace/archive/:jobId`：读取整体导出的便签收集、压缩与就绪进度
 - `GET /api/workspace/archive/:jobId/download`：下载已完成的工作区 ZIP
-- `POST /api/wechat`：上传文章图片到七牛并生成带内联样式的公众号富文本；
-  请求可携带 `footerBrand`、`footerLogoUrl` 与 `footerVia` 自定义底部署名
+- `POST /api/wechat`：上传文章图片到七牛并按 `theme` 生成带内联样式的公众号富文本；
+  请求可携带 `footerBrand`、`footerLogoUrl` 与 `footerVia` 自定义底部署名，响应回显
+  实际采用的 `theme`
 - `GET /images/*`：读取持久化图片与导出结果
 
 图片内容使用 SHA-256 命名以实现去重，默认存储在 `storage/images`，单张图片最大 20 MB。
@@ -216,7 +228,7 @@ Data URL。
 从 `IMAGE_STORAGE_DIR` 读取；不能再通过公网 `fetch` 回环访问自身。只有真正的
 外站图片才走远程下载。
 
-底部署名由全局设置中的两段文本控制，默认值为“由开源锤子便签发送”和
+底部署名由全局设置中的两段文本控制，默认值为“由开源版锤子便签发送”和
 “Powered by zhaoolee/notes”。浏览器分别使用 `notes.footerBrand` 与
 `notes.footerVia` 持久化，每段最多 `80` 个字符；URL 中同名查询参数的优先级
 高于本地设置。Logo 使用 `notes.footerLogoUrl` 保存站内 `/images/*` 相对路径，
@@ -229,23 +241,26 @@ Data URL。
 完整 RGBA 通道，四个角像素均须透明，不能依赖暖白纸面掩盖不完整的 Alpha。
 
 图片处理完成后，后端通过共享 React 组件生成只有内联样式的 HTML。富文本不是
-通用黑白 Markdown：最外层容器不留边距且保持透明，正文是一张带轻阴影和双细框
-的暖白锤子便签纸，文字、标题、引用、代码块和表格都沿用项目的棕色纸感 Token，
-公众号 HTML 的纸张、框体留白、段落空行、图片衬边和署名继续使用 `1.4×` 移动
+通用黑白 Markdown：最外层容器不留边距且保持透明，正文按当前卡片主题分别使用
+暖白锤子、暗黑锤子、Apple 深色、Apple 浅色或 Bear 的纸面、文字、强调色、引用、
+代码、表格、图片和页脚 Token。锤子两色保留双细框，Apple 两色使用直角无框纸面
+并带金色工具栏，Bear 使用直角白页、红色强调与无装裱图片。公众号 HTML 的纸张、
+框体留白、段落空行、图片衬边和署名继续使用 `1.4×` 移动
 布局比例，纸张最大宽度为 `462px`；文字不再随框体同步放大，正文固定为
 `15px / 1.75`，H1 为 `22px / 1.32`，H2 为 `17px / 1.4`，引用为
-`15px / 1.64`。公众号正文不添加文字描边，标题和 Markdown 粗体使用 `600`
-字重，避免系统字体回退后出现整篇偏粗；同时继续避免旧版标题下划线和引用色块。底部保留
+`15px / 1.64`；Bear 正文沿用约 `1.755` 行高和普通标题字重。公众号正文不添加
+文字描边，非 Bear 主题的标题和 Markdown 粗体使用 `600` 字重，避免系统字体回退
+后出现整篇偏粗；同时继续避免旧版标题下划线和引用色块。底部保留
 上述可配置署名。首行 `[文字]` 会去除方括号，
 以普通正文样式居中且不附加标题效果；其余标题、列表、引用、代码块、表格、链接
 和图片继续遵循 GFM。前端使用
 Clipboard API 同时写入 `text/html` 和 `text/plain`，不支持 ClipboardItem 时
 回退到富文本选区复制，粘贴到微信公众号编辑器后保留排版。
 
-公众号组件不维护另一套近似颜色：纸面、双框、标题、正文和署名分别直接
-复用成品便签的 `#fffcf7`、
-`#e8e4dc`、`rgba(70,53,38,.96)`、
-`#665749` 和 `#d7cec1`。外框四角各包含一个独立的 `6px`
+公众号组件不维护一套固定的暖白近似色，而是从五主题共享配置逐次读取当前主题，
+每次服务端渲染都创建新的闭包上下文，避免并发请求或连续切换主题时串色。默认
+暖白主题的纸面、双框、标题、正文和署名仍分别为 `#fffcf7`、`#e8e4dc`、
+`rgba(70,53,38,.96)`、`#665749` 和 `#d7cec1`。仅锤子主题显示的外框四角各包含一个独立的 `6px`
 空心方格单元格，并填充不可见的不换行空格。四角和四条边使用一个 3×3 的展示
 表格承载，不依赖公众号保存时会清除的绝对定位，避免四个角保存后回流成左上角
 竖条。四个方格位于主框之外：左上方格以右下角、右上方格以左下角、左下方格以

@@ -34,7 +34,7 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
   assert.match(changelog, /^# 更新日志\n/);
   assert.equal(
     secondLevelHeadings[latestReleaseIndex],
-    `[${packageVersion.version}] - 2026-08-04`,
+    `[${packageVersion.version}] - 2026-08-05`,
   );
   assert.ok(categoryHeadings.length > 0);
 
@@ -56,6 +56,10 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
   }
 
   assert.doesNotMatch(changelog, /^- [0-9a-f]{7,40}\s+/m);
+  assert.match(
+    changelog,
+    /^\[1\.4\.0\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.3\.3\.\.\.1\.4\.0$/m,
+  );
   assert.match(
     changelog,
     /^\[1\.3\.3\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.3\.2\.\.\.1\.3\.3$/m,
@@ -93,34 +97,42 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
   }
   assert.equal(
     sections[latestReleaseSectionIndex]?.heading,
-    "[1.3.3](https://github.com/zhaoolee/notes/compare/1.3.2...1.3.3) - 2026-08-04",
+    "[1.4.0](https://github.com/zhaoolee/notes/compare/1.3.3...1.4.0) - 2026-08-05",
   );
   assert.match(
     sections[latestReleaseSectionIndex]?.content ?? "",
-    /公众号.*过大过粗/,
+    /五种便签样式.*相互隔离/,
   );
   assert.equal(
     sections[latestReleaseSectionIndex + 1]?.heading,
-    "[1.3.2](https://github.com/zhaoolee/notes/compare/1.3.1...1.3.2) - 2026-08-03",
+    "[1.3.3](https://github.com/zhaoolee/notes/compare/1.3.2...1.3.3) - 2026-08-04",
   );
   assert.match(
     sections[latestReleaseSectionIndex + 1]?.content ?? "",
-    /跨端同步文章排序/,
+    /公众号.*过大过粗/,
   );
   assert.equal(
     sections[latestReleaseSectionIndex + 2]?.heading,
-    "[1.3.1](https://github.com/zhaoolee/notes/compare/1.3.0...1.3.1) - 2026-08-03",
+    "[1.3.2](https://github.com/zhaoolee/notes/compare/1.3.1...1.3.2) - 2026-08-03",
   );
   assert.match(
     sections[latestReleaseSectionIndex + 2]?.content ?? "",
-    /AI“重点加粗”/,
+    /跨端同步文章排序/,
   );
   assert.equal(
     sections[latestReleaseSectionIndex + 3]?.heading,
-    "[1.3.0](https://github.com/zhaoolee/notes/compare/1.2.0...1.3.0) - 2026-08-02",
+    "[1.3.1](https://github.com/zhaoolee/notes/compare/1.3.0...1.3.1) - 2026-08-03",
   );
   assert.match(
     sections[latestReleaseSectionIndex + 3]?.content ?? "",
+    /AI“重点加粗”/,
+  );
+  assert.equal(
+    sections[latestReleaseSectionIndex + 4]?.heading,
+    "[1.3.0](https://github.com/zhaoolee/notes/compare/1.2.0...1.3.0) - 2026-08-02",
+  );
+  assert.match(
+    sections[latestReleaseSectionIndex + 4]?.content ?? "",
     /导出全部便签/,
   );
 });

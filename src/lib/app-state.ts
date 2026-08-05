@@ -37,7 +37,12 @@ export const WORKSPACE_STORAGE_KEY = "notes.workspace.v1";
 export const AI_ENABLED_STORAGE_KEY = "notes.aiEnabled";
 export const SAMPLE_MARKDOWN_CONTENT = sampleMarkdown || FALLBACK_CONTENT;
 
-export { getInitialTheme, THEME_STORAGE_KEY } from "./themes";
+export {
+  getInitialNoteCardTheme,
+  getInitialTheme,
+  NOTE_CARD_THEME_STORAGE_KEY,
+  THEME_STORAGE_KEY,
+} from "./themes";
 
 export function isSmartisanWebTestDataMode(): boolean {
   return readSearchParam("testData") === SMARTISAN_WEB_TEST_DATA_ID;

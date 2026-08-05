@@ -69,3 +69,36 @@ test("Markdown 兼容性矩阵生成预期语义结构", async () => {
   assert.doesNotMatch(html, /<mark>HTML mark 标签<\/mark>/);
   assert.match(html, /&lt;mark&gt;HTML mark 标签&lt;\/mark&gt;/);
 });
+
+test("项目根目录的 Markdown 全样式模板可完整渲染", async () => {
+  const markdown = await readFile(
+    new URL("../../Markdown全样式测试模板.md", import.meta.url),
+    "utf8",
+  );
+  const notes = splitSections(markdown);
+  const html = renderToStaticMarkup(
+    createElement(NoteSheet, {
+      notes,
+      footerBrand: createElement("span", null, "Markdown Template Test"),
+      footerVia: createElement("span", null, "via Feedback"),
+    }),
+  );
+
+  assert.equal(notes.length, 18);
+  assert.equal(notes[0]?.heading, "# **Markdown 全样式测试模板**");
+  assert.equal(notes[0]?.headingAlignment, "center");
+  assert.equal(notes[17]?.heading, "17 长内容与结束标记");
+
+  assert.match(html, /<h1><strong>Markdown 全样式测试模板<\/strong><\/h1>/);
+  assert.match(html, /<h3>H3 三级标题<\/h3>/);
+  assert.match(html, /<del>删除线<\/del>/);
+  assert.match(html, /class="contains-task-list"/);
+  assert.ok(countMatches(html, /type="checkbox"/g) >= 6);
+  assert.ok(countMatches(html, /<table>/g) >= 3);
+  assert.match(html, /class="language-javascript"/);
+  assert.match(html, /class="language-mermaid"/);
+  assert.match(html, /src="\/example-assets\/dog\.jpeg"/);
+  assert.match(html, /data-footnotes/);
+  assert.match(html, /MARKDOWN_FULL_STYLE_TEMPLATE_END/);
+  assert.doesNotMatch(html, /<mark>HTML mark 标签<\/mark>/);
+});

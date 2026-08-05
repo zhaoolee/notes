@@ -13,6 +13,11 @@ import {
   preserveMarkdownBlankLines,
   splitSections,
 } from "../../src/lib/markdown.js";
+import {
+  buildNoteCardThemeCssVariables,
+  NOTE_CARD_THEME_STYLES,
+} from "../../src/lib/note-card-theme-styles.js";
+import type { NoteCardThemeId } from "../../src/types/app.js";
 
 function readRgbaPngAlpha(
   png: Buffer,
@@ -264,6 +269,7 @@ test("暗黑主题只降低内置便签 Logo 的亮度，不强制改色自定�
 test("成品便签锁定官方短便签的正文、边框与署名比例", () => {
   const styles = readFileSync("src/styles.css", "utf8");
   const archiveSource = readFileSync("server/index.ts", "utf8");
+  const defaultArchiveThemeCss = buildNoteCardThemeCssVariables("default");
 
   for (const token of [
     "--paper: #fffcf7;",
@@ -272,8 +278,10 @@ test("成品便签锁定官方短便签的正文、边框与署名比例", () =>
     "--note-copy: #665749;",
   ]) {
     assert.ok(styles.includes(token));
-    assert.ok(archiveSource.includes(token));
+    assert.ok(defaultArchiveThemeCss.includes(token));
   }
+
+  assert.match(archiveSource, /buildNoteCardThemeCssVariables\(theme\)/);
 
   for (const pattern of [
     /\.sheet-frame-outer\s*\{[^}]*calc\(16px \* var\(--note-scale\)\)[^}]*calc\(9\.6667px \* var\(--note-scale\)\)[^}]*calc\(58px \* var\(--note-scale\)\);/s,
@@ -399,6 +407,7 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
       footerBrand: "由方圆小站发送",
       footerHammerUrl: "https://cdn.example.com/smartisan-hammer.png",
       footerVia: "via Notes Skill",
+      theme: "default",
       markdown: [
         "[公众号居中正文]",
         "",
@@ -423,11 +432,12 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
     }),
   );
 
-  assert.match(html, /data-tool="锤子便签Skill"/);
-  assert.match(html, /data-smartisan-theme="warm-paper"/);
+  assert.match(html, /data-tool="开源版锤子便签"/);
+  assert.match(html, /data-note-card-theme="default"/);
+  assert.match(html, /data-smartisan-theme="default"/);
   assert.match(
     html,
-    /data-smartisan-theme="warm-paper" style="[^"]*padding:0[^"]*background-color:transparent/,
+    /data-smartisan-theme="default" style="[^"]*padding:0[^"]*background-color:transparent/,
   );
   assert.doesNotMatch(html, /background-color:rgba\(239,230,216,0\.95\)/);
   assert.match(html, /data-smartisan-paper="true"/);
@@ -608,4 +618,48 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.doesNotMatch(html, /src="data:/);
   assert.doesNotMatch(html, /<li[^>]*>\s*<\/li>/);
   assert.doesNotMatch(html, /\[公众号居中正文\]/);
+});
+
+test("WechatArticle 为五种卡片主题生成互不共享的内联配色", () => {
+  const themes = Object.keys(NOTE_CARD_THEME_STYLES) as NoteCardThemeId[];
+
+  assert.deepEqual(themes, [
+    "default",
+    "smartisan-dark",
+    "apple-notes",
+    "apple-notes-light",
+    "bear",
+  ]);
+
+  for (const theme of themes) {
+    const style = NOTE_CARD_THEME_STYLES[theme];
+    const html = renderToStaticMarkup(
+      createElement(WechatArticle, {
+        footerBrand: "主题隔离测试",
+        footerHammerUrl: "https://cdn.example.com/hammer.png",
+        footerVia: "via Feedback",
+        markdown: "> 引用\n\n正文与[链接](https://example.com)",
+        theme,
+      }),
+    );
+
+    assert.match(html, new RegExp(`data-note-card-theme="${theme}"`));
+    assert.match(
+      html,
+      new RegExp(`background-color:${style.colors.paper.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
+    );
+    assert.match(
+      html,
+      new RegExp(`color:${style.colors.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
+    );
+    assert.match(
+      html,
+      new RegExp(`color:${style.colors.accent.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
+    );
+    assert.equal(
+      html.includes('data-note-apple-toolbar="true"'),
+      style.layout === "apple",
+    );
+    assert.equal(html.includes(">▎</span>"), style.layout === "bear");
+  }
 });

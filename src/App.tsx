@@ -22,9 +22,11 @@ import {
   getInitialFooterBrand,
   getInitialFooterLogoUrl,
   getInitialFooterVia,
+  getInitialNoteCardTheme,
   getInitialNoteWorkspace,
   getRenderMode,
   isSmartisanWebTestDataMode,
+  NOTE_CARD_THEME_STORAGE_KEY,
   persistAiEnabled,
   persistFooterLogoUrl,
   persistFooterText,
@@ -71,6 +73,7 @@ import { copyMarkdownForWechat } from "./lib/wechat";
 import { useAppStore } from "./store/useAppStore";
 import type {
   CopyState,
+  NoteCardThemeId,
   NoteCategoryId,
   NoteFolder,
   NoteWorkspace,
@@ -257,6 +260,9 @@ export default function App() {
   const markdown = useAppStore((state) => state.markdown);
   const selectedTheme = useAppStore((state) => state.selectedTheme);
   const resolvedTheme = useResolvedTheme(selectedTheme);
+  const [noteCardThemeOverride, setNoteCardThemeOverride] =
+    useState<NoteCardThemeId | null>(getInitialNoteCardTheme);
+  const noteCardTheme = noteCardThemeOverride ?? resolvedTheme;
   const isExporting = useAppStore((state) => state.isExporting);
   const exportError = useAppStore((state) => state.exportError);
   const copyState = useAppStore((state) => state.copyState);
@@ -652,6 +658,17 @@ export default function App() {
     window.localStorage.setItem(THEME_STORAGE_KEY, selectedTheme);
     document.documentElement.dataset.theme = resolvedTheme;
   }, [resolvedTheme, selectedTheme]);
+
+  useEffect(() => {
+    if (noteCardThemeOverride === null || typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(
+      NOTE_CARD_THEME_STORAGE_KEY,
+      noteCardThemeOverride,
+    );
+  }, [noteCardThemeOverride]);
 
   useEffect(() => {
     persistFooterText(footerBrand, footerVia);
@@ -1126,7 +1143,7 @@ export default function App() {
     try {
       setIsExporting(true);
       setExportError("");
-      await exportMarkdownAsPng(markdown, resolvedTheme, {
+      await exportMarkdownAsPng(markdown, noteCardTheme, {
         footerBrand,
         footerLogoUrl,
         footerVia,
@@ -1147,7 +1164,7 @@ export default function App() {
     try {
       setIsArchiving(true);
       setExportError("");
-      await exportMarkdownArchive(markdown, {
+      await exportMarkdownArchive(markdown, noteCardTheme, {
         footerBrand,
         footerLogoUrl,
         footerVia,
@@ -1204,7 +1221,7 @@ export default function App() {
     try {
       setWechatCopyState("preparing");
       setExportError("");
-      await copyMarkdownForWechat(markdown, {
+      await copyMarkdownForWechat(markdown, noteCardTheme, {
         footerBrand,
         footerLogoUrl,
         footerVia,
@@ -2121,8 +2138,10 @@ export default function App() {
             footerBrand={footerBrand}
             footerLogoUrl={footerLogoUrl}
             footerVia={footerVia}
+            noteCardTheme={noteCardTheme}
             onFooterBrandChange={setFooterBrand}
             onFooterViaChange={setFooterVia}
+            onNoteCardThemeChange={setNoteCardThemeOverride}
           />
 
           <div className="category-empty-workspace" role="status">

@@ -27,6 +27,28 @@ npm run test:backend
 
 前端测试位于 `frontend/tests`，后端测试位于 `backend/tests`。
 
+## 正文输入延迟 Benchmark
+
+运行真实 Chromium，在便签正文编辑器中逐字符输入，统计每次 `keydown` 到浏览器
+下一次绘制机会的 p50、p95、p99、最大值和平均值：
+
+```bash
+npm run benchmark:input
+```
+
+默认会在 `127.0.0.1:15173` 不可用时临时启动前端，使用 2000 字符的初始正文、
+20 次预热和 200 次正式输入。指定已运行页面、移动端视口或性能回归阈值：
+
+```bash
+npm run benchmark:input -- --url http://127.0.0.1:15173 --mobile
+npm run benchmark:input -- --characters 500 --interval 8 --max-p95 50
+npm run benchmark:input -- --json
+```
+
+`--max-p95` 失败时命令以状态码 `2` 退出，可用于 CI；完整选项使用
+`npm run benchmark:input -- --help` 查看。benchmark 使用隔离的浏览器上下文与测试
+工作区，不会读写日常浏览器中的便签。
+
 ## Docker 开发环境
 
 ```bash
@@ -86,10 +108,12 @@ docker compose up --build -d
 ```bash
 curl -fsS http://127.0.0.1:3001/api/wechat \
   -H 'Content-Type: application/json' \
-  --data '{"markdown":"[公众号标题]\n\n正文包含 **粗体**。"}'
+  --data '{"markdown":"[公众号标题]\n\n正文包含 **粗体**。","theme":"bear"}'
 ```
 
-接口返回 `html`、替换图片后的 `markdown`、图片总数和上传/复用计数。真实使用
+`theme` 可为 `default`、`smartisan-dark`、`apple-notes`、`apple-notes-light` 或
+`bear`；省略时兼容性回退为 `default`。接口返回实际采用的 `theme`、`html`、替换
+图片后的 `markdown`、图片总数和上传/复用计数。真实使用
 时从桌面分享预览或手机分享面板点击“复制到公众号”，再粘贴进公众号编辑器。
 
 ## 便签导出 Skill

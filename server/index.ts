@@ -22,11 +22,20 @@ import {
 } from "../src/lib/footer.js";
 import { splitSections } from "../src/lib/markdown.js";
 import {
+  buildNoteCardThemeCssVariables,
+  getNoteCardThemeStyle,
+  NOTE_CARD_THEME_STYLES,
+} from "../src/lib/note-card-theme-styles.js";
+import {
   getNoteTitle,
   orderNoteDocuments,
   parseNoteWorkspace,
 } from "../src/lib/notes.js";
-import type { NoteDocument, NoteWorkspace } from "../src/types/app.js";
+import type {
+  NoteCardThemeId,
+  NoteDocument,
+  NoteWorkspace,
+} from "../src/types/app.js";
 import {
   isQiniuUrl,
   loadQiniuConfig,
@@ -64,8 +73,6 @@ import {
   isAiAvailable,
 } from "./ai.js";
 
-type ThemeId = "default" | "smartisan-dark";
-
 interface ExportRequestBody {
   markdown?: string;
   markdownPath?: string;
@@ -83,6 +90,7 @@ interface ImageImportRequestBody {
 interface ArchiveRequestBody {
   markdown?: string;
   markdownPath?: string;
+  theme?: string;
   footerBrand?: string;
   footerLogoUrl?: string;
   footerVia?: string;
@@ -95,6 +103,7 @@ interface WorkspaceArchiveRequestBody {
 interface WechatRequestBody {
   markdown?: string;
   markdownPath?: string;
+  theme?: string;
   footerBrand?: string;
   footerLogoUrl?: string;
   footerVia?: string;
@@ -213,7 +222,16 @@ const anonymousDailyUploadLimit = Math.max(
   Number.parseInt(process.env.ANONYMOUS_DAILY_UPLOAD_LIMIT || "500", 10) ||
     500,
 );
-const supportedThemes = new Set<ThemeId>(["default", "smartisan-dark"]);
+const supportedThemes = new Set<NoteCardThemeId>(
+  Object.keys(NOTE_CARD_THEME_STYLES) as NoteCardThemeId[],
+);
+
+class UnsupportedExportThemeError extends Error {
+  constructor(theme: unknown) {
+    super(`不支持的导出主题：${String(theme)}`);
+    this.name = "UnsupportedExportThemeError";
+  }
+}
 const maxImageSizeBytes = 20 * 1024 * 1024;
 const maxAiMarkdownLength = 100_000;
 const maxAiInstructionLength = 2_000;
@@ -279,7 +297,11 @@ interface PngMetadata {
   channels: number;
 }
 
-function buildRenderUrl(baseUrl: string, theme: ThemeId, footer?: FooterConfig): string {
+function buildRenderUrl(
+  baseUrl: string,
+  theme: NoteCardThemeId,
+  footer?: FooterConfig,
+): string {
   const url = new URL("/", baseUrl);
   url.searchParams.set("renderMode", "playwright");
   url.searchParams.set("theme", theme);
@@ -299,7 +321,11 @@ function buildRenderUrl(baseUrl: string, theme: ThemeId, footer?: FooterConfig):
   return url.toString();
 }
 
-function getRenderUrl(request: Request, theme: ThemeId, footer?: FooterConfig): string {
+function getRenderUrl(
+  request: Request,
+  theme: NoteCardThemeId,
+  footer?: FooterConfig,
+): string {
   if (process.env.EXPORT_APP_URL) {
     return buildRenderUrl(process.env.EXPORT_APP_URL, theme, footer);
   }
@@ -380,7 +406,7 @@ function applyCorsHeaders(request: Request, response: Response): void {
   );
   response.setHeader(
     "Access-Control-Expose-Headers",
-    "Content-Disposition, X-Export-Path, X-Export-Url",
+    "Content-Disposition, X-Export-Path, X-Export-Url, X-Export-Theme",
   );
 }
 
@@ -769,12 +795,19 @@ async function resolveMarkdown(body: ExportRequestBody | ArchiveRequestBody): Pr
   throw new Error("Missing markdown or markdownPath");
 }
 
-function resolveTheme(body: ExportRequestBody): ThemeId {
-  if (typeof body.theme === "string" && supportedThemes.has(body.theme as ThemeId)) {
-    return body.theme as ThemeId;
+function resolveTheme(body: ExportRequestBody): NoteCardThemeId {
+  if (body.theme == null || body.theme === "") {
+    return "default";
   }
 
-  return "default";
+  if (
+    typeof body.theme === "string" &&
+    supportedThemes.has(body.theme as NoteCardThemeId)
+  ) {
+    return body.theme as NoteCardThemeId;
+  }
+
+  throw new UnsupportedExportThemeError(body.theme);
 }
 
 function normalizeFooterText(input: unknown): string | undefined {
@@ -1032,10 +1065,16 @@ function buildArchiveIndexHtml(
   markdown: string,
   footer: FooterConfig,
   fonts: ArchiveFont[],
+  theme: NoteCardThemeId,
 ): string {
   const noteSheetHtml = renderArchiveNoteSheet(markdown, footer);
   const fontFaceCss = buildArchiveFontFaceCss(fonts);
   const fontFamilyPrefix = fonts.length ? `"OPPOSansArchive", ` : "";
+  const themeStyle = getNoteCardThemeStyle(theme);
+  const archiveFontFamily =
+    themeStyle.layout === "smartisan"
+      ? `${fontFamilyPrefix}${themeStyle.fontFamily}`
+      : themeStyle.fontFamily;
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -1046,29 +1085,8 @@ function buildArchiveIndexHtml(
     <style>
 ${fontFaceCss}
       :root {
-        --paper: #fffcf7;
-        --sheet-surface: #fffcf7;
-        --sheet-shadow: 0 24px 42px rgba(89, 65, 34, 0.12);
-        --note-frame: #e8e4dc;
-        --note-image-frame: #ebe8e3;
-        --note-image-mat: #ffffff;
-        --note-image-shadow: rgba(88, 70, 52, 0.07);
-        --note-heading: rgba(70, 53, 38, 0.96);
-        --note-copy: #665749;
-        --note-link: #ac9070;
-        --note-code-bg: rgba(125, 78, 32, 0.08);
-        --note-pre-bg: rgba(243, 236, 225, 0.9);
-        --note-pre-text: rgba(97, 79, 61, 0.94);
-        --note-quote: #c0b5a7;
-        --note-quote-mark: #ded4c8;
-        --note-table-border: rgba(220, 209, 191, 0.88);
-        --note-table-head-bg: rgba(243, 236, 225, 0.65);
-        --note-hr: rgba(220, 209, 191, 0.8);
-        --footer-copy: #d7cec1;
-        --footer-via: #ded6cb;
-        --footer-icon: #d9d0c3;
-        --note-font: ${fontFamilyPrefix}"Noto Sans SC", "PingFang SC", "Hiragino Sans GB",
-          "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+        ${buildNoteCardThemeCssVariables(theme)}
+        --note-font: ${archiveFontFamily};
         --note-scale: 2;
         --note-sheet-width: calc(330px * var(--note-scale));
       }
@@ -1118,6 +1136,67 @@ ${fontFaceCss}
         box-shadow: var(--sheet-shadow);
         font-family: var(--note-font);
         overflow: hidden;
+      }
+
+      .note-apple-toolbar {
+        position: absolute;
+        z-index: 2;
+        top: calc(8px * var(--note-scale));
+        right: calc(12px * var(--note-scale));
+        left: calc(12px * var(--note-scale));
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        color: var(--note-link);
+        font-family: var(--note-font);
+        font-size: calc(0.58rem * var(--note-scale));
+        font-weight: 400;
+        line-height: 1;
+        pointer-events: none;
+      }
+
+      .note-apple-back,
+      .note-apple-actions {
+        display: inline-flex;
+        align-items: center;
+      }
+
+      .note-apple-back {
+        gap: calc(2px * var(--note-scale));
+      }
+
+      .note-apple-back-chevron {
+        font-size: calc(0.88rem * var(--note-scale));
+        line-height: 0.7;
+      }
+
+      .note-apple-actions {
+        gap: calc(11px * var(--note-scale));
+      }
+
+      .note-apple-action-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+      }
+
+      .note-apple-action-icon svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+        fill: currentColor;
+      }
+
+      .note-apple-share {
+        width: calc(7.1px * var(--note-scale));
+        height: calc(9.6px * var(--note-scale));
+      }
+
+      .note-apple-compose {
+        width: calc(8.85px * var(--note-scale));
+        height: calc(8.55px * var(--note-scale));
       }
 
       .sheet-frame {
@@ -1452,6 +1531,11 @@ ${fontFaceCss}
         object-fit: contain;
       }
 
+      .sheet-footer-icon.is-default-footer-logo img {
+        filter: var(--default-footer-logo-filter);
+        opacity: var(--default-footer-logo-opacity);
+      }
+
       .sheet-footer-icon svg {
         display: block;
         width: 100%;
@@ -1475,6 +1559,169 @@ ${fontFaceCss}
 
       strong {
         color: inherit;
+      }
+
+      body[data-note-card-theme^="apple-notes"] .sheet-frame,
+      body[data-note-card-theme^="apple-notes"] .sheet-corner {
+        display: none;
+      }
+
+      body[data-note-card-theme^="apple-notes"] .note-copy {
+        letter-spacing: 0.01em;
+        line-height: 1.65;
+        -webkit-text-stroke: 0;
+      }
+
+      body[data-note-card-theme^="apple-notes"] .note-index h2,
+      body[data-note-card-theme^="apple-notes"] .note-index h2 strong,
+      body[data-note-card-theme^="apple-notes"] .note-copy strong {
+        font-weight: 600;
+      }
+
+      body[data-note-card-theme^="apple-notes"] .note-apple-toolbar {
+        display: flex;
+      }
+
+      body[data-note-card-theme="bear"] .note-sheet {
+        padding:
+          calc(20px * var(--note-scale))
+          calc(18px * var(--note-scale))
+          calc(24px * var(--note-scale));
+      }
+
+      body[data-note-card-theme="bear"] .sheet-frame,
+      body[data-note-card-theme="bear"] .sheet-corner {
+        display: none;
+      }
+
+      body[data-note-card-theme="bear"] .sheet-inner {
+        padding: 0;
+      }
+
+      body[data-note-card-theme="bear"] .note-section.is-document-title {
+        margin-top: 0;
+      }
+
+      body[data-note-card-theme="bear"] .note-section.has-heading {
+        margin-top: 1.755em;
+      }
+
+      body[data-note-card-theme="bear"] .note-section.has-heading:first-child {
+        margin-top: 0;
+      }
+
+      body[data-note-card-theme="bear"] .note-index {
+        margin-bottom: 1.755em;
+      }
+
+      body[data-note-card-theme="bear"] .note-index h2,
+      body[data-note-card-theme="bear"] .note-index h2 strong {
+        color: var(--note-heading);
+        font-family: var(--note-font);
+        font-size: max(calc(0.8rem * var(--note-scale)), 18px);
+        font-weight: 400;
+        line-height: 1.521;
+        padding-block: 0.66em 0.27em;
+      }
+
+      body[data-note-card-theme="bear"] .note-copy {
+        color: var(--note-copy);
+        font-size: max(calc(0.5rem * var(--note-scale)), 12px);
+        line-height: 1.755;
+        letter-spacing: 0;
+        -webkit-text-stroke: 0;
+      }
+
+      body[data-note-card-theme="bear"] .note-copy h1,
+      body[data-note-card-theme="bear"] .note-copy h2,
+      body[data-note-card-theme="bear"] .note-copy h3,
+      body[data-note-card-theme="bear"] .note-copy h4,
+      body[data-note-card-theme="bear"] .note-copy h5,
+      body[data-note-card-theme="bear"] .note-copy h6 {
+        font-family: var(--note-font);
+        font-weight: 400;
+        line-height: 1.521;
+      }
+
+      body[data-note-card-theme="bear"] .note-copy h1 {
+        font-size: max(calc(0.94rem * var(--note-scale)), 22px);
+        padding-block: 0.8em 0.33em;
+      }
+
+      body[data-note-card-theme="bear"] .note-copy h2 {
+        font-size: max(calc(0.8rem * var(--note-scale)), 18px);
+        padding-block: 0.66em 0.27em;
+      }
+
+      body[data-note-card-theme="bear"] .note-copy h3 {
+        font-size: max(calc(0.6rem * var(--note-scale)), 15px);
+        padding-block: 0.53em 0.27em;
+      }
+
+      body[data-note-card-theme="bear"] .note-copy h4,
+      body[data-note-card-theme="bear"] .note-copy h5,
+      body[data-note-card-theme="bear"] .note-copy h6 {
+        font-size: max(calc(0.5rem * var(--note-scale)), 12px);
+        padding-block: 0.4em 0.27em;
+      }
+
+      body[data-note-card-theme="bear"] .note-copy strong {
+        font-weight: 700;
+      }
+
+      body[data-note-card-theme="bear"] .note-copy .markdown-blank-line {
+        height: 1.755em;
+      }
+
+      body[data-note-card-theme="bear"] .note-copy code,
+      body[data-note-card-theme="bear"] .note-copy pre {
+        border-radius: 0.25em;
+      }
+
+      body[data-note-card-theme="bear"] .note-copy blockquote {
+        margin: 0;
+        padding-inline-start: 2.13em;
+        color: var(--note-copy);
+        font-size: inherit;
+        line-height: inherit;
+      }
+
+      body[data-note-card-theme="bear"] .note-copy blockquote::before {
+        content: "";
+        box-sizing: content-box;
+        top: 0.2em;
+        bottom: auto;
+        left: 1em;
+        width: 0.13em;
+        height: calc(100% - 0.4em);
+        border: 0.0667em solid var(--note-link);
+        border-radius: 0.33em;
+        background: var(--note-link);
+      }
+
+      body[data-note-card-theme="bear"] .note-copy li::marker {
+        color: var(--note-link);
+      }
+
+      body[data-note-card-theme="bear"] .note-copy table {
+        width: auto;
+        max-width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        border-radius: 0.33em;
+        table-layout: auto;
+        overflow: hidden;
+      }
+
+      body[data-note-card-theme="bear"] .note-copy img.note-image-frame {
+        padding: 0;
+        border: 0;
+        box-shadow: none;
+        background: transparent;
+      }
+
+      body[data-note-card-theme="bear"] .sheet-footer {
+        margin-top: calc(24px * var(--note-scale));
       }
 
       @media (max-width: 720px) {
@@ -1528,7 +1775,7 @@ ${fontFaceCss}
       }
     </style>
   </head>
-  <body>
+  <body data-note-card-theme="${theme}">
     <main class="preview-stage">${noteSheetHtml}</main>
   </body>
 </html>
@@ -1538,6 +1785,7 @@ ${fontFaceCss}
 async function buildArchive(
   markdown: string,
   footer: FooterConfig = {},
+  theme: NoteCardThemeId = "default",
 ): Promise<{ filename: string; zipBuffer: Buffer }> {
   const basename = buildArchiveBasename(markdown);
   const folderName = basename;
@@ -1626,7 +1874,12 @@ async function buildArchive(
     {
       path: `${folderName}/index.html`,
       data: Buffer.from(
-        buildArchiveIndexHtml(archivedMarkdown, archivedFooter, fontAssets.fonts),
+        buildArchiveIndexHtml(
+          archivedMarkdown,
+          archivedFooter,
+          fontAssets.fonts,
+          theme,
+        ),
         "utf8",
       ),
     },
@@ -2747,6 +3000,7 @@ async function prepareWechatArticle(
     footer: FooterConfig;
     publicBaseUrl: string;
     temporaryUploads: boolean;
+    theme: NoteCardThemeId;
   },
 ): Promise<{
   anonymousQuota: AnonymousQuotaStatus | null;
@@ -2755,6 +3009,7 @@ async function prepareWechatArticle(
   imageCount: number;
   uploadedImageCount: number;
   reusedImageCount: number;
+  theme: NoteCardThemeId;
 }> {
   const markdownImageSources = collectMarkdownImageSources(markdown);
   const customFooterLogoSource =
@@ -2881,6 +3136,7 @@ async function prepareWechatArticle(
       markdown: wechatMarkdown,
       footerHammerUrl,
       footerVia: options.footer.via ?? DEFAULT_FOOTER_VIA,
+      theme: options.theme,
     }),
   ).replace(
     /<link\b[^>]*\brel="preload"[^>]*\bas="image"[^>]*\/?>/gi,
@@ -2894,6 +3150,7 @@ async function prepareWechatArticle(
     imageCount: markdownImageSources.length,
     uploadedImageCount,
     reusedImageCount,
+    theme: options.theme,
   };
 }
 
@@ -3561,6 +3818,7 @@ app.post(
       response.setHeader("Content-Disposition", `inline; filename="${storedExport.filename}"`);
       response.setHeader("X-Export-Path", storedExport.path);
       response.setHeader("X-Export-Url", storedExport.url);
+      response.setHeader("X-Export-Theme", theme);
       response.send(pngBuffer);
     } catch (error) {
       const message =
@@ -3571,7 +3829,7 @@ app.post(
 
       console.error("Export request failed:", error);
 
-      response.status(500).json({
+      response.status(error instanceof UnsupportedExportThemeError ? 400 : 500).json({
         error: message,
         hint: isBrowserInstallError
           ? "Run `npx playwright install chromium` on this machine."
@@ -3704,16 +3962,22 @@ app.post(
   ) => {
     try {
       const body = request.body || {};
+      const theme = resolveTheme(body);
       const markdown = await resolveMarkdown(body);
-      const archive = await buildArchive(markdown, resolveFooterConfig(body));
+      const archive = await buildArchive(
+        markdown,
+        resolveFooterConfig(body),
+        theme,
+      );
 
       response.setHeader("Content-Type", "application/zip");
       response.setHeader("Content-Disposition", `attachment; filename="${archive.filename}"`);
+      response.setHeader("X-Archive-Theme", theme);
       response.send(archive.zipBuffer);
     } catch (error) {
       console.error("Archive request failed:", error);
 
-      response.status(500).json({
+      response.status(error instanceof UnsupportedExportThemeError ? 400 : 500).json({
         error: error instanceof Error ? error.message : "Failed to create archive",
       });
     }
@@ -3727,20 +3991,25 @@ app.post(
     response: Response,
   ) => {
     try {
-      const markdown = await resolveMarkdown(request.body || {});
+      const body = request.body || {};
+      const theme = resolveTheme(body);
+      const markdown = await resolveMarkdown(body);
       const authenticatedUser = await getWorkspaceUser(request);
       response.json(
         await prepareWechatArticle(markdown, {
-          footer: resolveFooterConfig(request.body || {}),
+          footer: resolveFooterConfig(body),
           publicBaseUrl: getPublicBaseUrl(request),
           temporaryUploads: !authenticatedUser,
+          theme,
         }),
       );
     } catch (error) {
       console.error("Wechat copy preparation failed:", error);
 
       const status =
-        error instanceof AnonymousQuotaExceededError
+        error instanceof UnsupportedExportThemeError
+          ? 400
+          : error instanceof AnonymousQuotaExceededError
           ? 429
           : error instanceof QiniuConfigurationError
           ? 503

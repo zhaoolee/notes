@@ -900,6 +900,7 @@ test("项目使用桌面官方三栏和手机布局，不提供平板堆叠版",
 
 test("桌面工作区使用锤子便签网页版的纸面、细线和栏宽比例", () => {
   const appSource = readFileSync("src/App.tsx", "utf8");
+  const editorSource = readFileSync("src/components/EditorPanel.tsx", "utf8");
   const styles = readFileSync("src/styles.css", "utf8");
 
   assert.match(styles, /--editor-font-size:\s*17px;/);
@@ -918,8 +919,17 @@ test("桌面工作区使用锤子便签网页版的纸面、细线和栏宽比�
   );
   assert.match(
     styles,
-    /\.markdown-editor-flow\s*\{[^}]*overflow-anchor:\s*none;[^}]*grid_6e4a41eefc\.png[^}]*background-attachment:\s*local;[^}]*\}[\s\S]*\.markdown-editor\s*\{[^}]*font-weight:\s*400;[^}]*padding:\s*0 30px 0 50px;[^}]*background:\s*transparent;[\s\S]*\.editor-text-segment:last-child\s*\{[^}]*padding-bottom:\s*100px;/s,
+    /\.markdown-editor-flow\s*\{[^}]*overflow-anchor:\s*none;[^}]*grid_6e4a41eefc\.png[^}]*background-attachment:\s*local;[^}]*\}[\s\S]*\.markdown-editor\s*\{[^}]*font-weight:\s*400;[^}]*padding:\s*0 30px 0 50px;[^}]*background:\s*transparent;[\s\S]*\.editor-text-segment\.is-last-text-segment\s*\{[^}]*min-height:\s*calc\(var\(--editor-line-height\) \* 3\);[^}]*padding-bottom:\s*calc\(var\(--editor-line-height\) \* 2\);/s,
   );
+  assert.match(
+    editorSource,
+    /className=\{`markdown-editor editor-text-segment\$\{[\s\S]*blockIndex === editorContent\.length - 1[\s\S]*" is-last-text-segment"/s,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 640px\)[\s\S]*\.editor-text-segment\.is-last-text-segment\s*\{[^}]*min-height:\s*calc\(var\(--editor-line-height\) \* 3\);[^}]*padding-bottom:\s*calc\(var\(--editor-line-height\) \* 2\);/s,
+  );
+  assert.doesNotMatch(styles, /\.editor-text-segment:last-child/);
   assert.match(
     styles,
     /\.note-index h2,\s*\.note-index h2 strong\s*\{[^}]*font-size:\s*calc\(0\.92rem \* var\(--note-scale\)\);[^}]*font-weight:\s*700;[^}]*line-height:\s*1\.35;/s,

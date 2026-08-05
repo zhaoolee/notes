@@ -1,4 +1,6 @@
 import type {
+  NoteCardThemeOption,
+  NoteCardThemeId,
   ThemeId,
   ThemeOption,
   ThemePreferenceId,
@@ -25,6 +27,41 @@ export const THEME_OPTIONS: ThemeOption[] = [
 export const DEFAULT_THEME_ID: ThemeId = "default";
 export const DEFAULT_THEME_PREFERENCE_ID: ThemePreferenceId = DEFAULT_THEME_ID;
 export const THEME_STORAGE_KEY = "notes.previewTheme";
+export const NOTE_CARD_THEME_STORAGE_KEY = "notes.previewCardTheme";
+
+export const NOTE_CARD_THEME_OPTIONS: NoteCardThemeOption[] = [
+  {
+    id: "default",
+    label: "暖白质感",
+    description: "温润纸面",
+  },
+  {
+    id: "smartisan-dark",
+    label: "深夜便签",
+    description: "低亮暗色",
+  },
+  {
+    id: "apple-notes",
+    label: "iPhone 深色",
+    description: "Apple 备忘录质感",
+  },
+  {
+    id: "apple-notes-light",
+    label: "iPhone 浅色",
+    description: "Apple 备忘录质感",
+  },
+  {
+    id: "bear",
+    label: "Bear 便签",
+    description: "红色极简排版",
+  },
+];
+
+export function isNoteCardThemeId(
+  value: string | null | undefined,
+): value is NoteCardThemeId {
+  return NOTE_CARD_THEME_OPTIONS.some((option) => option.id === value);
+}
 
 export function isThemePreferenceId(
   value: string | null | undefined,
@@ -59,4 +96,22 @@ export function getInitialTheme(): ThemePreferenceId {
   return isThemePreferenceId(storedTheme)
     ? storedTheme
     : DEFAULT_THEME_PREFERENCE_ID;
+}
+
+export function getInitialNoteCardTheme(): NoteCardThemeId | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const searchTheme = new URLSearchParams(window.location.search).get("theme");
+
+  if (isNoteCardThemeId(searchTheme)) {
+    return searchTheme;
+  }
+
+  const storedTheme = window.localStorage.getItem(
+    NOTE_CARD_THEME_STORAGE_KEY,
+  );
+
+  return isNoteCardThemeId(storedTheme) ? storedTheme : null;
 }

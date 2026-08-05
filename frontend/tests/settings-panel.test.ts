@@ -144,7 +144,7 @@ test("底部显示设置提供四角格、Logo 上传、双文本编辑、恢复
     footerSource,
     /FOOTER_VIA_STORAGE_KEY = "notes\.footerVia"/,
   );
-  assert.equal(DEFAULT_FOOTER_BRAND, "由开源锤子便签发送");
+  assert.equal(DEFAULT_FOOTER_BRAND, "由开源版锤子便签发送");
   assert.equal(DEFAULT_FOOTER_VIA, "Powered by zhaoolee/notes");
   assert.match(
     stateSource,
@@ -160,7 +160,7 @@ test("底部显示设置提供四角格、Logo 上传、双文本编辑、恢复
   );
   assert.match(
     wechatSource,
-    /JSON\.stringify\(\{ markdown, \.\.\.footer \}\)/,
+    /JSON\.stringify\(\{ markdown, theme, \.\.\.footer \}\)/,
   );
   assert.match(
     styles,

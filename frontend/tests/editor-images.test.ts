@@ -135,7 +135,10 @@ test("编辑器以内联图片块复刻锤子便签，并保留原生 textarea �
   assert.match(editorSource, /splitEditorContent\(markdown\)/);
   assert.match(editorSource, /className="markdown-editor-flow"/);
   assert.match(editorSource, /className={`editor-image-block\$\{/);
-  assert.match(editorSource, /className="markdown-editor editor-text-segment"/);
+  assert.match(
+    editorSource,
+    /className=\{`markdown-editor editor-text-segment\$\{/,
+  );
   assert.match(editorSource, /focusAfterImage\(image\.markerEnd\)/);
   assert.match(editorSource, /removeAdjacentImage\(/);
   assert.match(editorSource, /function requestImageDeletion\(/);

@@ -13,6 +13,12 @@ import {
   preserveMarkdownBlankLines,
   splitSections,
 } from "../lib/markdown.js";
+import {
+  getNoteCardThemeStyle,
+  type NoteCardThemeColors,
+  type NoteCardThemeStyle,
+} from "../lib/note-card-theme-styles.js";
+import type { NoteCardThemeId } from "../types/app.js";
 import { remarkManualLineParagraphs } from "./MarkdownText.js";
 
 interface WechatArticleProps {
@@ -20,20 +26,8 @@ interface WechatArticleProps {
   markdown: string;
   footerHammerUrl: string;
   footerVia: string;
+  theme: NoteCardThemeId;
 }
-
-const colors = {
-  accent: "#ac9070",
-  border: "rgba(220,209,191,0.88)",
-  code: "rgba(125,78,32,0.08)",
-  footer: "#d7cec1",
-  frame: "#e8e4dc",
-  heading: "rgba(70,53,38,0.96)",
-  muted: "#c0b5a7",
-  paper: "#fffcf7",
-  quoteMark: "#ded4c8",
-  text: "#665749",
-};
 
 // 微信使用紧凑正文尺寸；1.4× 只负责便签框体与留白，不再放大字体。
 const LAYOUT_SCALE = 1.4;
@@ -47,32 +41,65 @@ function scaledRem(value: number): string {
 }
 
 const bodyFontSize = "15px";
-const bodyLineHeight = 1.75;
 const quoteIndent = "18px";
 
-const baseHeadingStyle: CSSProperties = {
-  color: colors.heading,
-  fontWeight: 600,
-  letterSpacing: "0.03em",
-  lineHeight: 1.32,
-};
+interface WechatRenderContext {
+  baseHeadingStyle: CSSProperties;
+  bodyLineHeight: number;
+  bodyParagraphStyle: CSSProperties;
+  colors: NoteCardThemeColors;
+  letterSpacing: string;
+  themeStyle: NoteCardThemeStyle;
+}
 
-const bodyParagraphStyle: CSSProperties = {
-  margin: "0",
-  color: colors.text,
-  fontFamily:
-    '"OPPOSans","Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Helvetica Neue",Arial,sans-serif',
-  fontSize: bodyFontSize,
-  fontWeight: 400,
-  lineHeight: bodyLineHeight,
-  letterSpacing: "0.03em",
-  textAlign: "left",
-  whiteSpace: "pre-wrap",
-  overflowWrap: "anywhere",
-  wordBreak: "break-word",
-};
+function createWechatRenderContext(
+  theme: NoteCardThemeId,
+): WechatRenderContext {
+  const themeStyle = getNoteCardThemeStyle(theme);
+  const { colors } = themeStyle;
+  const bodyLineHeight = themeStyle.layout === "bear" ? 1.755 : 1.75;
+  const letterSpacing =
+    themeStyle.layout === "bear"
+      ? "0"
+      : themeStyle.layout === "apple"
+        ? "0.01em"
+        : "0.03em";
+  const headingWeight = themeStyle.layout === "bear" ? 400 : 600;
 
-function renderBlockquoteChildren(children: ReactNode): ReactNode {
+  return {
+    colors,
+    themeStyle,
+    bodyLineHeight,
+    letterSpacing,
+    baseHeadingStyle: {
+      color: colors.heading,
+      fontFamily: themeStyle.fontFamily,
+      fontWeight: headingWeight,
+      letterSpacing,
+      lineHeight: themeStyle.layout === "bear" ? 1.521 : 1.32,
+    },
+    bodyParagraphStyle: {
+      margin: "0",
+      color: colors.text,
+      fontFamily: themeStyle.fontFamily,
+      fontSize: bodyFontSize,
+      fontWeight: 400,
+      lineHeight: bodyLineHeight,
+      letterSpacing,
+      textAlign: "left",
+      whiteSpace: "pre-wrap",
+      overflowWrap: "anywhere",
+      wordBreak: "break-word",
+    },
+  };
+}
+
+function renderBlockquoteChildren(
+  children: ReactNode,
+  context: WechatRenderContext,
+): ReactNode {
+  const { colors, themeStyle } = context;
+  const isBear = themeStyle.layout === "bear";
   let hasQuoteMark = false;
 
   return Children.map(children, (child) => {
@@ -113,15 +140,17 @@ function renderBlockquoteChildren(children: ReactNode): ReactNode {
               display: "inline-block",
               width: quoteIndent,
               color: colors.quoteMark,
-              fontFamily: 'Georgia,"Times New Roman",serif',
-              fontSize: "26px",
+              fontFamily: isBear
+                ? themeStyle.fontFamily
+                : 'Georgia,"Times New Roman",serif',
+              fontSize: isBear ? "18px" : "26px",
               fontWeight: 400,
-              lineHeight: 0.82,
+              lineHeight: isBear ? 1 : 0.82,
               textIndent: "0",
-              verticalAlign: "-0.12em",
+              verticalAlign: isBear ? "-0.04em" : "-0.12em",
             }}
           >
-            “
+            {isBear ? "▎" : "“"}
           </span>
           {child.props.children}
         </>
@@ -132,7 +161,19 @@ function renderBlockquoteChildren(children: ReactNode): ReactNode {
   });
 }
 
-const components: Components = {
+function createMarkdownComponents(
+  context: WechatRenderContext,
+): Components {
+  const {
+    baseHeadingStyle,
+    bodyLineHeight,
+    bodyParagraphStyle,
+    colors,
+    themeStyle,
+  } = context;
+  const isBear = themeStyle.layout === "bear";
+
+  return {
   h1: ({ children }) => (
     <h1
       style={{
@@ -218,7 +259,7 @@ const components: Components = {
       style={{
         display: "inline",
         color: "inherit",
-        fontWeight: 600,
+        fontWeight: isBear ? 700 : 600,
         whiteSpace: "normal",
       }}
     >
@@ -244,7 +285,7 @@ const components: Components = {
         padding: "0",
         border: "0",
         backgroundColor: "transparent",
-        color: colors.muted,
+        color: colors.quote,
         fontSize: bodyFontSize,
         fontWeight: 400,
         lineHeight: 1.64,
@@ -252,7 +293,7 @@ const components: Components = {
         wordBreak: "break-word",
       }}
     >
-      {renderBlockquoteChildren(children)}
+      {renderBlockquoteChildren(children, context)}
     </blockquote>
   ),
   ul: ({ children }) => (
@@ -316,7 +357,7 @@ const components: Components = {
         padding: className ? "0" : "0.08em 0.32em",
         borderRadius: "0",
         background: className ? "transparent" : colors.code,
-        color: className ? colors.text : "#8a6548",
+        color: className ? colors.text : colors.codeText,
         fontFamily:
           '"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
         fontSize: className ? "13px" : "0.9em",
@@ -334,8 +375,8 @@ const components: Components = {
         overflow: "hidden",
         border: "0",
         borderRadius: "0",
-        background: "rgba(243,236,225,0.9)",
-        color: "rgba(97,79,61,0.94)",
+        background: colors.pre,
+        color: colors.preText,
         fontSize: "13px",
         fontWeight: 400,
         lineHeight: 1.62,
@@ -358,11 +399,13 @@ const components: Components = {
         width: "100% !important",
         maxWidth: "100% !important",
         margin: `${scaledPx(12)} auto ${scaledPx(2)}`,
-        padding: scaledPx(3),
-        border: "1px solid #ebe8e3",
+        padding: isBear ? "0" : scaledPx(3),
+        border: isBear ? "0" : `1px solid ${colors.imageFrame}`,
         borderRadius: "0",
-        backgroundColor: "#ffffff",
-        boxShadow: `0 ${scaledPx(1)} ${scaledPx(3)} rgba(88,70,52,0.07)`,
+        backgroundColor: colors.imageMat,
+        boxShadow: isBear
+          ? "none"
+          : `0 ${scaledPx(1)} ${scaledPx(3)} ${colors.imageShadow}`,
         clear: "both",
         overflow: "hidden !important",
       }}
@@ -407,7 +450,7 @@ const components: Components = {
       style={{
         padding: `${scaledRem(0.35)} ${scaledRem(0.45)}`,
         border: `1px solid ${colors.border}`,
-        background: "rgba(243,236,225,0.65)",
+        background: colors.tableHead,
         color: colors.heading,
         fontWeight: 600,
         textAlign: "left",
@@ -445,9 +488,19 @@ const components: Components = {
       style={{ marginRight: "6px", accentColor: colors.accent }}
     />
   ),
-};
+  };
+}
 
-function SectionHeading({ children }: { children: string }) {
+function SectionHeading({
+  children,
+  components,
+  context,
+}: {
+  children: string;
+  components: Components;
+  context: WechatRenderContext;
+}) {
+  const { baseHeadingStyle, colors, themeStyle } = context;
   const titleComponents: Components = {
     ...components,
     p: ({ children: titleChildren }) => (
@@ -464,7 +517,7 @@ function SectionHeading({ children }: { children: string }) {
             margin: "0",
             color: colors.heading,
             fontSize: "17px",
-            lineHeight: 1.4,
+            lineHeight: themeStyle.layout === "bear" ? 1.521 : 1.4,
             textAlign: "start",
           }}
         >
@@ -481,7 +534,16 @@ function SectionHeading({ children }: { children: string }) {
   );
 }
 
-function CenteredBodyLine({ children }: { children: string }) {
+function CenteredBodyLine({
+  children,
+  components,
+  context,
+}: {
+  children: string;
+  components: Components;
+  context: WechatRenderContext;
+}) {
+  const { bodyParagraphStyle } = context;
   const centeredComponents: Components = {
     ...components,
     p: ({ children: lineChildren }) => (
@@ -566,8 +628,10 @@ const cornerPositions = [
 ] as const;
 
 function FrameCornerCell({
+  colors,
   position,
 }: {
+  colors: NoteCardThemeColors;
   position: (typeof cornerPositions)[number];
 }) {
   return (
@@ -599,13 +663,25 @@ export function WechatArticle({
   markdown,
   footerHammerUrl,
   footerVia,
+  theme,
 }: WechatArticleProps) {
+  const context = createWechatRenderContext(theme);
+  const {
+    bodyLineHeight,
+    colors,
+    letterSpacing,
+    themeStyle,
+  } = context;
+  const components = createMarkdownComponents(context);
   const sections = splitSections(markdown);
+  const isSmartisan = themeStyle.layout === "smartisan";
+  const isApple = themeStyle.layout === "apple";
 
   return (
     <section
-      data-tool="锤子便签Skill"
-      data-smartisan-theme="warm-paper"
+      data-tool="开源版锤子便签"
+      data-note-card-theme={theme}
+      data-smartisan-theme={theme}
       style={{
         boxSizing: "border-box",
         margin: "0 auto",
@@ -614,12 +690,11 @@ export function WechatArticle({
         maxWidth: "100%",
         backgroundColor: "transparent",
         color: colors.text,
-        fontFamily:
-          '"OPPOSans","Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Helvetica Neue",Arial,sans-serif',
+        fontFamily: themeStyle.fontFamily,
         fontSize: bodyFontSize,
         fontWeight: 400,
         lineHeight: bodyLineHeight,
-        letterSpacing: "0.03em",
+        letterSpacing,
         wordBreak: "break-word",
       }}
     >
@@ -628,15 +703,38 @@ export function WechatArticle({
         style={{
           boxSizing: "border-box",
           margin: "0 auto",
-          padding: `${scaledPx(15)} ${scaledPx(6.6667)} 0`,
+          padding:
+            themeStyle.layout === "bear"
+              ? `${scaledPx(20)} ${scaledPx(18)} 0`
+              : `${scaledPx(15)} ${scaledPx(6.6667)} 0`,
           paddingBottom: "12%",
           width: "100%",
           maxWidth: scaledPx(330),
           border: "0",
           backgroundColor: colors.paper,
-          boxShadow: `0 ${scaledPx(12)} ${scaledPx(21)} rgba(89,65,34,0.12)`,
+          boxShadow: themeStyle.wechatPaperShadow,
         }}
       >
+        {isApple ? (
+          <section
+            data-note-apple-toolbar="true"
+            style={{
+              boxSizing: "border-box",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              margin: `0 ${scaledPx(6)} ${scaledPx(14)}`,
+              color: colors.accent,
+              fontFamily: themeStyle.fontFamily,
+              fontSize: "14px",
+              fontWeight: 400,
+              lineHeight: 1.2,
+            }}
+          >
+            <span>‹ 备忘录</span>
+            <span style={{ letterSpacing: "0.55em" }}>⇧ ✎</span>
+          </section>
+        ) : null}
         <table
           data-smartisan-frame="outer"
           role="presentation"
@@ -660,7 +758,7 @@ export function WechatArticle({
           </colgroup>
           <tbody>
             <tr>
-              <FrameCornerCell position="top-left" />
+              <FrameCornerCell colors={colors} position="top-left" />
               <td
                 aria-hidden="true"
                 height="6"
@@ -675,7 +773,7 @@ export function WechatArticle({
               >
                 {"\u00a0"}
               </td>
-              <FrameCornerCell position="top-right" />
+              <FrameCornerCell colors={colors} position="top-right" />
             </tr>
             <tr>
               <td
@@ -693,19 +791,24 @@ export function WechatArticle({
               >
                 {"\u00a0"}
               </td>
-              <td style={{ padding: scaledPx(2), border: "0" }}>
+              <td style={{ padding: isSmartisan ? scaledPx(2) : "0", border: "0" }}>
                 <section
                   data-smartisan-frame="inner"
                   style={{
                     boxSizing: "border-box",
-                    padding: `${scaledPx(31.5)} ${scaledPx(19.8333)} ${scaledPx(14)}`,
-                    border: `1px solid ${colors.frame}`,
+                    padding:
+                      themeStyle.layout === "bear"
+                        ? `0 0 ${scaledPx(14)}`
+                        : isApple
+                          ? `${scaledPx(10)} ${scaledPx(16)} ${scaledPx(14)}`
+                          : `${scaledPx(31.5)} ${scaledPx(19.8333)} ${scaledPx(14)}`,
+                    border: isSmartisan ? `1px solid ${colors.frame}` : "0",
                     backgroundColor: colors.paper,
                     color: colors.text,
                     fontSize: bodyFontSize,
                     fontWeight: 400,
                     lineHeight: bodyLineHeight,
-                    letterSpacing: "0.03em",
+                    letterSpacing,
                     overflowWrap: "anywhere",
                     wordBreak: "break-word",
                   }}
@@ -725,11 +828,19 @@ export function WechatArticle({
                       >
                         {section.heading ? (
                           section.headingAlignment === "center" ? (
-                            <CenteredBodyLine>
+                            <CenteredBodyLine
+                              components={components}
+                              context={context}
+                            >
                               {section.heading}
                             </CenteredBodyLine>
                           ) : (
-                            <SectionHeading>{section.heading}</SectionHeading>
+                            <SectionHeading
+                              components={components}
+                              context={context}
+                            >
+                              {section.heading}
+                            </SectionHeading>
                           )
                         ) : null}
                         <ReactMarkdown
@@ -750,7 +861,7 @@ export function WechatArticle({
                     <p
                       style={{
                         margin: `${scaledPx(18)} 0`,
-                        color: colors.muted,
+                        color: colors.quote,
                         fontSize: bodyFontSize,
                         fontWeight: 400,
                         lineHeight: bodyLineHeight,
@@ -779,7 +890,7 @@ export function WechatArticle({
               </td>
             </tr>
             <tr>
-              <FrameCornerCell position="bottom-left" />
+              <FrameCornerCell colors={colors} position="bottom-left" />
               <td
                 aria-hidden="true"
                 height="6"
@@ -794,7 +905,7 @@ export function WechatArticle({
               >
                 {"\u00a0"}
               </td>
-              <FrameCornerCell position="bottom-right" />
+              <FrameCornerCell colors={colors} position="bottom-right" />
             </tr>
           </tbody>
         </table>
@@ -829,6 +940,8 @@ export function WechatArticle({
               borderRadius: "50%",
               backgroundColor: "transparent",
               objectFit: "contain",
+              filter: themeStyle.footerLogoFilter,
+              opacity: themeStyle.footerLogoOpacity,
               verticalAlign: "middle",
             }}
           />
@@ -848,6 +961,7 @@ export function WechatArticle({
             <span
               style={{
                 marginLeft: scaledPx(5),
+                color: colors.footerVia,
                 fontSize: scaledRem(0.42),
                 fontWeight: 400,
               }}

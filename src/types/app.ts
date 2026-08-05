@@ -1,10 +1,21 @@
 export type ThemeId = "default" | "smartisan-dark";
+export type NoteCardThemeId =
+  | ThemeId
+  | "apple-notes"
+  | "apple-notes-light"
+  | "bear";
 export type ThemePreferenceId = ThemeId | "system";
 
 export type CopyState = "idle" | "copied" | "failed";
 
 export interface ThemeOption {
   id: ThemePreferenceId;
+  label: string;
+  description: string;
+}
+
+export interface NoteCardThemeOption {
+  id: NoteCardThemeId;
   label: string;
   description: string;
 }

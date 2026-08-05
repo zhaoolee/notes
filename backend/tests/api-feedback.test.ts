@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
+import { inflateRawSync } from "node:zlib";
 import {
   createQiniuSdkConfig,
   parseQiniuUploadTimeoutMs,
@@ -37,6 +38,7 @@ interface WechatPreparation {
   imageCount: number;
   uploadedImageCount: number;
   reusedImageCount: number;
+  theme: "default" | "smartisan-dark" | "apple-notes" | "apple-notes-light" | "bear";
 }
 
 function createFeedbackQiniuConfig(uploadUrls: string[] = []): QiniuConfig {
@@ -55,6 +57,35 @@ function getShanghaiDateKey(now = new Date()): string {
   return new Date(now.getTime() + 8 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 10);
+}
+
+function readZipEntries(buffer: Buffer): Map<string, Buffer> {
+  const entries = new Map<string, Buffer>();
+  let offset = 0;
+
+  while (
+    offset + 30 <= buffer.length &&
+    buffer.readUInt32LE(offset) === 0x04034b50
+  ) {
+    const compressionMethod = buffer.readUInt16LE(offset + 8);
+    const compressedLength = buffer.readUInt32LE(offset + 18);
+    const filenameLength = buffer.readUInt16LE(offset + 26);
+    const extraLength = buffer.readUInt16LE(offset + 28);
+    const filenameStart = offset + 30;
+    const dataStart = filenameStart + filenameLength + extraLength;
+    const filename = buffer
+      .subarray(filenameStart, filenameStart + filenameLength)
+      .toString("utf8");
+    const compressed = buffer.subarray(dataStart, dataStart + compressedLength);
+
+    entries.set(
+      filename,
+      compressionMethod === 8 ? inflateRawSync(compressed) : compressed,
+    );
+    offset = dataStart + compressedLength;
+  }
+
+  return entries;
 }
 
 async function getUnusedPort(): Promise<number> {
@@ -246,6 +277,45 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.equal(imageResponse.status, 200);
     assert.deepEqual(Buffer.from(await imageResponse.arrayBuffer()), png);
 
+    const themedArchiveResponse = await fetch(`${baseUrl}/api/archive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        markdown: "# Apple 归档\n\n正文",
+        theme: "apple-notes",
+      }),
+    });
+    assert.equal(themedArchiveResponse.status, 200);
+    assert.equal(
+      themedArchiveResponse.headers.get("X-Archive-Theme"),
+      "apple-notes",
+    );
+    const themedArchiveEntries = readZipEntries(
+      Buffer.from(await themedArchiveResponse.arrayBuffer()),
+    );
+    const themedArchiveHtmlEntry = Array.from(themedArchiveEntries.entries())
+      .find(([filename]) => filename.endsWith("/index.html"));
+    assert.ok(themedArchiveHtmlEntry);
+    const themedArchiveHtml = themedArchiveHtmlEntry[1].toString("utf8");
+    assert.match(
+      themedArchiveHtml,
+      /<body data-note-card-theme="apple-notes">/,
+    );
+    assert.match(themedArchiveHtml, /--paper: #181818;/);
+    assert.match(themedArchiveHtml, /--note-link: #ebb800;/);
+    assert.match(
+      themedArchiveHtml,
+      /body\[data-note-card-theme\^="apple-notes"\] \.note-apple-toolbar/,
+    );
+    assert.match(themedArchiveHtml, /class="note-apple-toolbar"/);
+
+    const invalidArchiveThemeResponse = await fetch(`${baseUrl}/api/archive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ markdown: "无效归档主题", theme: "unknown-theme" }),
+    });
+    assert.equal(invalidArchiveThemeResponse.status, 400);
+
     const publicImageBaseUrl = "https://notes.example.invalid";
     const wechatResponse = await fetch(`${baseUrl}/api/wechat`, {
       method: "POST",
@@ -258,6 +328,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
         footerBrand: "由 API 自定义发送",
         footerLogoUrl: imported.path,
         footerVia: "via API Feedback",
+        theme: "default",
         markdown: [
           "[公众号测试]",
           "",
@@ -282,6 +353,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
       "https://notes.fangyuanxiaozhan.com/images/b5d3bd9587fa9a1226b25a0709ff61a450df29d96ca2f127c6afc0b8e193a60e.png";
 
     assert.equal(wechat.imageCount, 2);
+    assert.equal(wechat.theme, "default");
     assert.equal(wechat.uploadedImageCount, 1);
     assert.equal(wechat.reusedImageCount, 2);
     assert.equal(wechat.anonymousQuota?.limit, 500);
@@ -316,11 +388,12 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
       ),
     ) as { deleteAfterDays?: number };
     assert.equal(uploadPolicy.deleteAfterDays, 1);
-    assert.match(wechat.html, /data-tool="锤子便签Skill"/);
-    assert.match(wechat.html, /data-smartisan-theme="warm-paper"/);
+    assert.match(wechat.html, /data-tool="开源版锤子便签"/);
+    assert.match(wechat.html, /data-note-card-theme="default"/);
+    assert.match(wechat.html, /data-smartisan-theme="default"/);
     assert.match(
       wechat.html,
-      /data-smartisan-theme="warm-paper" style="[^"]*padding:0[^"]*background-color:transparent/,
+      /data-smartisan-theme="default" style="[^"]*padding:0[^"]*background-color:transparent/,
     );
     assert.match(wechat.html, /data-smartisan-paper="true"/);
     assert.match(
@@ -456,6 +529,30 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     );
     assert.doesNotMatch(wechat.html, /src="data:/);
     assert.doesNotMatch(wechat.html, /<link\b[^>]*rel="preload"/);
+
+    const bearWechatResponse = await fetch(`${baseUrl}/api/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        markdown: "> Bear 引用\n\nBear 正文",
+        theme: "bear",
+      }),
+    });
+    assert.equal(bearWechatResponse.status, 200);
+    const bearWechat = (await bearWechatResponse.json()) as WechatPreparation;
+    assert.equal(bearWechat.theme, "bear");
+    assert.match(bearWechat.html, /data-note-card-theme="bear"/);
+    assert.match(bearWechat.html, /background-color:#ffffff/);
+    assert.match(bearWechat.html, /color:#dd4c4f/);
+    assert.match(bearWechat.html, />▎<\/span>Bear 引用/);
+    assert.doesNotMatch(bearWechat.html, /data-note-apple-toolbar="true"/);
+
+    const invalidWechatThemeResponse = await fetch(`${baseUrl}/api/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ markdown: "无效主题", theme: "unknown-theme" }),
+    });
+    assert.equal(invalidWechatThemeResponse.status, 400);
 
     const adminLoginResponse = await fetch(
       `${baseUrl}/api/superadmin/login`,

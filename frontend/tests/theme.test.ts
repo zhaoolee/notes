@@ -47,7 +47,7 @@ test("自动适应选项在设置中可选择并说明会跟随系统", () => {
   );
 });
 
-test("应用监听系统明暗变化并只把解析后的主题用于页面和导出", () => {
+test("应用监听系统明暗变化，页面使用全局主题而导出使用卡片配色", () => {
   const appSource = readFileSync("src/App.tsx", "utf8");
   const hookSource = readFileSync("src/lib/use-theme.ts", "utf8");
   const styles = readFileSync("src/styles.css", "utf8");
@@ -57,7 +57,7 @@ test("应用监听系统明暗变化并只把解析后的主题用于页面和�
   assert.match(hookSource, /mediaQuery\.removeEventListener\("change", handleChange\)/);
   assert.match(appSource, /const resolvedTheme = useResolvedTheme\(selectedTheme\)/);
   assert.match(appSource, /document\.documentElement\.dataset\.theme = resolvedTheme/);
-  assert.match(appSource, /exportMarkdownAsPng\(markdown, resolvedTheme,/);
+  assert.match(appSource, /exportMarkdownAsPng\(markdown, noteCardTheme,/);
   assert.match(appSource, /data-theme=\{resolvedTheme\}/);
   assert.match(appSource, /data-theme-preference=\{selectedTheme\}/);
   assert.match(

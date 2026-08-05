@@ -1,5 +1,13 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
-import type { NoteSection } from "../types/app";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+} from "react";
+import { NOTE_CARD_THEME_OPTIONS } from "../lib/themes.js";
+import type { NoteCardThemeId, NoteSection } from "../types/app.js";
 import { NoteSheet } from "./NoteSheet.js";
 
 interface PreviewPanelProps {
@@ -8,8 +16,10 @@ interface PreviewPanelProps {
   footerBrand: string;
   footerLogoUrl: string;
   footerVia: string;
+  noteCardTheme: NoteCardThemeId;
   onFooterBrandChange: (footerBrand: string) => void;
   onFooterViaChange: (footerVia: string) => void;
+  onNoteCardThemeChange: (theme: NoteCardThemeId) => void;
 }
 
 interface FooterTextEditorProps {
@@ -23,6 +33,127 @@ const BASE_NOTE_WIDTH = 330;
 const DESKTOP_NOTE_SCALE = 2;
 const MOBILE_NOTE_SCALE = 1.4;
 const MOBILE_BREAKPOINT = 640;
+
+interface NoteCardThemePickerProps {
+  value: NoteCardThemeId;
+  onChange: (theme: NoteCardThemeId) => void;
+}
+
+function NoteCardThemePicker({ value, onChange }: NoteCardThemePickerProps) {
+  const popoverId = useId();
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const activeOption = NOTE_CARD_THEME_OPTIONS.find(
+    (option) => option.id === value,
+  );
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (
+        event.target instanceof Node &&
+        !containerRef.current?.contains(event.target)
+      ) {
+        setIsOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      setIsOpen(false);
+      triggerRef.current?.focus();
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown, true);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [isOpen]);
+
+  function handleSelect(theme: NoteCardThemeId) {
+    onChange(theme);
+    setIsOpen(false);
+    triggerRef.current?.focus();
+  }
+
+  return (
+    <div className="preview-theme-control" ref={containerRef}>
+      {isOpen ? (
+        <div
+          className="preview-theme-popover"
+          id={popoverId}
+          role="menu"
+          aria-label="选择预览卡片配色"
+        >
+          <p className="preview-theme-popover-title">卡片配色</p>
+          <div className="preview-theme-options">
+            {NOTE_CARD_THEME_OPTIONS.map((option) => {
+              const isActive = option.id === value;
+
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={isActive}
+                  className={`preview-theme-option${isActive ? " is-active" : ""}`}
+                  onClick={() => handleSelect(option.id)}
+                >
+                  <span
+                    className="preview-theme-swatch"
+                    data-preview-theme={option.id}
+                    aria-hidden="true"
+                  />
+                  <span className="preview-theme-option-copy">
+                    <strong>{option.label}</strong>
+                    <small>{option.description}</small>
+                  </span>
+                  <span className="preview-theme-option-check" aria-hidden="true">
+                    {isActive ? "✓" : ""}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      <button
+        ref={triggerRef}
+        type="button"
+        className="preview-theme-trigger"
+        aria-label={`切换预览卡片配色，当前${activeOption?.label ?? "默认配色"}`}
+        aria-controls={popoverId}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        onClick={() => setIsOpen((open) => !open)}
+      >
+        <span
+          className="preview-theme-trigger-swatch"
+          data-preview-theme={value}
+          aria-hidden="true"
+        >
+          <i />
+          <i />
+          <i />
+        </span>
+        <span>配色</span>
+      </button>
+    </div>
+  );
+}
 
 function FooterTextEditor({ className, value, maxLength, onChange }: FooterTextEditorProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -90,8 +221,10 @@ export function PreviewPanel({
   footerBrand,
   footerLogoUrl,
   footerVia,
+  noteCardTheme,
   onFooterBrandChange,
   onFooterViaChange,
+  onNoteCardThemeChange,
 }: PreviewPanelProps) {
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [noteScale, setNoteScale] = useState(DESKTOP_NOTE_SCALE);
@@ -138,27 +271,37 @@ export function PreviewPanel({
       {exportError ? <p className="export-status">{exportError}</p> : null}
 
       <div className="preview-stage" ref={stageRef} style={previewStyle}>
-        <NoteSheet
-          notes={notes}
-          footerLogoUrl={footerLogoUrl}
-          footerBrand={
-            <FooterTextEditor
-              className="sheet-footer-brand"
-              value={footerBrand}
-              maxLength={80}
-              onChange={onFooterBrandChange}
-            />
-          }
-          footerVia={
-            <FooterTextEditor
-              className="sheet-footer-via"
-              value={footerVia}
-              maxLength={80}
-              onChange={onFooterViaChange}
-            />
-          }
-        />
+        <div
+          className="preview-card-theme"
+          data-preview-theme={noteCardTheme}
+        >
+          <NoteSheet
+            notes={notes}
+            footerLogoUrl={footerLogoUrl}
+            footerBrand={
+              <FooterTextEditor
+                className="sheet-footer-brand"
+                value={footerBrand}
+                maxLength={80}
+                onChange={onFooterBrandChange}
+              />
+            }
+            footerVia={
+              <FooterTextEditor
+                className="sheet-footer-via"
+                value={footerVia}
+                maxLength={80}
+                onChange={onFooterViaChange}
+              />
+            }
+          />
+        </div>
       </div>
+
+      <NoteCardThemePicker
+        value={noteCardTheme}
+        onChange={onNoteCardThemeChange}
+      />
     </main>
   );
 }

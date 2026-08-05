@@ -1,9 +1,12 @@
+import type { NoteCardThemeId } from "../types/app.js";
+
 interface WechatPreparationResult {
   html: string;
   markdown: string;
   imageCount: number;
   uploadedImageCount: number;
   reusedImageCount: number;
+  theme: NoteCardThemeId;
 }
 
 interface WechatErrorPayload {
@@ -30,6 +33,7 @@ async function readWechatError(response: Response): Promise<string> {
 
 async function prepareWechatArticle(
   markdown: string,
+  theme: NoteCardThemeId,
   footer?: WechatFooterOptions,
 ): Promise<WechatPreparationResult> {
   const response = await fetch("/api/wechat", {
@@ -37,14 +41,22 @@ async function prepareWechatArticle(
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ markdown, ...footer }),
+    body: JSON.stringify({ markdown, theme, ...footer }),
   });
 
   if (!response.ok) {
     throw new Error(await readWechatError(response));
   }
 
-  return (await response.json()) as WechatPreparationResult;
+  const result = (await response.json()) as WechatPreparationResult;
+
+  if (result.theme !== theme) {
+    throw new Error(
+      "公众号服务尚未更新到当前配色版本，请重启后端服务后再复制。",
+    );
+  }
+
+  return result;
 }
 
 function fallbackCopyRichHtml(html: string): void {
@@ -80,9 +92,10 @@ function fallbackCopyRichHtml(html: string): void {
 
 export async function copyMarkdownForWechat(
   markdown: string,
+  theme: NoteCardThemeId,
   footer?: WechatFooterOptions,
 ): Promise<WechatPreparationResult> {
-  const preparation = prepareWechatArticle(markdown, footer);
+  const preparation = prepareWechatArticle(markdown, theme, footer);
 
   if (
     typeof navigator !== "undefined" &&

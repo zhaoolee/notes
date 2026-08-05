@@ -1,5 +1,8 @@
 import { EXPORT_RETRY_BASE_DELAY_MS, EXPORT_RETRY_LIMIT, EXPORT_REQUEST_TIMEOUT_MS } from "./export-config.js";
-import type { NoteWorkspace, ThemeId } from "../types/app.js";
+import type {
+  NoteCardThemeId,
+  NoteWorkspace,
+} from "../types/app.js";
 import { ExportError } from "../types/app.js";
 
 interface ExportErrorPayload {
@@ -178,7 +181,7 @@ function shouldRetryExport(error: unknown): error is ExportError {
 async function tryServerExport(
   markdown: string,
   filename: string,
-  theme: ThemeId,
+  theme: NoteCardThemeId,
   footer: ExportFooterOptions,
 ): Promise<Blob> {
   const maxAttempts = EXPORT_RETRY_LIMIT + 1;
@@ -214,6 +217,19 @@ async function tryServerExport(
         });
       }
 
+      const renderedTheme = response.headers.get("X-Export-Theme");
+
+      if (renderedTheme !== theme) {
+        throw new ExportError(
+          "导出服务尚未更新到当前配色版本，请重启后端服务后再保存图片。",
+          {
+            status: 409,
+            retriable: false,
+            attempts: attempt,
+          },
+        );
+      }
+
       return response.blob();
     } catch (error) {
       const normalizedError = normalizeExportError(error, attempt);
@@ -235,7 +251,7 @@ async function tryServerExport(
 
 export async function exportMarkdownAsPng(
   markdown: string,
-  theme: ThemeId,
+  theme: NoteCardThemeId,
   footer: ExportFooterOptions,
 ): Promise<void> {
   const filename = buildExportFilename();
@@ -245,6 +261,7 @@ export async function exportMarkdownAsPng(
 
 export async function exportMarkdownArchive(
   markdown: string,
+  theme: NoteCardThemeId,
   footer: ExportFooterOptions,
 ): Promise<void> {
   const response = await fetch("/api/archive", {
@@ -257,6 +274,7 @@ export async function exportMarkdownArchive(
       footerLogoUrl: footer.footerLogoUrl,
       footerVia: footer.footerVia,
       markdown,
+      theme,
     }),
   });
 
@@ -265,6 +283,16 @@ export async function exportMarkdownArchive(
       status: response.status,
       retriable: false,
     });
+  }
+
+  if (response.headers.get("X-Archive-Theme") !== theme) {
+    throw new ExportError(
+      "归档服务尚未更新到当前配色版本，请重启后端服务后再下载。",
+      {
+        status: 409,
+        retriable: false,
+      },
+    );
   }
 
   const filename = getFilenameFromContentDisposition(

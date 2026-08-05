@@ -1297,7 +1297,11 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
                     textareaRefs.current.delete(blockIndex);
                   }
                 }}
-                className="markdown-editor editor-text-segment"
+                className={`markdown-editor editor-text-segment${
+                  blockIndex === editorContent.length - 1
+                    ? " is-last-text-segment"
+                    : ""
+                }`}
                 aria-label={
                   editorContent.length === 1
                     ? "便签正文"
