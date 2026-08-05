@@ -313,7 +313,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        markdown: "正文一\n\n正文二\n\n## Bear 分节\n\n正文三",
+        markdown: "正文一与**重点文字**\n\n正文二\n\n## Bear 分节\n\n正文三",
         theme: "bear",
       }),
     });
@@ -339,6 +339,11 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
       bearArchiveHtml,
       /\.note-copy \.markdown-blank-line \{\s*height: var\(--bear-block-gap\);/,
     );
+    assert.match(
+      bearArchiveHtml,
+      /body\[data-note-card-theme="bear"\] \.note-copy strong \{\s*color: var\(--note-link\);\s*font-weight: 700;/,
+    );
+    assert.match(bearArchiveHtml, /<strong>重点文字<\/strong>/);
     assert.doesNotMatch(bearArchiveHtml, /data-note-apple-toolbar="true"/);
 
     const telegraphArchiveResponse = await fetch(`${baseUrl}/api/archive`, {
@@ -608,7 +613,7 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        markdown: "> Bear 引用\n\nBear 正文",
+        markdown: "> Bear 引用\n\nBear **重点文字**与[链接](https://example.com)",
         theme: "bear",
       }),
     });
@@ -619,6 +624,10 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.match(bearWechat.html, /background-color:#ffffff/);
     assert.match(bearWechat.html, /color:#dd4c4f/);
     assert.match(bearWechat.html, />▎<\/span>Bear 引用/);
+    assert.match(
+      bearWechat.html,
+      /<strong style="[^"]*color:#dd4c4f;[^"]*font-weight:700[^"]*">重点文字<\/strong>/,
+    );
     assert.doesNotMatch(bearWechat.html, /data-note-apple-toolbar="true"/);
 
     const telegraphWechatResponse = await fetch(`${baseUrl}/api/wechat`, {

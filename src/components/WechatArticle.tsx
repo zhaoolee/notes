@@ -294,7 +294,7 @@ function createMarkdownComponents(
     <strong
       style={{
         display: "inline",
-        color: "inherit",
+        color: isBear ? colors.accent : "inherit",
         fontWeight: isBear || isTelegraph ? 700 : 600,
         whiteSpace: "normal",
       }}

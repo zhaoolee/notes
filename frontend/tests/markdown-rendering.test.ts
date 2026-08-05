@@ -686,6 +686,42 @@ test("WechatArticle 为 Telegra.ph 保留原站正文节奏与引用线", () => 
   assert.doesNotMatch(html, />[“▎]<\/span>引用内容/);
 });
 
+test("WechatArticle 只把 Bear 粗体渲染为链接红色", () => {
+  const markdown = "普通正文，**重点文字**，以及[链接](https://example.com)";
+  const bearHtml = renderToStaticMarkup(
+    createElement(WechatArticle, {
+      footerBrand: "Bear 粗体测试",
+      footerHammerUrl: "https://cdn.example.com/hammer.png",
+      footerVia: "via Feedback",
+      markdown,
+      theme: "bear",
+    }),
+  );
+  const defaultHtml = renderToStaticMarkup(
+    createElement(WechatArticle, {
+      footerBrand: "默认粗体测试",
+      footerHammerUrl: "https://cdn.example.com/hammer.png",
+      footerVia: "via Feedback",
+      markdown,
+      theme: "default",
+    }),
+  );
+
+  assert.match(
+    bearHtml,
+    /<strong style="[^"]*color:#dd4c4f;[^"]*font-weight:700[^"]*">重点文字<\/strong>/,
+  );
+  assert.match(
+    bearHtml,
+    /<a href="https:\/\/example\.com" style="[^"]*color:#dd4c4f[^"]*">链接<\/a>/,
+  );
+  assert.match(
+    defaultHtml,
+    /<strong style="[^"]*color:inherit;[^"]*font-weight:600[^"]*">重点文字<\/strong>/,
+  );
+  assert.doesNotMatch(defaultHtml, /<strong style="[^"]*color:#dd4c4f/);
+});
+
 test("WechatArticle 只为 Bear 收紧分节间隔并保持既有空行", () => {
   const markdown = "正文一\n\n正文二\n\n## Bear 分节\n\n正文三";
   const bearHtml = renderToStaticMarkup(

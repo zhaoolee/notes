@@ -3803,6 +3803,7 @@ body,
 }
 
 .preview-card-theme[data-preview-theme="bear"] .note-copy strong {
+  color: var(--bear-accent);
   font-weight: 700;
 }
 

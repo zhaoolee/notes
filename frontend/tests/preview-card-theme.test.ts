@@ -228,6 +228,14 @@ test("卡片主题覆盖完整纸张 token，页面其余区域继续使用全�
   );
   assert.match(
     styles,
+    /\.preview-card-theme\[data-preview-theme="bear"\] \.note-copy strong\s*\{[^}]*color:\s*var\(--bear-accent\);[^}]*font-weight:\s*700;/s,
+  );
+  assert.doesNotMatch(
+    styles,
+    /\.preview-card-theme\[data-preview-theme="(?:default|smartisan-dark|apple-notes|apple-notes-light|telegraph)"\] \.note-copy strong\s*\{[^}]*color:\s*var\(--bear-accent\);/s,
+  );
+  assert.match(
+    styles,
     /\.preview-card-theme\[data-preview-theme="bear"\] \.note-copy blockquote::before\s*\{[^}]*content:\s*"";[^}]*box-sizing:\s*content-box;[^}]*top:\s*0\.2em;[^}]*bottom:\s*auto;[^}]*left:\s*1em;[^}]*width:\s*0\.13em;[^}]*height:\s*calc\(100% - 0\.4em\);[^}]*border:\s*0\.0667em solid var\(--bear-accent\);[^}]*font-size:\s*inherit;/s,
   );
   assert.match(

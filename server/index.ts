@@ -1670,6 +1670,7 @@ ${fontFaceCss}
       }
 
       body[data-note-card-theme="bear"] .note-copy strong {
+        color: var(--note-link);
         font-weight: 700;
       }
 

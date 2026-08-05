@@ -64,6 +64,10 @@ PNG 导出使用当前卡片主题，Playwright 也只接收最终的
 `#f5f8fc`。该主题在 `src/styles.css`、离线归档内嵌 CSS 与 `WechatArticle` 中分别
 以 `telegraph` 作用域实现，不能复用 Bear 或锤子便签的排版选择器。
 
+Bear 的正文粗体与链接共用 `#dd4c4f` 强调色，并保持 `700` 字重；这条规则必须分别
+同步到网页预览与 PNG、离线归档内嵌 CSS、公众号内联样式，且只能在 `bear` 作用域
+生效，另外五种主题的粗体继续继承各自正文颜色。
+
 卡片主题选择器的视觉图标仍由主题自身作用域控制。Bear 使用
 `public/bear-theme-icon.png`，同一资源同时用于右下角当前主题按钮与展开后的主题
 列表；CSS 必须使用 `/bear-theme-icon.png` 的 public 根路径，不能把图片编码进样式表。
