@@ -2,6 +2,49 @@
 
 本文件只记录已从代码或 feedback 测试中确认、预计会影响后续任务的信息。临时调试输出和未经验证的推测不写入这里。
 
+## 2026-08-10：DeepSeek Harness 便签导出插件 @zhaoolee/dsh-notes
+
+- `dsh-plugin/` 是仓库内的 DeepSeek Harness **Host 工具插件**包（包名 `@zhaoolee/dsh-notes`，
+  `dsh.bundle.patch → cordis.patch.yml`），安装后智能体获得 `notes_export_conversation`
+  工具。**分级模式**：
+  - 已配置 `NOTES_API_BASE_URL`（+ token 或用户名密码）：把对话作为便签写入当前账号
+    云端工作区（新建或按 `note_id` 更新），返回 `{action, note_id, title, url,
+    file_path, updated_at, server}`，`url` 为 `${baseUrl}/#note=<id>&view=preview`。
+  - 未配置任何用户信息：回退默认演示服务器 `https://notes.fangyuanxiaozhan.com`
+    （可用 `NOTES_DEMO_SERVER`/`demoServer` 覆盖）的**匿名导出接口**
+    `POST /api/export`（无需登录，返回 PNG 字节 + `X-Export-Url`/`X-Export-Theme`
+    响应头），把对话渲染成锤子便签长图 PNG，经 `savePngToTempFile` 落盘到
+    `os.tmpdir()/dsh-notes-*/` 随机私有目录（POSIX 目录 `0700`、文件 `0600`），返回
+    `action: "exported-image"` + `file_path`；
+    匿名模式不能写入便签列表。`theme` 参数仅在图片模式生效（6 种主题）。
+  - 决策入口：`readConfiguredBaseUrl()`（未配置返回 undefined，不抛错）→
+    `resolveDemoServer()`；写入模式才用 `resolveServiceConfig()`（缺地址抛错）。
+- 配置优先级：插件 config → 进程环境变量 `NOTES_API_BASE_URL`（写入模式必填）、
+  `NOTES_API_TOKEN`（或 `NOTES_API_USERNAME`/`NOTES_API_PASSWORD` 一次性申请 token，
+  仅内存）。不探测本地端口；公共演示服务器仅在完全未配置时作为匿名导出回退。
+- 读写逻辑与 `skills/notes-export-api/scripts/notes_api.mjs` 一致：整工作区读改写、
+  `expectedUpdatedAt` 乐观并发、409 自动重读最多重试 4 次；新建便签
+  `normalOrder = 最小-1`、置顶取 `max(now, 最新 pinnedAt+1)`、插入数组头部；
+  更新只替换 Markdown（未显式传入的 folder/starred/pinned 保留原值）。
+- `src/notes-client.ts` 不 import 任何 dsh 包，可在仓库 tsx 下独立测试；
+  `src/index.ts` 的 Config 用「值 + 同名 interface」写法（schemastery 的
+  `Schema` 类型没有具名导出，不能 `import type { Schema }`）；execute 返回类型显式标注
+  为 `ExportToolOutput`（snake_case），避免对象字面量联合把 `action` 拓宽成 string。
+- feedback：`npm run test:dsh-plugin` 含 mock fetch 单元测试 + 真实后端 e2e（临时
+  `DATA_STORAGE_DIR`/`IMAGE_STORAGE_DIR` + 随机 PORT + 临时 SUPERADMIN，不碰真实
+  `storage/data`）；e2e 同时覆盖写入便签与匿名导出图片两条链路；已接入
+  `test:feedback`，测试文件进入 `tsconfig.feedback.json`。
+- npm 安装方式：`dsh plugin --profile web add @zhaoolee/dsh-notes`；源码开发方式为
+  `cd dsh-plugin && npm install && npm run build`，然后执行
+  `dsh plugin --profile web add /绝对路径/dsh-plugin`，重启 profile 生效；开发期可用
+  `dsh web --patch /绝对路径/dsh-plugin/cordis.patch.yml` 叠加。已验证 scratch profile
+  安装后 `dsh.profile.bundles` 追加 `@zhaoolee/dsh-notes`，`--dump-config` 出现
+  `notes-export` 行。
+- npm 包忽略构建目录 `lib/`，通过 `prepack` 在每次 `npm pack` / `npm publish` 前强制
+  重新构建；发布内容包含 `dsh-plugin/LICENSE` 中的 MIT 许可证正文。
+- 本机沙箱环境限制：后端 feedback 的 `notes-export-api-skill-feedback.test.ts` 因沙箱
+  拒绝 `mktemp`（/var/folders EPERM）而失败，与本次改动无关，正常环境仍可跑通。
+
 ## 2026-08-05：1.6.1 宣传页与主题排版生产发布
 
 - 生产最终运行 Git 标签 `1.6.1`、提交

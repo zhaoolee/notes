@@ -1,0 +1,7 @@
+# @zhaoolee/dsh-notes bundle patch: registers the notes-export tool plugin row.
+# Applied as one insert over the profile composition; the row id is the stable
+# identity later patch layers use to override this row's whole `config`.
+- insert:
+    - id: notes-export
+      name: "@zhaoolee/dsh-notes"
+      config: {}

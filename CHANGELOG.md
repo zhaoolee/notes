@@ -2,6 +2,16 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [未发布]
+
+### 新增
+
+- 新增 `dsh-plugin/`：DeepSeek Harness 工具插件 `@zhaoolee/dsh-notes`，可通过 `dsh plugin --profile web add @zhaoolee/dsh-notes` 安装。安装后智能体获得 `notes_export_conversation` 工具，可把对话内容整理为 Markdown 导出为锤子便签（新建或按 `note_id` 更新当前账号云端工作区中的便签），并返回便签标题与可打开的前端链接。插件为分级模式：配置 `NOTES_API_BASE_URL` + 凭据时写入用户自己的便签列表；未配置任何用户信息时，回退到默认演示服务器 `notes.fangyuanxiaozhan.com` 的匿名导出接口，把对话渲染成锤子便签长图 PNG 返回本地文件路径（开箱即用尝鲜，不能写入便签列表）。
+
+### 安全
+
+- DSH 插件导出的本地便签图片现在保存在随机私有临时目录中；支持 POSIX 权限的系统仅允许当前用户访问目录和读写图片，避免同一设备上的其他用户读取对话内容。
+
 ## [1.6.1] - 2026-08-05
 
 ### 修复
@@ -139,6 +149,7 @@
 - PC 版便签操作栏右侧按钮调整为“AI、删除、分享”的顺序，与 APP 版详情操作保持一致。
 - 重置 Hermes 安装链接前会明确提示旧链接立即失效，并要求二次确认，避免误触轮换。
 
+[未发布]: https://github.com/zhaoolee/notes/compare/1.6.1...HEAD
 [1.6.1]: https://github.com/zhaoolee/notes/compare/1.6.0...1.6.1
 [1.6.0]: https://github.com/zhaoolee/notes/compare/1.5.1...1.6.0
 [1.5.1]: https://github.com/zhaoolee/notes/compare/1.5.0...1.5.1

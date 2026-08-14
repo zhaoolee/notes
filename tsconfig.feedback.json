@@ -5,6 +5,7 @@
   },
   "include": [
     "frontend/tests/**/*.test.ts",
-    "backend/tests/**/*.test.ts"
+    "backend/tests/**/*.test.ts",
+    "dsh-plugin/tests/**/*.test.ts"
   ]
 }
