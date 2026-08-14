@@ -24,6 +24,15 @@ dsh plugin --profile web add @zhaoolee/dsh-notes
 
 安装后**重启**目标 profile 生效。
 
+已经安装旧版本时，更新到最新版：
+
+```sh
+dsh plugin --profile web update @zhaoolee/dsh-notes --latest
+```
+
+`0.1.0` 会在 DSH `0.1.0-rc.6` 首次执行工具时因宿主运行时重复安装而中止会话；
+请使用 `0.1.1` 或更高版本。
+
 本地开发时，先在本目录构建产物（产出 `lib/`）：
 
 ```sh

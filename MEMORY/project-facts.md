@@ -42,6 +42,23 @@
   `notes-export` 行。
 - npm 包忽略构建目录 `lib/`，通过 `prepack` 在每次 `npm pack` / `npm publish` 前强制
   重新构建；发布内容包含 `dsh-plugin/LICENSE` 中的 MIT 许可证正文。
+- `0.1.0` 曾把 `@deepseek-ai/dsh-tools` 等 DSH 宿主包放入普通 `dependencies`。DSH
+  profile 固定使用 `nodeLinker: hoisted` 和 `autoInstallPeers: false`，安装出的第二份
+  `dsh-tools` 会遮蔽宿主副本；由于内部调度键是模块私有 `Symbol`，agent loop 首次执行
+  工具会报 `Cannot read properties of undefined (reading 'prepare')`。`0.1.1` 起仅把
+  `@deepseek-ai/cordis` 与 `@deepseek-ai/dsh-tools` 声明为 `peerDependencies`，并在
+  `devDependencies` 保留本地构建依赖；`package-metadata.test.ts` 固定这一发布边界。
+- `0.1.1` 发布包已在本机 DSH `0.1.0-rc.6` 的全新 `headless` profile 中完成真实模型
+  端到端调用：模型调用 `notes_export_conversation`，会话日志写入成功的
+  `tool/result`（`isError: false`）并以 `turn/end: completed` 结束；匿名演示服务器返回
+  `1980 × 1929` PNG，本地随机目录/文件权限为 `0700/0600`。实际测试 tarball 的
+  SHA-1 `1b706cf6268679579bc8bfa34f275bd8fc901f0b` 与 npm registry 上的
+  `@zhaoolee/dsh-notes@0.1.1` 完全一致，因此无需为相同内容额外发布 `0.1.2`。
+- DSH profile 不能同时保留旧开发别名 `dsh-notes-export` 和正式包名
+  `@zhaoolee/dsh-notes`：两者都应用同一份 `cordis.patch.yml`，会因重复 loader id
+  `notes-export` 导致 profile 在启动前失败。迁移时执行
+  `dsh plugin --profile <profile> remove dsh-notes-export`，只保留正式包名；本机 Web
+  profile 已按此清理，并实际启动到 `http://127.0.0.1:3080`、HTTP 返回 200。
 - 本机沙箱环境限制：后端 feedback 的 `notes-export-api-skill-feedback.test.ts` 因沙箱
   拒绝 `mktemp`（/var/folders EPERM）而失败，与本次改动无关，正常环境仍可跑通。
 
