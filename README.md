@@ -29,9 +29,25 @@
 - 工匠精神沁入AI，可以通过AI Skill直接调用工具，生成便签。
 - 支持自定义底部标识（点击即可编辑）
 - API原生封装支持Hermes Agent，OpenClaw直接通过skill驱动管理便签
+- 支持 DeepSeek Harness（DSH），让智能体将对话导出为锤子便签。
 - 支持接入DeepSeek润色书写内容，语法标点检查，重点加粗，复杂概念通俗化释义。
 - 支持一键下载包含图片的Markdown资源包
 - 支持下载为html离线查看
+
+## 通过DSH调用
+
+```
+dsh plugin --profile web add @zhaoolee/dsh-notes
+```
+
+安装后请重启目标 profile，使插件生效。重启后，在 DeepSeek Harness 对话中说：**把我们的对话导出成便签**， 智能体会自动整理当前对话并调用插件生成便签。
+
+| Deepseek Harness 生成分享便签 | 导出效果 |
+| --- | --- |
+| ![](./README.assets/b66a25f62ae0f1ab7f0ef0f71540594ac5c2a4c57b63bbfa4e693693fafb61dc.png) | ![](./README.assets/def783d53d1c75b1e8f74ff29c4bd4b460105d1c5c7453aa8c50615f8f92c86a.png) |
+
+
+
 
 ## 通过skill调用
 
