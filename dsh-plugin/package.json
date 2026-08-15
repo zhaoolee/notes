@@ -1,6 +1,6 @@
 {
   "name": "@zhaoolee/dsh-notes",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "DeepSeek Harness 插件：把用户对话导出为锤子便签（通过便签服务 API 写入云端工作区）。",
   "keywords": [
     "deepseek",

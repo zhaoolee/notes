@@ -14,7 +14,7 @@
 
 ### 修复
 
-- 修复 DSH 插件市场从 GitHub 源码安装 `notes` 时，因默认禁止本地构建且仓库未携带 `lib/` 产物而提示“nothing installable”的问题；插件现在随源码提交预编译入口，无需开启 `allowBuilds` 即可通过市场安装。
+- 修复 DSH 插件市场从 GitHub 源码安装 `notes` 时，因默认禁止本地构建且仓库未携带 `lib/` 产物而提示“nothing installable”的问题；插件从 `0.1.2` 起随源码提交预编译入口，无需开启 `allowBuilds` 即可通过市场安装。
 - 修复 `@zhaoolee/dsh-notes@0.1.0` 在 DSH `0.1.0-rc.6` 中首次执行 `notes_export_conversation` 就因重复安装宿主工具运行时而中止会话的问题；插件从 `0.1.1` 起复用 DSH 自带运行时。
 
 ## [1.6.1] - 2026-08-05
