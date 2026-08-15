@@ -61,7 +61,14 @@
   `tool/result`（`isError: false`）并以 `turn/end: completed` 结束；匿名演示服务器返回
   `1980 × 1929` PNG，本地随机目录/文件权限为 `0700/0600`。实际测试 tarball 的
   SHA-1 `1b706cf6268679579bc8bfa34f275bd8fc901f0b` 与 npm registry 上的
-  `@zhaoolee/dsh-notes@0.1.1` 完全一致，因此无需为相同内容额外发布 `0.1.2`。
+  `@zhaoolee/dsh-notes@0.1.1` 完全一致。
+- `@zhaoolee/dsh-notes@0.1.2` 已于 2026-08-15 发布为 npm `latest`，对应版本提交
+  `23463d79a9cd8a94a0386752e83fb12e03367f06`。registry SHA-1
+  `a2cf97b9017db787e20ced97d01513f68ec0f1cc`、integrity
+  `sha512-Ynl7mlVee8NzOUFcUSzttDoJlNQyH6h2RKo3q77X+/AXMsdGZuZv76vcJiQe5idO1biw6QabBlNGqQKjjUPG6w==`
+  与发布前验证 tarball 完全一致；包内 10 个文件包含 `lib/index.js`、运行时代码、类型
+  声明、patch、README 与 LICENSE。该 tarball 已在全新临时 DSH `web` profile 中安装，
+  `--dump-config` 出现 `notes-export`；发布门禁为前端 110、后端 15、插件 17 项全部通过。
 - DSH profile 不能同时保留旧开发别名 `dsh-notes-export` 和正式包名
   `@zhaoolee/dsh-notes`：两者都应用同一份 `cordis.patch.yml`，会因重复 loader id
   `notes-export` 导致 profile 在启动前失败。迁移时执行
