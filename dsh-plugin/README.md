@@ -16,7 +16,10 @@ Host 面工具插件。安装后，智能体获得一个 `notes_export_conversat
 
 ## 安装
 
-直接从 npm 安装到目标 profile（例如 `web`）：
+可以在 DSH 的“插件市场”中搜索 `notes` 并直接安装。仓库随源码提交预编译的 `lib/`
+产物，因此即使市场保持默认的构建脚本拦截策略，也不需要额外开启 `allowBuilds`。
+
+也可以直接从 npm 安装到目标 profile（例如 `web`）：
 
 ```sh
 dsh plugin --profile web add @zhaoolee/dsh-notes

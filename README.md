@@ -36,6 +36,9 @@
 
 ## 通过DSH调用
 
+可以在 DSH 的“插件市场”中搜索 `notes` 直接安装；源码仓库已经携带预编译产物，
+无需开启 `allowBuilds`。也可以通过命令行安装 npm 版本：
+
 ```
 dsh plugin --profile web add @zhaoolee/dsh-notes
 ```
