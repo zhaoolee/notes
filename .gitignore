@@ -3,7 +3,6 @@ dist
 dist-server
 .env
 dsh-plugin/node_modules
-dsh-plugin/lib
 storage/images/*
 !storage/images/.gitkeep
 storage/data/*

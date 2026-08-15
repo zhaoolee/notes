@@ -40,8 +40,16 @@
   `dsh web --patch /绝对路径/dsh-plugin/cordis.patch.yml` 叠加。已验证 scratch profile
   安装后 `dsh.profile.bundles` 追加 `@zhaoolee/dsh-notes`，`--dump-config` 出现
   `notes-export` 行。
-- npm 包忽略构建目录 `lib/`，通过 `prepack` 在每次 `npm pack` / `npm publish` 前强制
-  重新构建；发布内容包含 `dsh-plugin/LICENSE` 中的 MIT 许可证正文。
+- `dsh-plugin/lib/` 是需要随 GitHub 源码提交的预编译产物，同时继续通过 `prepack` 在
+  每次 `npm pack` / `npm publish` 前强制重新构建；这是兼容 `dsh-market` 默认禁用
+  `allowBuilds` 的必要边界。市场目录若尚未建立 npm 映射，会先安装仓库根目录，再自动
+  定位 `dsh-plugin/` 子包；缺少 `lib/index.js` 时会立即移除插件并提示
+  `nothing installable`。`package-metadata.test.ts` 固定检查入口、类型声明和关键产物存在，
+  发布内容继续包含 `dsh-plugin/LICENSE` 中的 MIT 许可证正文。
+- 已在隔离的临时 Git 仓库与临时 DSH `web` profile 中验证市场同款
+  `#path:/dsh-plugin` 安装：`pnpm-workspace.yaml` 未授权任何 `allowBuilds`，安装后
+  `lib/index.js` 存在，`dsh.profile.bundles` 包含 `@zhaoolee/dsh-notes`，
+  `dsh --profile web --dump-config` 出现 `notes-export` 行。
 - `0.1.0` 曾把 `@deepseek-ai/dsh-tools` 等 DSH 宿主包放入普通 `dependencies`。DSH
   profile 固定使用 `nodeLinker: hoisted` 和 `autoInstallPeers: false`，安装出的第二份
   `dsh-tools` 会遮蔽宿主副本；由于内部调度键是模块私有 `Symbol`，agent loop 首次执行
