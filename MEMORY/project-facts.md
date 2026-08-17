@@ -2,6 +2,40 @@
 
 本文件只记录已从代码或 feedback 测试中确认、预计会影响后续任务的信息。临时调试输出和未经验证的推测不写入这里。
 
+## 2026-08-17：1.7.0 DSH 插件与 Apple / AI 修复生产发布
+
+- 根版本、锁文件、更新日志和 GitHub 注释标签 `1.7.0` 均精确指向
+  `9a52565dea1eb0b9548365ca243c547a3dfa00b3`；生产仓库以 detached HEAD 固定在同一
+  标签与提交。上一可回滚版本为
+  `1.6.1/f5edd46bf5d0583c77e7faf684ddf7d9b387cb04`。
+- 发布前备份位于
+  `/home/hermes/backups/notes/releases/1.7.0-20260817T014315Z-predeploy`，包含 425 个
+  条目；`storage.tar.gz` 为 452,729,126 字节，SHA-256 为
+  `d5c8fc64c314ae1314372e793106deedaf9f2da58cc3b340d8dd7e7e969f8143`。
+- 生产后端镜像为
+  `58452c3c7d9fc18a6efa99a509f51e46fa6ffffde9de8408542c0fe10ccae3cb`，前端镜像为
+  `ac4cb97bd8993795581587a847956e9ee70ede33b1fed33120ce102c67895f7a`；两个容器均为
+  running 且 restart count 为 0。本机与公网 `/api/health` 返回 `{"ok":true}`，
+  `/api/ai/status` 返回 `{"available":true}`，启动日志没有 Playwright、存储权限或
+  持续重启错误。生产 `.env` 权限为 `0600`，管理员、会话、匿名额度、七牛和 AI
+  必需项均确认存在，检查未输出配置值。
+- 真实公网浏览器确认 `/changelog` 的首个版本为 `1.7.0 - 2026-08-17`，桌面
+  iPhone 备忘录浅色与深色主题都显示放大的返回文字、分享和新建图标，标题没有与
+  工具栏重叠。公网 Apple 浅色 PNG 为 `1980 × 1158`、106,782 字节，正确回显
+  `X-Export-Theme: apple-notes-light` 和 HTTPS `X-Export-Url`；图片导入后带图 PNG
+  为 `1980 × 2214`、193,605 字节。Apple 浅色离线归档为 75,632 字节有效 ZIP，
+  正确回显主题；无图公众号请求返回同一主题、Apple 工具栏和 `600` 粗体样式。
+- 发布源码从全新 `npm ci` 状态通过前端 111 项、后端 15 项和 DSH 插件 17 项
+  feedback，完整类型检查与生产构建通过；生产依赖审计为 0 个漏洞。完整开发依赖
+  审计保留 `nanoid` 的 1 个 high 与 Windows 开发服务器 `esbuild` 的 1 个 low，
+  均不进入生产依赖；构建仍只有既有的单 chunk 超过 500 kB 提示。
+- 部署前后 `storage/data/notes-data.json` 均为 254,520 字节，SHA-256 均为
+  `0c96710adb6597b0541faf825630f2ba810d904533310b5e4f508d1944633b5a`，证明容器重建
+  没有重置账号或云工作区。图片文件从 421 个增至 425 个，新增项来自默认导出、
+  Apple 导出、内容寻址图片导入和带图导出冒烟测试。本次没有登录真实用户或超级
+  管理员，也没有执行真实云同步、Secure Cookie 登录或七牛带图上传，避免修改真实
+  用户数据和消耗外部对象额度。
+
 ## 2026-08-10：DeepSeek Harness 便签导出插件 @zhaoolee/dsh-notes
 
 - `dsh-plugin/` 是仓库内的 DeepSeek Harness **Host 工具插件**包（包名 `@zhaoolee/dsh-notes`，
