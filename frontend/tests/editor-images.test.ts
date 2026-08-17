@@ -3,11 +3,23 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   collectEditorImagePreviews,
+  isLikelyImageUrl,
   moveEditorImage,
   replaceEditorImageAlt,
   replaceEditorImageSource,
   splitEditorContent,
 } from "../../src/lib/editor-images.js";
+
+test("普通网址粘贴不会被误判为图片，明确图片地址仍可导入", () => {
+  assert.equal(isLikelyImageUrl("https://x.com/thsottiaux"), false);
+  assert.equal(isLikelyImageUrl("https://example.com/article/image-guide"), false);
+  assert.equal(
+    isLikelyImageUrl("https://cdn.example.test/photo.PNG?width=1200#preview"),
+    true,
+  );
+  assert.equal(isLikelyImageUrl("https://cdn.example.test/vector.svg"), true);
+  assert.equal(isLikelyImageUrl("ftp://cdn.example.test/photo.png"), false);
+});
 
 test("编辑态实时收集 Markdown 与 HTML 图片并保留源码位置", () => {
   const markdown = [

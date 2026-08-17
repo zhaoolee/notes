@@ -18,6 +18,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { ImageCropDialog } from "./ImageCropDialog";
 import { importImageFile, importImageUrl } from "../lib/images";
 import {
+  isLikelyImageUrl,
   moveEditorImage,
   replaceEditorImageAlt,
   replaceEditorImageSource,
@@ -1134,7 +1135,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     }
 
     const trimmedText = text.trim();
-    return isHttpUrl(trimmedText) ? trimmedText : null;
+    return isLikelyImageUrl(trimmedText) ? trimmedText : null;
   }
 
   async function importFromClipboard(event: ClipboardEvent<HTMLTextAreaElement>): Promise<void> {

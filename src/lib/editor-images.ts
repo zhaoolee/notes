@@ -23,6 +23,31 @@ export interface EditorImageBlock extends EditorImagePreview {
 
 export type EditorContentBlock = EditorTextBlock | EditorImageBlock;
 
+const supportedImageExtensions = new Set([
+  "bmp",
+  "gif",
+  "jpeg",
+  "jpg",
+  "png",
+  "svg",
+  "webp",
+]);
+
+export function isLikelyImageUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return false;
+    }
+
+    const extension = url.pathname.split(".").at(-1)?.toLowerCase();
+    return extension ? supportedImageExtensions.has(extension) : false;
+  } catch {
+    return false;
+  }
+}
+
 function decodeMarkdownImageAlt(value: string): string {
   return value.replace(/\\([\\\]])/g, "$1");
 }
