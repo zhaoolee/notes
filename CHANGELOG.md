@@ -2,7 +2,7 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [未发布]
+## [1.7.0] - 2026-08-17
 
 ### 新增
 
@@ -14,6 +14,8 @@
 
 ### 修复
 
+- iPhone 备忘录深色与浅色主题的顶部装饰恢复接近 Apple 原生导航栏的视觉尺寸：“备忘录”返回区及分享、新建图标不再缩成半尺寸，网页预览、保存图片和离线归档保持一致。
+- 修复 AI 辅助审阅把空格放在 Markdown 加粗结束标记内侧时，预览直接显示 `**` 星号而无法渲染粗体的问题；现在会在建议进入正文前自动校正标记边界，同时保留原有空白和代码内容。
 - 修复 DSH 插件市场从 GitHub 源码安装 `notes` 时，因默认禁止本地构建且仓库未携带 `lib/` 产物而提示“nothing installable”的问题；插件从 `0.1.2` 起随源码提交预编译入口，无需开启 `allowBuilds` 即可通过市场安装。
 - 修复 `@zhaoolee/dsh-notes@0.1.0` 在 DSH `0.1.0-rc.6` 中首次执行 `notes_export_conversation` 就因重复安装宿主工具运行时而中止会话的问题；插件从 `0.1.1` 起复用 DSH 自带运行时。
 
@@ -154,7 +156,7 @@
 - PC 版便签操作栏右侧按钮调整为“AI、删除、分享”的顺序，与 APP 版详情操作保持一致。
 - 重置 Hermes 安装链接前会明确提示旧链接立即失效，并要求二次确认，避免误触轮换。
 
-[未发布]: https://github.com/zhaoolee/notes/compare/1.6.1...HEAD
+[1.7.0]: https://github.com/zhaoolee/notes/compare/1.6.1...1.7.0
 [1.6.1]: https://github.com/zhaoolee/notes/compare/1.6.0...1.6.1
 [1.6.0]: https://github.com/zhaoolee/notes/compare/1.5.1...1.6.0
 [1.5.1]: https://github.com/zhaoolee/notes/compare/1.5.0...1.5.1

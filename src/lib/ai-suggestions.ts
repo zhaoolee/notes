@@ -21,6 +21,164 @@ export interface SuggestionTextDiff {
 }
 
 const MAX_DIFF_MATRIX_CELLS = 1_000_000;
+const MARKDOWN_STRONG_PAIR =
+  /(?<![\\*])\*\*(?!\*)([^\r\n]*?)(?<![\\*])\*\*(?!\*)/g;
+
+interface MarkdownFence {
+  character: "`" | "~";
+  length: number;
+}
+
+function isEscaped(source: string, index: number): boolean {
+  let backslashCount = 0;
+
+  for (let cursor = index - 1; cursor >= 0 && source[cursor] === "\\"; cursor -= 1) {
+    backslashCount += 1;
+  }
+
+  return backslashCount % 2 === 1;
+}
+
+function getFenceAtLineStart(line: string): MarkdownFence | null {
+  const match = /^ {0,3}(`+|~+)/.exec(line);
+
+  if (!match || match[1].length < 3) {
+    return null;
+  }
+
+  return {
+    character: match[1][0] as MarkdownFence["character"],
+    length: match[1].length,
+  };
+}
+
+function isClosingFence(line: string, fence: MarkdownFence): boolean {
+  const match = /^ {0,3}(`+|~+)/.exec(line);
+
+  return Boolean(
+    match &&
+      match[1][0] === fence.character &&
+      match[1].length >= fence.length &&
+      /^[ \t]*$/.test(line.slice(match[0].length)),
+  );
+}
+
+function normalizeStrongWhitespaceInText(value: string): string {
+  return value.replace(MARKDOWN_STRONG_PAIR, (match, inner: string) => {
+    const leadingWhitespace = inner.match(/^[ \t]+/)?.[0] ?? "";
+    const trailingWhitespace = inner.match(/[ \t]+$/)?.[0] ?? "";
+    const core = inner.slice(
+      leadingWhitespace.length,
+      inner.length - trailingWhitespace.length,
+    );
+
+    if (!core || (!leadingWhitespace && !trailingWhitespace)) {
+      return match;
+    }
+
+    return `${leadingWhitespace}**${core}**${trailingWhitespace}`;
+  });
+}
+
+function getBacktickRunLength(line: string, start: number): number {
+  let end = start;
+
+  while (line[end] === "`") {
+    end += 1;
+  }
+
+  return end - start;
+}
+
+function findClosingBacktickRun(
+  line: string,
+  start: number,
+  expectedLength: number,
+): number {
+  let cursor = start;
+
+  while (cursor < line.length) {
+    if (line[cursor] !== "`" || isEscaped(line, cursor)) {
+      cursor += 1;
+      continue;
+    }
+
+    const runLength = getBacktickRunLength(line, cursor);
+
+    if (runLength === expectedLength) {
+      return cursor;
+    }
+
+    cursor += runLength;
+  }
+
+  return -1;
+}
+
+function normalizeStrongWhitespaceOutsideInlineCode(line: string): string {
+  let cursor = 0;
+  let plainTextStart = 0;
+  let result = "";
+
+  while (cursor < line.length) {
+    if (line[cursor] !== "`" || isEscaped(line, cursor)) {
+      cursor += 1;
+      continue;
+    }
+
+    const runLength = getBacktickRunLength(line, cursor);
+    const closingRunStart = findClosingBacktickRun(
+      line,
+      cursor + runLength,
+      runLength,
+    );
+
+    if (closingRunStart < 0) {
+      cursor += runLength;
+      continue;
+    }
+
+    result += normalizeStrongWhitespaceInText(
+      line.slice(plainTextStart, cursor),
+    );
+    const codeEnd = closingRunStart + runLength;
+    result += line.slice(cursor, codeEnd);
+    cursor = codeEnd;
+    plainTextStart = codeEnd;
+  }
+
+  return result + normalizeStrongWhitespaceInText(line.slice(plainTextStart));
+}
+
+export function normalizeMarkdownStrongWhitespace(markdown: string): string {
+  const parts = markdown.split(/(\r\n|\n|\r)/);
+  let activeFence: MarkdownFence | null = null;
+
+  return parts
+    .map((part, index) => {
+      if (index % 2 === 1) {
+        return part;
+      }
+
+      if (activeFence) {
+        if (isClosingFence(part, activeFence)) {
+          activeFence = null;
+        }
+
+        return part;
+      }
+
+      const openingFence = getFenceAtLineStart(part);
+
+      if (openingFence) {
+        activeFence = openingFence;
+        return part;
+      }
+
+      return normalizeStrongWhitespaceOutsideInlineCode(part);
+    })
+    .join("");
+}
 
 function appendDiffPart(
   parts: TextDiffPart[],

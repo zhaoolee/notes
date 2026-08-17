@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { MarkdownText } from "../../src/components/MarkdownText.js";
 import {
   buildSuggestionTextDiff,
   buildMarkdownFromAcceptedSuggestions,
   getAcceptedSuggestionIdsAfterAcceptAll,
+  normalizeMarkdownStrongWhitespace,
   validateAiSuggestions,
   type AiSuggestion,
 } from "../../src/lib/ai-suggestions.js";
@@ -66,6 +70,37 @@ test("任意顺序确认多个建议都按源快照稳定应用", () => {
     ),
     "这里有一个别字。\n**这行应该加粗**。",
   );
+});
+
+test("AI 加粗建议把结束标记前的空白移到标记外并能正常渲染", () => {
+  const malformed = [
+    "正常情况下，可以把周额度想象成一桶水：**7 天后把原来的桶补满。 **如果你喝光了，就补一整桶。",
+    "另一个例子：** 实际只是把喝掉的部分补回来。**",
+    "`代码中的 ** 空白 ** 保持原样`",
+    "```md",
+    "** 围栏代码 **",
+    "```",
+  ].join("\n");
+  const normalized = normalizeMarkdownStrongWhitespace(malformed);
+
+  assert.equal(
+    normalized,
+    [
+      "正常情况下，可以把周额度想象成一桶水：**7 天后把原来的桶补满。** 如果你喝光了，就补一整桶。",
+      "另一个例子： **实际只是把喝掉的部分补回来。**",
+      "`代码中的 ** 空白 ** 保持原样`",
+      "```md",
+      "** 围栏代码 **",
+      "```",
+    ].join("\n"),
+  );
+  assert.equal(normalizeMarkdownStrongWhitespace(normalized), normalized);
+
+  const html = renderToStaticMarkup(
+    createElement(MarkdownText, { children: normalized }),
+  );
+  assert.match(html, /<strong>7 天后把原来的桶补满。<\/strong> 如果你喝光了/);
+  assert.match(html, /<strong>实际只是把喝掉的部分补回来。<\/strong>/);
 });
 
 test("接受剩余建议只处理仍待确认项并保留已忽略项", () => {

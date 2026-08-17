@@ -279,6 +279,26 @@ test("卡片主题覆盖完整纸张 token，页面其余区域继续使用全�
     /\.preview-card-theme\[data-preview-theme\^="apple-notes"\] \.note-apple-toolbar\s*\{[^}]*display:\s*flex;/s,
   );
   assert.match(
+    styles,
+    /\.note-apple-toolbar\s*\{[^}]*font-size:\s*calc\(1\.0625rem \* var\(--note-scale\)\);/s,
+  );
+  assert.match(
+    styles,
+    /\.note-apple-back-chevron\s*\{[^}]*font-size:\s*calc\(1\.5rem \* var\(--note-scale\)\);/s,
+  );
+  assert.match(
+    styles,
+    /\.note-apple-actions\s*\{[^}]*gap:\s*calc\(12px \* var\(--note-scale\)\);/s,
+  );
+  assert.match(
+    styles,
+    /\.note-apple-share\s*\{[^}]*width:\s*calc\(14\.2px \* var\(--note-scale\)\);[^}]*height:\s*calc\(19\.2px \* var\(--note-scale\)\);/s,
+  );
+  assert.match(
+    styles,
+    /\.note-apple-compose\s*\{[^}]*width:\s*calc\(17\.7px \* var\(--note-scale\)\);[^}]*height:\s*calc\(17\.1px \* var\(--note-scale\)\);/s,
+  );
+  assert.match(
     readFileSync("src/components/NoteSheet.tsx", "utf8"),
     /className="note-apple-toolbar"[\s\S]*className="note-apple-action-icon note-apple-share"[\s\S]*viewBox="0 0 86\.6722412109375 117\.4306640625"[\s\S]*className="note-apple-action-icon note-apple-compose"[\s\S]*viewBox="0 0 106\.68408203125 103\.19677734375"/s,
   );
@@ -288,6 +308,10 @@ test("卡片主题覆盖完整纸张 token，页面其余区域继续使用全�
   );
   assert.doesNotMatch(styles, /\.note-apple-share::before/);
   const serverSource = readFileSync("server/index.ts", "utf8");
+  assert.match(
+    serverSource,
+    /\.note-apple-toolbar\s*\{[^}]*font-size:\s*calc\(1\.0625rem \* var\(--note-scale\)\);[\s\S]*?\.note-apple-back-chevron\s*\{[^}]*font-size:\s*calc\(1\.5rem \* var\(--note-scale\)\);[\s\S]*?\.note-apple-actions\s*\{[^}]*gap:\s*calc\(12px \* var\(--note-scale\)\);[\s\S]*?\.note-apple-share\s*\{[^}]*width:\s*calc\(14\.2px \* var\(--note-scale\)\);[^}]*height:\s*calc\(19\.2px \* var\(--note-scale\)\);[\s\S]*?\.note-apple-compose\s*\{[^}]*width:\s*calc\(17\.7px \* var\(--note-scale\)\);[^}]*height:\s*calc\(17\.1px \* var\(--note-scale\)\);/s,
+  );
   assert.match(
     serverSource,
     /body\[data-note-card-theme\^="apple-notes"\] \.sheet-inner\s*\{[^}]*padding-right:\s*0;[^}]*padding-left:\s*0;[^}]*\}\s*body\[data-note-card-theme\^="apple-notes"\] \.note-sheet\s*\{[^}]*padding-right:\s*calc\(12px \* var\(--note-scale\)\);[^}]*padding-left:\s*calc\(12px \* var\(--note-scale\)\);/s,

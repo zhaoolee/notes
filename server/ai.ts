@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { normalizeMarkdownStrongWhitespace } from "../src/lib/ai-suggestions.js";
 
 const DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash";
 const AI_PROBE_TIMEOUT_MS = 8_000;
@@ -142,7 +143,9 @@ function normalizeSuggestions(
     const original =
       typeof raw.original === "string" ? raw.original : "";
     const replacement =
-      typeof raw.replacement === "string" ? raw.replacement : "";
+      typeof raw.replacement === "string"
+        ? normalizeMarkdownStrongWhitespace(raw.replacement)
+        : "";
     const reason = typeof raw.reason === "string" ? raw.reason.trim() : "";
 
     if (
@@ -273,6 +276,7 @@ export async function createAiSuggestions(
     "不要返回整篇改写稿，只返回最小、互不重叠、可逐条确认的原子修改建议。",
     "original 必须逐字复制自原 Markdown，且尽量包含足够上下文，使它在全文中只出现一次。",
     "replacement 是替换 original 后的完整文本；reason 用简短中文解释。",
+    "生成 Markdown 粗体时，开头标记后和结束标记前不能有空格或换行；要保留的空白必须放到标记外，例如写成 **重点** 后续正文，禁止写成 **重点 **后续正文。",
     "生成 Markdown 粗体时，结束标记 ** 不能夹在标点和紧随其后的正文之间；如果加粗句子末尾有标点且后面仍有正文，必须把标点移到粗体标记外，例如写成 **句子**。下一句，禁止写成 **句子。**下一句。",
     '如果没有需要修改的地方，必须返回 {"suggestions":[]}，不要返回空白内容。',
     "只输出合法 json，不要输出 Markdown 代码围栏或额外文字。",

@@ -18,6 +18,7 @@
     "src/components/MarkdownText.tsx",
     "src/components/NoteSheet.tsx",
     "src/components/WechatArticle.tsx",
+    "src/lib/ai-suggestions.ts",
     "src/lib/markdown.ts",
     "src/types/app.ts"
   ]

@@ -1149,7 +1149,7 @@ ${fontFaceCss}
         justify-content: space-between;
         color: var(--note-link);
         font-family: var(--note-font);
-        font-size: calc(0.58rem * var(--note-scale));
+        font-size: calc(1.0625rem * var(--note-scale));
         font-weight: 400;
         line-height: 1;
         pointer-events: none;
@@ -1166,12 +1166,14 @@ ${fontFaceCss}
       }
 
       .note-apple-back-chevron {
-        font-size: calc(0.88rem * var(--note-scale));
+        font-size: calc(1.5rem * var(--note-scale));
+        font-weight: 300;
         line-height: 0.7;
+        transform: translateY(calc(-0.5px * var(--note-scale)));
       }
 
       .note-apple-actions {
-        gap: calc(11px * var(--note-scale));
+        gap: calc(12px * var(--note-scale));
       }
 
       .note-apple-action-icon {
@@ -1190,13 +1192,13 @@ ${fontFaceCss}
       }
 
       .note-apple-share {
-        width: calc(7.1px * var(--note-scale));
-        height: calc(9.6px * var(--note-scale));
+        width: calc(14.2px * var(--note-scale));
+        height: calc(19.2px * var(--note-scale));
       }
 
       .note-apple-compose {
-        width: calc(8.85px * var(--note-scale));
-        height: calc(8.55px * var(--note-scale));
+        width: calc(17.7px * var(--note-scale));
+        height: calc(17.1px * var(--note-scale));
       }
 
       .sheet-frame {

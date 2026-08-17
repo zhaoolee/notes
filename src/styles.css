@@ -4218,7 +4218,7 @@ body,
   color: var(--apple-notes-accent, #ebb800);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
     sans-serif;
-  font-size: calc(0.58rem * var(--note-scale));
+  font-size: calc(1.0625rem * var(--note-scale));
   font-weight: 400;
   line-height: 1;
   pointer-events: none;
@@ -4235,13 +4235,14 @@ body,
 }
 
 .note-apple-back-chevron {
-  font-size: calc(0.9rem * var(--note-scale));
+  font-size: calc(1.5rem * var(--note-scale));
   font-weight: 300;
+  line-height: 0.7;
   transform: translateY(calc(-0.5px * var(--note-scale)));
 }
 
 .note-apple-actions {
-  gap: calc(8px * var(--note-scale));
+  gap: calc(12px * var(--note-scale));
 }
 
 .note-apple-action-icon {
@@ -4260,13 +4261,13 @@ body,
 }
 
 .note-apple-share {
-  width: calc(8.2px * var(--note-scale));
-  height: calc(11.1px * var(--note-scale));
+  width: calc(14.2px * var(--note-scale));
+  height: calc(19.2px * var(--note-scale));
 }
 
 .note-apple-compose {
-  width: calc(10.25px * var(--note-scale));
-  height: calc(9.9px * var(--note-scale));
+  width: calc(17.7px * var(--note-scale));
+  height: calc(17.1px * var(--note-scale));
 }
 
 .preview-card-theme .empty-state {

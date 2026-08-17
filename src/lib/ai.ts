@@ -1,4 +1,5 @@
 import {
+  normalizeMarkdownStrongWhitespace,
   validateAiSuggestions,
   type AiSuggestion,
 } from "./ai-suggestions";
@@ -67,7 +68,22 @@ export async function reviewMarkdownWithAi(
   }
 
   const suggestions = Array.isArray(payload.suggestions)
-    ? (payload.suggestions as AiSuggestion[])
+    ? payload.suggestions.map((suggestion) => {
+        if (!suggestion || typeof suggestion !== "object") {
+          return suggestion as AiSuggestion;
+        }
+
+        const candidate = suggestion as AiSuggestion;
+
+        return typeof candidate.replacement === "string"
+          ? {
+              ...candidate,
+              replacement: normalizeMarkdownStrongWhitespace(
+                candidate.replacement,
+              ),
+            }
+          : candidate;
+      })
     : [];
 
   if (

@@ -128,6 +128,11 @@ test("启动探测成功后只向登录用户返回逐条 AI 建议且不写工�
                         reason: "修正错别字",
                       },
                       {
+                        original: "这里应该突出 ",
+                        replacement: "**这里应该突出 **",
+                        reason: "突出重点",
+                      },
+                      {
                         original: "重复",
                         replacement: "不重复",
                         reason: "这个片段不唯一，应被服务端丢弃",
@@ -223,7 +228,7 @@ test("启动探测成功后只向登录用户返回逐条 AI 建议且不写工�
   });
   assert.equal(loginResponse.status, 200);
   const cookie = getCookie(loginResponse);
-  const markdown = "# 测试\n\n这里有错字。重复。重复。";
+  const markdown = "# 测试\n\n这里有错字。这里应该突出 后面还有正文。重复。重复。";
   const instruction = "请检查文章的错别字和标点";
   const reviewResponse = await fetch(`${baseUrl}/api/ai/suggestions`, {
     method: "POST",
@@ -248,12 +253,14 @@ test("启动探测成功后只向登录用户返回逐条 AI 建议且不写工�
   };
 
   assert.match(result.sourceHash, /^[a-f0-9]{64}$/);
-  assert.equal(result.suggestions.length, 1);
+  assert.equal(result.suggestions.length, 2);
   assert.equal(result.suggestions[0].original, "这里有错字");
   assert.equal(
     markdown.slice(result.suggestions[0].start, result.suggestions[0].end),
     result.suggestions[0].original,
   );
+  assert.equal(result.suggestions[1].original, "这里应该突出 ");
+  assert.equal(result.suggestions[1].replacement, "**这里应该突出** ");
 
   const completionRequest = upstreamRequests.find(
     (request) => request.path === "/v1/chat/completions",
@@ -273,6 +280,10 @@ test("启动探测成功后只向登录用户返回逐条 AI 建议且不写工�
   assert.match(
     JSON.stringify(completionRequest.body),
     /必须把标点移到粗体标记外.*\*\*句子\*\*。下一句.*禁止写成 \*\*句子。\*\*下一句/,
+  );
+  assert.match(
+    JSON.stringify(completionRequest.body),
+    /结束标记前不能有空格或换行.*\*\*重点\*\* .*禁止写成 \*\*重点 \*\*/,
   );
 
   const workspaceResponse = await fetch(`${baseUrl}/api/workspace`, {
