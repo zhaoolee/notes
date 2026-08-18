@@ -34,7 +34,7 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
   assert.match(changelog, /^# 更新日志\n/);
   assert.equal(
     secondLevelHeadings[latestReleaseIndex],
-    `[${packageVersion.version}] - 2026-08-17`,
+    `[${packageVersion.version}] - 2026-08-18`,
   );
   assert.ok(categoryHeadings.length > 0);
 
@@ -42,7 +42,7 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
     assert.match(changelog, /^## \[未发布\]\n\n### \S+\n\n- \S/m);
     assert.match(
       changelog,
-      /^\[未发布\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.7\.1\.\.\.HEAD$/m,
+      /^\[未发布\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.7\.2\.\.\.HEAD$/m,
     );
   }
 
@@ -56,6 +56,10 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
   }
 
   assert.doesNotMatch(changelog, /^- [0-9a-f]{7,40}\s+/m);
+  assert.match(
+    changelog,
+    /^\[1\.7\.2\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.7\.1\.\.\.1\.7\.2$/m,
+  );
   assert.match(
     changelog,
     /^\[1\.7\.1\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.7\.0\.\.\.1\.7\.1$/m,
@@ -116,95 +120,103 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
   if (hasUnreleasedSection) {
     assert.equal(
       sections[1]?.heading,
-      "[未发布](https://github.com/zhaoolee/notes/compare/1.7.1...HEAD)",
+      "[未发布](https://github.com/zhaoolee/notes/compare/1.7.2...HEAD)",
     );
   }
   assert.equal(
     sections[latestReleaseSectionIndex]?.heading,
-    "[1.7.1](https://github.com/zhaoolee/notes/compare/1.7.0...1.7.1) - 2026-08-17",
+    "[1.7.2](https://github.com/zhaoolee/notes/compare/1.7.1...1.7.2) - 2026-08-18",
   );
   assert.match(
     sections[latestReleaseSectionIndex]?.content ?? "",
-    /粘贴普通网址.*远程图片.*正文.*图片导入流程/s,
+    /桌面分享预览.*顶部操作按钮.*文字.*单行显示/s,
   );
   assert.equal(
     sections[latestReleaseSectionIndex + 1]?.heading,
-    "[1.7.0](https://github.com/zhaoolee/notes/compare/1.6.1...1.7.0) - 2026-08-17",
+    "[1.7.1](https://github.com/zhaoolee/notes/compare/1.7.0...1.7.1) - 2026-08-17",
   );
   assert.match(
     sections[latestReleaseSectionIndex + 1]?.content ?? "",
-    /DeepSeek Harness.*Apple 原生导航栏.*Markdown 加粗/s,
+    /粘贴普通网址.*远程图片.*正文.*图片导入流程/s,
   );
   assert.equal(
     sections[latestReleaseSectionIndex + 2]?.heading,
-    "[1.6.1](https://github.com/zhaoolee/notes/compare/1.6.0...1.6.1) - 2026-08-05",
+    "[1.7.0](https://github.com/zhaoolee/notes/compare/1.6.1...1.7.0) - 2026-08-17",
   );
   assert.match(
     sections[latestReleaseSectionIndex + 2]?.content ?? "",
-    /宣传页.*嵌套路由.*静态资源.*空白/,
+    /DeepSeek Harness.*Apple 原生导航栏.*Markdown 加粗/s,
   );
   assert.equal(
     sections[latestReleaseSectionIndex + 3]?.heading,
-    "[1.6.0](https://github.com/zhaoolee/notes/compare/1.5.1...1.6.0) - 2026-08-05",
+    "[1.6.1](https://github.com/zhaoolee/notes/compare/1.6.0...1.6.1) - 2026-08-05",
   );
   assert.match(
     sections[latestReleaseSectionIndex + 3]?.content ?? "",
-    /单图聚焦.*多页层叠.*2048 × 920.*高清 PNG/,
+    /宣传页.*嵌套路由.*静态资源.*空白/,
   );
   assert.equal(
     sections[latestReleaseSectionIndex + 4]?.heading,
-    "[1.5.1](https://github.com/zhaoolee/notes/compare/1.5.0...1.5.1) - 2026-08-05",
+    "[1.6.0](https://github.com/zhaoolee/notes/compare/1.5.1...1.6.0) - 2026-08-05",
   );
   assert.match(
     sections[latestReleaseSectionIndex + 4]?.content ?? "",
-    /Bear 主题.*粗体.*超链接.*另外五种主题/,
+    /单图聚焦.*多页层叠.*2048 × 920.*高清 PNG/,
   );
   assert.equal(
     sections[latestReleaseSectionIndex + 5]?.heading,
-    "[1.5.0](https://github.com/zhaoolee/notes/compare/1.4.0...1.5.0) - 2026-08-05",
+    "[1.5.1](https://github.com/zhaoolee/notes/compare/1.5.0...1.5.1) - 2026-08-05",
   );
   assert.match(
     sections[latestReleaseSectionIndex + 5]?.content ?? "",
-    /第六种.*Telegra\.ph.*公众号复制/,
+    /Bear 主题.*粗体.*超链接.*另外五种主题/,
   );
   assert.equal(
     sections[latestReleaseSectionIndex + 6]?.heading,
-    "[1.4.0](https://github.com/zhaoolee/notes/compare/1.3.3...1.4.0) - 2026-08-05",
+    "[1.5.0](https://github.com/zhaoolee/notes/compare/1.4.0...1.5.0) - 2026-08-05",
   );
   assert.match(
     sections[latestReleaseSectionIndex + 6]?.content ?? "",
-    /五种便签样式.*相互隔离/,
+    /第六种.*Telegra\.ph.*公众号复制/,
   );
   assert.equal(
     sections[latestReleaseSectionIndex + 7]?.heading,
-    "[1.3.3](https://github.com/zhaoolee/notes/compare/1.3.2...1.3.3) - 2026-08-04",
+    "[1.4.0](https://github.com/zhaoolee/notes/compare/1.3.3...1.4.0) - 2026-08-05",
   );
   assert.match(
     sections[latestReleaseSectionIndex + 7]?.content ?? "",
-    /公众号.*过大过粗/,
+    /五种便签样式.*相互隔离/,
   );
   assert.equal(
     sections[latestReleaseSectionIndex + 8]?.heading,
-    "[1.3.2](https://github.com/zhaoolee/notes/compare/1.3.1...1.3.2) - 2026-08-03",
+    "[1.3.3](https://github.com/zhaoolee/notes/compare/1.3.2...1.3.3) - 2026-08-04",
   );
   assert.match(
     sections[latestReleaseSectionIndex + 8]?.content ?? "",
-    /跨端同步文章排序/,
+    /公众号.*过大过粗/,
   );
   assert.equal(
     sections[latestReleaseSectionIndex + 9]?.heading,
-    "[1.3.1](https://github.com/zhaoolee/notes/compare/1.3.0...1.3.1) - 2026-08-03",
+    "[1.3.2](https://github.com/zhaoolee/notes/compare/1.3.1...1.3.2) - 2026-08-03",
   );
   assert.match(
     sections[latestReleaseSectionIndex + 9]?.content ?? "",
-    /AI“重点加粗”/,
+    /跨端同步文章排序/,
   );
   assert.equal(
     sections[latestReleaseSectionIndex + 10]?.heading,
-    "[1.3.0](https://github.com/zhaoolee/notes/compare/1.2.0...1.3.0) - 2026-08-02",
+    "[1.3.1](https://github.com/zhaoolee/notes/compare/1.3.0...1.3.1) - 2026-08-03",
   );
   assert.match(
     sections[latestReleaseSectionIndex + 10]?.content ?? "",
+    /AI“重点加粗”/,
+  );
+  assert.equal(
+    sections[latestReleaseSectionIndex + 11]?.heading,
+    "[1.3.0](https://github.com/zhaoolee/notes/compare/1.2.0...1.3.0) - 2026-08-02",
+  );
+  assert.match(
+    sections[latestReleaseSectionIndex + 11]?.content ?? "",
     /导出全部便签/,
   );
 });

@@ -1079,6 +1079,14 @@ test("桌面工作区使用锤子便签网页版的纸面、细线和栏宽比�
   assert.match(appSource, /data-desktop-share=\{isDesktopSharePreview \? "true" : "false"\}/);
   assert.match(appSource, /className="desktop-share-preview-actions"/);
   assert.match(
+    styles,
+    /\.desktop-share-preview-actions button\s*\{[^}]*padding:\s*0 clamp\(8px,\s*calc\(2\.1vw - 9px\),\s*17px\);[^}]*flex:\s*0 0 auto;[^}]*font-size:\s*clamp\(12px,\s*calc\(0\.47vw \+ 8px\),\s*14px\);[^}]*white-space:\s*nowrap;/s,
+  );
+  assert.match(
+    styles,
+    /\.desktop-share-export-actions\s*\{[^}]*gap:\s*clamp\(6px,\s*calc\(1\.88vw - 10px\),\s*14px\);/s,
+  );
+  assert.match(
     appSource,
     /event\.key !== "Escape"[\s\S]*target\.matches\("input, textarea, select"\)[\s\S]*const hasOpenOverlay =[\s\S]*if \(isDesktopSharePreview\)[\s\S]*setIsDesktopSharePreview\(false\);[\s\S]*activeCategoryId === "trash" \? "preview" : "editor"[\s\S]*desktopWorkspaceView === "preview"[\s\S]*setDesktopWorkspaceView\("editor"\);/s,
   );
