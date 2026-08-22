@@ -493,7 +493,11 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.match(html, /<td style="padding:2\.8px;border:0"><section data-smartisan-frame="inner"/);
   assert.match(
     html,
-    /data-smartisan-frame="inner" style="[^"]*padding:44\.1px 27\.7666px 19\.6px[^"]*font-size:15px[^"]*line-height:1\.75/,
+    /data-smartisan-frame="inner" style="[^"]*padding:44\.1px 27\.7666px 19\.6px[^"]*background-color:#fffcf7/,
+  );
+  assert.match(
+    html,
+    /data-smartisan-theme="default" style="[^"]*color:#665749[^"]*font-size:15px[^"]*line-height:1\.75[^"]*white-space:pre-wrap/,
   );
   assert.doesNotMatch(html, /-webkit-text-stroke/);
   assert.match(html, /<td data-smartisan-corner="top-left"/);
@@ -505,7 +509,7 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.doesNotMatch(html, /<header[^>]*text-align:center/);
   assert.match(
     html,
-    /<p style="margin:0;white-space:pre-wrap;text-align:center">公众号居中正文<\/p>/,
+    /<p style="margin:0;text-align:center">公众号居中正文<\/p>/,
   );
   assert.match(
     html,
@@ -518,7 +522,7 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.doesNotMatch(html, /<header[^>]*border-bottom/);
   assert.match(
     html,
-    /<blockquote style="[^"]*margin:11\.2px 0[^"]*border:0[^"]*color:#c0b5a7[^"]*line-height:1\.64/,
+    /<blockquote style="[^"]*margin:11\.2px 0[^"]*color:#c0b5a7[^"]*line-height:1\.64/,
   );
   assert.match(
     html,
@@ -529,11 +533,11 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.doesNotMatch(html, /<\/strong>[\u00a0\u2060]vibe coding/);
   assert.match(
     html,
-    /<p style="margin:0;white-space:pre-wrap">正文包含/,
+    /<p style="margin:0">正文包含/,
   );
   assert.match(
     html,
-    /data-smartisan-frame="inner" style="[^"]*color:#665749[^"]*font-size:15px[^"]*line-height:1\.75/,
+    /data-smartisan-theme="default" style="[^"]*color:#665749[^"]*font-size:15px[^"]*line-height:1\.75/,
   );
   assert.match(html, /<a href="https:\/\/example\.com" style=/);
   assert.match(html, /data-smartisan-image="true"/);
@@ -722,7 +726,7 @@ test("WechatArticle 只把 Bear 粗体渲染为链接红色", () => {
   );
   assert.match(
     defaultHtml,
-    /<strong style="font-weight:600;white-space:normal">重点文字<\/strong>/,
+    /<strong style="font-weight:600">重点文字<\/strong>/,
   );
   assert.doesNotMatch(defaultHtml, /<strong style="[^"]*color:#dd4c4f/);
 });
@@ -750,16 +754,17 @@ test("WechatArticle 让长文章继承主题样式而不是逐段重复到超过
   );
 
   assert.ok(
-    Array.from(html).length < 20_000,
-    `十节长文的公众号 HTML 应少于 2 万字符，实际为 ${Array.from(html).length}`,
+    Array.from(html).length < 13_000,
+    `十节长文的公众号 HTML 应少于 1.3 万字符，实际为 ${Array.from(html).length}`,
   );
   assert.equal((html.match(/<h2\b/g) ?? []).length, 10);
   assert.equal((html.match(/<blockquote\b/g) ?? []).length, 10);
   assert.equal((html.match(/来源：<a /g) ?? []).length, 10);
+  assert.doesNotMatch(html, /data-smartisan-frame="outer"/);
   assert.doesNotMatch(html, /<p style="[^"]*font-family:/);
   assert.match(
     html,
-    /data-smartisan-frame="inner" style="[^"]*font-size:15px[^"]*line-height:1\.75/,
+    /data-smartisan-theme="apple-notes" style="[^"]*font-size:15px[^"]*line-height:1\.75[^"]*white-space:pre-wrap/,
   );
 });
 

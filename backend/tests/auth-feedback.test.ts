@@ -592,7 +592,7 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
       }
     ).articles[0];
     assert.equal(compactLongDraftArticle.title, "程序员狠话｜长度回归");
-    assert.ok(Array.from(compactLongDraftArticle.content).length < 20_000);
+    assert.ok(Array.from(compactLongDraftArticle.content).length < 13_000);
     assert.match(compactLongDraftArticle.content, /items\/10/);
 
     const adminWechatConfigurationAfterAliceSave = await fetch(

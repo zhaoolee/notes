@@ -18,7 +18,7 @@ import {
   type NoteCardThemeColors,
   type NoteCardThemeStyle,
 } from "../lib/note-card-theme-styles.js";
-import type { NoteCardThemeId } from "../types/app.js";
+import type { NoteCardThemeId, NoteSection } from "../types/app.js";
 import { remarkManualLineParagraphs } from "./MarkdownText.js";
 
 interface WechatArticleProps {
@@ -90,7 +90,6 @@ function createWechatRenderContext(
     },
     bodyParagraphStyle: {
       margin: "0",
-      whiteSpace: "pre-wrap",
     },
   };
 }
@@ -139,11 +138,7 @@ function renderBlockquoteChildren(
               display: "inline-block",
               width: quoteIndent,
               color: colors.quoteMark,
-              fontFamily: isBear
-                ? themeStyle.fontFamily
-                : 'Georgia,"Times New Roman",serif',
               fontSize: isBear ? "18px" : "26px",
-              fontWeight: 400,
               lineHeight: isBear ? 1 : 0.82,
               textIndent: "0",
               verticalAlign: isBear ? "-0.04em" : "-0.12em",
@@ -258,33 +253,21 @@ function createMarkdownComponents(
       ? children.length === 1 && children[0] === MARKDOWN_BLANK_LINE
       : children === MARKDOWN_BLANK_LINE;
 
-    return (
-      <p
-        style={{
-          ...(isBlankLine
-            ? {
-                ...bodyParagraphStyle,
-                display: "block",
-                height: blockGap,
-                minHeight: "0",
-                color: "transparent",
-                lineHeight: "0",
-                overflow: "hidden",
-              }
-            : bodyParagraphStyle),
-          ...style,
-        }}
-      >
-        {children}
-      </p>
-    );
+    if (isBlankLine) {
+      return (
+        <span
+          style={{ display: "block", height: blockGap, ...style }}
+        />
+      );
+    }
+
+    return <p style={{ ...bodyParagraphStyle, ...style }}>{children}</p>;
   },
   strong: ({ children }) => (
     <strong
       style={{
         color: isBear ? colors.accent : undefined,
         fontWeight: isBear || isTelegraph ? 700 : 600,
-        whiteSpace: "normal",
       }}
     >
       {children}
@@ -309,12 +292,15 @@ function createMarkdownComponents(
     <blockquote
       style={{
         margin: isTelegraph ? "18px 21px 16px 6px" : `${scaledPx(8)} 0`,
-        padding: isTelegraph ? "0 0 0 15px" : "0",
-        border: "0",
-        borderLeft: isTelegraph ? "3px solid #000000" : "0",
         color: colors.quote,
         lineHeight: isTelegraph ? 1.58 : 1.64,
-        fontStyle: isTelegraph ? "italic" : "normal",
+        ...(isTelegraph
+          ? {
+              padding: "0 0 0 15px",
+              borderLeft: "3px solid #000000",
+              fontStyle: "italic",
+            }
+          : {}),
       }}
     >
       {renderBlockquoteChildren(children, context)}
@@ -537,8 +523,6 @@ function SectionHeading({
               : isTelegraph
                 ? "0 0 9px"
                 : `0 0 ${scaledPx(6)}`,
-          padding: "0",
-          border: "0",
         }}
       >
         <h2
@@ -547,7 +531,6 @@ function SectionHeading({
             margin: "0",
             fontSize: isTelegraph ? "28px" : "17px",
             lineHeight: themeStyle.layout === "bear" ? 1.521 : isTelegraph ? 1.1 : 1.4,
-            textAlign: "start",
           }}
         >
           {titleChildren as ReactNode}
@@ -692,6 +675,99 @@ function FrameCornerCell({
   );
 }
 
+function WechatArticleContent({
+  components,
+  context,
+  sections,
+}: {
+  components: Components;
+  context: WechatRenderContext;
+  sections: NoteSection[];
+}) {
+  const { bodyFontSize, bodyLineHeight, colors, themeStyle } = context;
+  const isBear = themeStyle.layout === "bear";
+  const isApple = themeStyle.layout === "apple";
+  const isTelegraph = themeStyle.layout === "telegraph";
+
+  return (
+    <section
+      data-smartisan-frame="inner"
+      style={{
+        boxSizing: "border-box",
+        margin: themeStyle.layout === "smartisan" ? undefined : "0 6px",
+        padding: isBear
+          ? `0 0 ${scaledPx(14)}`
+          : isTelegraph
+            ? "0 0 21px"
+            : isApple
+              ? `${scaledPx(10)} ${scaledPx(16)} ${scaledPx(14)}`
+              : `${scaledPx(31.5)} ${scaledPx(19.8333)} ${scaledPx(14)}`,
+        border: themeStyle.layout === "smartisan"
+          ? `1px solid ${colors.frame}`
+          : "0",
+        backgroundColor: colors.paper,
+      }}
+    >
+      {sections.length ? (
+        sections.map((section, index) => (
+          <section
+            key={`${section.heading}-${index}`}
+            style={{
+              margin:
+                index === 0
+                  ? "0"
+                  : section.heading
+                    ? isBear
+                      ? `${bearBlockGap} 0 0`
+                      : isTelegraph
+                        ? "18px 0 0"
+                        : `${scaledPx(18)} 0 0`
+                    : "0",
+            }}
+          >
+            {section.heading ? (
+              section.headingAlignment === "center" ? (
+                <CenteredBodyLine components={components} context={context}>
+                  {section.heading}
+                </CenteredBodyLine>
+              ) : (
+                <SectionHeading components={components} context={context}>
+                  {section.heading}
+                </SectionHeading>
+              )
+            ) : null}
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkManualLineParagraphs]}
+              components={components}
+            >
+              {preserveMarkdownBlankLines(
+                protectWechatInlineBoundaries(
+                  detachUnindentedImagesFromLists(
+                    removeTrailingEmptyListItems(section.content),
+                  ),
+                ),
+              )}
+            </ReactMarkdown>
+          </section>
+        ))
+      ) : (
+        <p
+          style={{
+            margin: `${scaledPx(18)} 0`,
+            color: colors.quote,
+            fontSize: bodyFontSize,
+            fontWeight: 400,
+            lineHeight: bodyLineHeight,
+            textAlign: "center",
+          }}
+        >
+          不要因为走得太远，就忘了当初为什么出发。
+        </p>
+      )}
+    </section>
+  );
+}
+
 export function WechatArticle({
   footerBrand,
   markdown,
@@ -731,6 +807,8 @@ export function WechatArticle({
         fontWeight: 400,
         lineHeight: bodyLineHeight,
         letterSpacing,
+        whiteSpace: "pre-wrap",
+        overflowWrap: "anywhere",
         wordBreak: "break-word",
       }}
     >
@@ -763,9 +841,7 @@ export function WechatArticle({
               justifyContent: "space-between",
               margin: `0 ${scaledPx(6)} ${scaledPx(14)}`,
               color: colors.accent,
-              fontFamily: themeStyle.fontFamily,
               fontSize: "14px",
-              fontWeight: 400,
               lineHeight: 1.2,
             }}
           >
@@ -773,6 +849,7 @@ export function WechatArticle({
             <span style={{ letterSpacing: "0.55em" }}>⇧ ✎</span>
           </section>
         ) : null}
+        {isSmartisan ? (
         <table
           data-smartisan-frame="outer"
           role="presentation"
@@ -830,92 +907,11 @@ export function WechatArticle({
                 {"\u00a0"}
               </td>
               <td style={{ padding: isSmartisan ? scaledPx(2) : "0", border: "0" }}>
-                <section
-                  data-smartisan-frame="inner"
-                  style={{
-                    boxSizing: "border-box",
-                    padding:
-                      themeStyle.layout === "bear"
-                        ? `0 0 ${scaledPx(14)}`
-                        : isTelegraph
-                          ? "0 0 21px"
-                        : isApple
-                          ? `${scaledPx(10)} ${scaledPx(16)} ${scaledPx(14)}`
-                          : `${scaledPx(31.5)} ${scaledPx(19.8333)} ${scaledPx(14)}`,
-                    border: isSmartisan ? `1px solid ${colors.frame}` : "0",
-                    backgroundColor: colors.paper,
-                    color: colors.text,
-                    fontSize: bodyFontSize,
-                    fontWeight: 400,
-                    lineHeight: bodyLineHeight,
-                    letterSpacing,
-                    overflowWrap: "anywhere",
-                    wordBreak: "break-word",
-                  }}
-                >
-                  {sections.length ? (
-                    sections.map((section, index) => (
-                      <section
-                        key={`${section.heading}-${index}`}
-                        style={{
-                          margin:
-                            index === 0
-                              ? "0"
-                              : section.heading
-                                ? themeStyle.layout === "bear"
-                                  ? `${bearBlockGap} 0 0`
-                                  : isTelegraph
-                                    ? "18px 0 0"
-                                    : `${scaledPx(18)} 0 0`
-                                : "0",
-                        }}
-                      >
-                        {section.heading ? (
-                          section.headingAlignment === "center" ? (
-                            <CenteredBodyLine
-                              components={components}
-                              context={context}
-                            >
-                              {section.heading}
-                            </CenteredBodyLine>
-                          ) : (
-                            <SectionHeading
-                              components={components}
-                              context={context}
-                            >
-                              {section.heading}
-                            </SectionHeading>
-                          )
-                        ) : null}
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm, remarkManualLineParagraphs]}
-                          components={components}
-                        >
-                          {preserveMarkdownBlankLines(
-                            protectWechatInlineBoundaries(
-                              detachUnindentedImagesFromLists(
-                                removeTrailingEmptyListItems(section.content),
-                              ),
-                            ),
-                          )}
-                        </ReactMarkdown>
-                      </section>
-                    ))
-                  ) : (
-                    <p
-                      style={{
-                        margin: `${scaledPx(18)} 0`,
-                        color: colors.quote,
-                        fontSize: bodyFontSize,
-                        fontWeight: 400,
-                        lineHeight: bodyLineHeight,
-                        textAlign: "center",
-                      }}
-                    >
-                      不要因为走得太远，就忘了当初为什么出发。
-                    </p>
-                  )}
-                </section>
+                <WechatArticleContent
+                  components={components}
+                  context={context}
+                  sections={sections}
+                />
               </td>
               <td
                 aria-hidden="true"
@@ -953,21 +949,26 @@ export function WechatArticle({
             </tr>
           </tbody>
         </table>
+        ) : (
+          <WechatArticleContent
+            components={components}
+            context={context}
+            sections={sections}
+          />
+        )}
 
         <section
           data-smartisan-footer="true"
           style={{
             boxSizing: "border-box",
             margin: `${scaledPx(30)} ${scaledPx(10)} 0`,
-            padding: "0",
-            border: "0",
             color: colors.footer,
             fontSize: "0",
-            fontWeight: 400,
             lineHeight: scaledRem(0.64),
-            textAlign: "left",
             whiteSpace: "nowrap",
-            fontFamily: themeStyle.headingFontFamily,
+            ...(isTelegraph
+              ? { fontFamily: themeStyle.headingFontFamily }
+              : {}),
           }}
         >
           <img
@@ -993,13 +994,8 @@ export function WechatArticle({
           <span
             style={{
               display: "inline-block",
-              margin: "0",
-              color: colors.footer,
               fontSize: scaledRem(0.5),
-              fontWeight: 400,
-              lineHeight: scaledRem(0.64),
               verticalAlign: "middle",
-              whiteSpace: "nowrap",
             }}
           >
             <strong style={{ fontWeight: 400 }}>{footerBrand}</strong>
@@ -1008,7 +1004,6 @@ export function WechatArticle({
                 marginLeft: scaledPx(5),
                 color: colors.footerVia,
                 fontSize: scaledRem(0.42),
-                fontWeight: 400,
               }}
             >
               {footerVia}

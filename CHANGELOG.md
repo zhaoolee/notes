@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.8.2] - 2026-08-22
+
+### 修复
+
+- 进一步收紧公众号长文排版：iPhone、Bear 与 Telegra.ph 主题不再携带仅供锤子主题使用的四角表格，空行、引用、标题、工具栏和署名继续移除可继承声明；指定的十节文章 HTML 从 36600 个字符缩短到 11913 个，保留完整主题的同时留出约 40% 的微信长度余量。
+
 ## [1.8.1] - 2026-08-22
 
 ### 修复
@@ -186,6 +192,7 @@
 - PC 版便签操作栏右侧按钮调整为“AI、删除、分享”的顺序，与 APP 版详情操作保持一致。
 - 重置 Hermes 安装链接前会明确提示旧链接立即失效，并要求二次确认，避免误触轮换。
 
+[1.8.2]: https://github.com/zhaoolee/notes/compare/1.8.1...1.8.2
 [1.8.1]: https://github.com/zhaoolee/notes/compare/1.8.0...1.8.1
 [1.8.0]: https://github.com/zhaoolee/notes/compare/1.7.2...1.8.0
 [1.7.2]: https://github.com/zhaoolee/notes/compare/1.7.1...1.7.2
