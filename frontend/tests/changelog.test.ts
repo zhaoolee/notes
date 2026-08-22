@@ -125,7 +125,8 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
 test("changelog 解析器保留便签分节并解析版本比较链接", () => {
   const sections = getChangelogSections(changelog);
   const hasUnreleasedSection = /^## \[未发布\]/m.test(changelog);
-  const latestReleaseSectionIndex = hasUnreleasedSection ? 2 : 1;
+  const currentReleaseSectionIndex = hasUnreleasedSection ? 2 : 1;
+  const latestReleaseSectionIndex = currentReleaseSectionIndex + 1;
 
   assert.equal(sections[0]?.heading, "");
   assert.match(sections[0]?.content ?? "", /^# 更新日志/m);
@@ -135,6 +136,14 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
       "[未发布](https://github.com/zhaoolee/notes/compare/1.7.2...HEAD)",
     );
   }
+  assert.equal(
+    sections[currentReleaseSectionIndex]?.heading,
+    "[1.8.4](https://github.com/zhaoolee/notes/compare/1.8.3...1.8.4) - 2026-08-22",
+  );
+  assert.match(
+    sections[currentReleaseSectionIndex]?.content ?? "",
+    /引用.*默认灰色左边线.*主题大引号.*Telegra\.ph.*清除.*引用边框和缩进/s,
+  );
   assert.equal(
     sections[latestReleaseSectionIndex]?.heading,
     "[1.8.3](https://github.com/zhaoolee/notes/compare/1.8.2...1.8.3) - 2026-08-22",

@@ -292,15 +292,12 @@ function createMarkdownComponents(
     <blockquote
       style={{
         margin: isTelegraph ? "18px 21px 16px 6px" : `${scaledPx(8)} 0`,
+        padding: isTelegraph ? "0 0 0 15px" : "0",
+        border: "0",
+        borderLeft: isTelegraph ? "3px solid #000000" : "0",
         color: colors.quote,
         lineHeight: isTelegraph ? 1.58 : 1.64,
-        ...(isTelegraph
-          ? {
-              padding: "0 0 0 15px",
-              borderLeft: "3px solid #000000",
-              fontStyle: "italic",
-            }
-          : {}),
+        fontStyle: isTelegraph ? "italic" : "normal",
       }}
     >
       {renderBlockquoteChildren(children, context)}

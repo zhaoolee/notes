@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.8.4] - 2026-08-22
+
+### 修复
+
+- 修复公众号草稿中的引用被微信附加默认灰色左边线、与主题大引号叠成双重装饰的问题；除原本使用黑色引用线的 Telegra.ph 外，其他主题会明确清除微信默认引用边框和缩进。
+
 ## [1.8.3] - 2026-08-22
 
 ### 修复
@@ -198,6 +204,7 @@
 - PC 版便签操作栏右侧按钮调整为“AI、删除、分享”的顺序，与 APP 版详情操作保持一致。
 - 重置 Hermes 安装链接前会明确提示旧链接立即失效，并要求二次确认，避免误触轮换。
 
+[1.8.4]: https://github.com/zhaoolee/notes/compare/1.8.3...1.8.4
 [1.8.3]: https://github.com/zhaoolee/notes/compare/1.8.2...1.8.3
 [1.8.2]: https://github.com/zhaoolee/notes/compare/1.8.1...1.8.2
 [1.8.1]: https://github.com/zhaoolee/notes/compare/1.8.0...1.8.1

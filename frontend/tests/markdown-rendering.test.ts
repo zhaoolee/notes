@@ -522,7 +522,7 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.doesNotMatch(html, /<header[^>]*border-bottom/);
   assert.match(
     html,
-    /<blockquote style="[^"]*margin:11\.2px 0[^"]*color:#c0b5a7[^"]*line-height:1\.64/,
+    /<blockquote style="[^"]*margin:11\.2px 0[^"]*padding:0[^"]*border:0[^"]*border-left:0[^"]*color:#c0b5a7[^"]*line-height:1\.64[^"]*font-style:normal/,
   );
   assert.match(
     html,
@@ -690,6 +690,8 @@ test("WechatArticle 为 Telegra.ph 保留原站正文节奏与引用线", () => 
   assert.match(html, /height:0\.667em/);
   assert.match(html, /border-bottom:0\.1em solid rgba\(0,0,0,0\.7\)/);
   assert.match(html, /margin:18px 21px 16px 6px/);
+  assert.match(html, /padding:0 0 0 15px/);
+  assert.match(html, /border:0/);
   assert.match(html, /border-left:3px solid #000000/);
   assert.match(html, /font-style:italic/);
   assert.doesNotMatch(html, />[“▎]<\/span>引用内容/);
