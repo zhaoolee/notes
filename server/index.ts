@@ -3621,6 +3621,7 @@ async function uploadDraftCover(
   markdown: string,
   accessToken: string,
   publicBaseUrl: string,
+  theme: NoteCardThemeId,
 ): Promise<string> {
   const firstArticleImage = collectMarkdownImageSources(markdown)[0];
   let cover: WechatImageUpload | null = null;
@@ -3642,21 +3643,73 @@ async function uploadDraftCover(
   }
 
   if (!cover) {
-    const defaultCoverSource = "/header/logo.png";
-    const image = await readRootRelativeArchiveImage(defaultCoverSource);
-
-    if (!image) {
-      throw new WechatDraftPreparationError("无法读取公众号默认草稿封面。");
-    }
-
-    cover = toWechatCoverImage(image, defaultCoverSource);
-  }
-
-  if (!cover) {
-    throw new WechatDraftPreparationError("公众号草稿封面格式不受支持。");
+    cover = await createWechatTitleCover(markdown, theme);
   }
 
   return uploadWechatPermanentImage(accessToken, cover);
+}
+
+function escapeSvgText(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+async function createWechatTitleCover(
+  markdown: string,
+  theme: NoteCardThemeId,
+): Promise<WechatImageUpload> {
+  const themeStyle = getNoteCardThemeStyle(theme);
+  const coverCharacters = Array.from(getNoteTitle(markdown)).slice(0, 20);
+  const visibleCharacters = coverCharacters.length
+    ? coverCharacters
+    : Array.from("新便签");
+  const lines = [
+    visibleCharacters.slice(0, 10).join(""),
+    visibleCharacters.slice(10, 20).join(""),
+  ].filter(Boolean);
+  const lineHeight = 88;
+  const firstLineY = lines.length === 1 ? 214 : 174;
+  const titleMarkup = lines
+    .map(
+      (line, index) =>
+        `<text x="450" y="${firstLineY + index * lineHeight}" text-anchor="middle" fill="${escapeSvgText(themeStyle.colors.heading)}" font-family="Noto Sans CJK SC,Noto Sans SC,PingFang SC,sans-serif" font-size="64" font-weight="700">${escapeSvgText(line)}</text>`,
+    )
+    .join("");
+  const svg = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="383" viewBox="0 0 900 383">
+      <rect width="900" height="383" fill="${escapeSvgText(themeStyle.colors.paper)}"/>
+      <rect width="900" height="14" fill="${escapeSvgText(themeStyle.colors.accent)}"/>
+      <rect x="34" y="34" width="832" height="315" rx="18" fill="none" stroke="${escapeSvgText(themeStyle.colors.border)}" stroke-width="2"/>
+      ${titleMarkup}
+      <text x="450" y="326" text-anchor="middle" fill="${escapeSvgText(themeStyle.colors.footer)}" font-family="Noto Sans CJK SC,Noto Sans SC,PingFang SC,sans-serif" font-size="26">开源版锤子便签</text>
+    </svg>`,
+  );
+  let buffer: Buffer;
+
+  try {
+    buffer = await sharp(svg).png({ compressionLevel: 9 }).toBuffer();
+  } catch {
+    buffer = await sharp({
+      create: {
+        width: 900,
+        height: 383,
+        channels: 3,
+        background: themeStyle.colors.paper,
+      },
+    })
+      .png({ compressionLevel: 9 })
+      .toBuffer();
+  }
+
+  return {
+    buffer,
+    filename: `wechat-cover-title-${createHash("sha256").update(buffer).digest("hex")}.png`,
+    mimeType: "image/png",
+  };
 }
 
 function getWechatDraftTitle(markdown: string): string {
@@ -4709,6 +4762,7 @@ app.post(
         prepared.markdown,
         accessToken,
         publicBaseUrl,
+        prepared.theme,
       );
       const title = getWechatDraftTitle(markdown);
       const mediaId = await addWechatDraft(accessToken, {

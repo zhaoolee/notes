@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.8.3] - 2026-08-22
+
+### 修复
+
+- 修复无正文图片的文章发布公众号草稿时，生产后端读取不到固定默认封面并提示 `ENOENT`、无法保存草稿的问题；无图文章现在会提取便签标题的前 20 个可见字符，按当前主题即时生成专属封面，不再依赖运行镜像中的固定 Logo 文件。
+
 ## [1.8.2] - 2026-08-22
 
 ### 修复
@@ -192,6 +198,7 @@
 - PC 版便签操作栏右侧按钮调整为“AI、删除、分享”的顺序，与 APP 版详情操作保持一致。
 - 重置 Hermes 安装链接前会明确提示旧链接立即失效，并要求二次确认，避免误触轮换。
 
+[1.8.3]: https://github.com/zhaoolee/notes/compare/1.8.2...1.8.3
 [1.8.2]: https://github.com/zhaoolee/notes/compare/1.8.1...1.8.2
 [1.8.1]: https://github.com/zhaoolee/notes/compare/1.8.0...1.8.1
 [1.8.0]: https://github.com/zhaoolee/notes/compare/1.7.2...1.8.0

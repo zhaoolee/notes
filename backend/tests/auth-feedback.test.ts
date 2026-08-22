@@ -6,6 +6,7 @@ import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import sharp from "sharp";
 import test from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 import type { NoteWorkspace } from "../../src/types/app.js";
@@ -110,6 +111,21 @@ function createWorkspace(label: string, timestamp: number): NoteWorkspace {
   };
 }
 
+function extractPngFromMultipart(body: Buffer): Buffer {
+  const signature = Buffer.from([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+  ]);
+  const iendChunk = Buffer.from([
+    0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+  ]);
+  const start = body.indexOf(signature);
+  const iend = body.indexOf(iendChunk, start);
+
+  assert.ok(start >= 0);
+  assert.ok(iend >= start);
+  return body.subarray(start, iend + iendChunk.length);
+}
+
 async function postJson(
   baseUrl: string,
   pathname: string,
@@ -138,6 +154,7 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
   const baseUrl = `http://127.0.0.1:${port}`;
   const wechatDraftPayloads: unknown[] = [];
   const wechatContentUploads: Buffer[] = [];
+  const wechatCoverUploads: Buffer[] = [];
   let wechatContentImageSequence = 0;
   const wechatServer = createHttpServer(async (request, response) => {
     const url = new URL(request.url || "/", `http://127.0.0.1:${wechatPort}`);
@@ -178,9 +195,12 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
       request.method === "POST" &&
       url.pathname === "/cgi-bin/material/add_material"
     ) {
-      for await (const _chunk of request) {
-        // 消费 multipart 请求体。
+      const chunks: Buffer[] = [];
+
+      for await (const chunk of request) {
+        chunks.push(Buffer.from(chunk));
       }
+      wechatCoverUploads.push(Buffer.concat(chunks));
       response.end(
         JSON.stringify({
           media_id: "feedback-cover-media-id",
@@ -531,6 +551,18 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
     });
     assert.equal(wechatDraftPayloads.length, 1);
     assert.equal(wechatContentUploads.length, 1);
+    assert.equal(wechatCoverUploads.length, 1);
+    const firstCoverUpload = wechatCoverUploads[0].toString("latin1");
+    const firstCoverFilename = firstCoverUpload.match(
+      /filename="(wechat-cover-title-[a-f0-9]+\.png)"/,
+    )?.[1];
+    assert.ok(firstCoverFilename);
+    const firstCoverPng = extractPngFromMultipart(wechatCoverUploads[0]);
+    const firstCoverMetadata = await sharp(firstCoverPng).metadata();
+    const firstCoverStats = await sharp(firstCoverPng).stats();
+    assert.equal(firstCoverMetadata.width, 900);
+    assert.equal(firstCoverMetadata.height, 383);
+    assert.ok(firstCoverStats.channels.some((channel) => channel.stdev > 5));
     assert.match(
       wechatContentUploads[0].toString("latin1"),
       /filename="wechat-[a-f0-9]+\.(?:jpg|png)"/,
@@ -586,6 +618,12 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
     );
     assert.equal(compactLongDraftResponse.status, 200);
     assert.equal(wechatDraftPayloads.length, 2);
+    assert.equal(wechatCoverUploads.length, 2);
+    const secondCoverFilename = wechatCoverUploads[1]
+      .toString("latin1")
+      .match(/filename="(wechat-cover-title-[a-f0-9]+\.png)"/)?.[1];
+    assert.ok(secondCoverFilename);
+    assert.notEqual(secondCoverFilename, firstCoverFilename);
     const compactLongDraftArticle = (
       wechatDraftPayloads[1] as {
         articles: Array<{ content: string; title: string }>;

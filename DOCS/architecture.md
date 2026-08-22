@@ -358,9 +358,12 @@ Clipboard API 同时写入 `text/html` 和 `text/plain`，不支持 ClipboardIte
 自动旋转、缩放并转成小于 1MB 的 JPG/PNG，再上传至 `/cgi-bin/media/uploadimg`，
 按转换后内容哈希去重并将 `src` 替换为微信返回的地址。封面优先使用文章首图，通过
 `/cgi-bin/material/add_material?type=image` 上传为永久素材；首图不符合永久素材
-要求或文章无图时使用 `public/header/logo.png` 默认封面。最后服务端从当前便签标题
+要求或文章无图时，提取便签标题的前 20 个 Unicode 字符，按当前卡片主题在内存中生成
+`900 × 383` PNG 专属封面。最后服务端从当前便签标题
 生成不超过 32 字的草稿标题，携带主题化 HTML 和 `thumb_media_id` 调用
 `/cgi-bin/draft/add`。响应只向浏览器返回草稿 `mediaId`、标题、主题和微信正文图片数。
+动态封面直接由 Sharp 从内存 SVG 光栅化，不读取运行镜像中的固定 Logo；如果文字 SVG
+光栅化失败，会生成同主题纯色 PNG 兜底，避免封面资源缺失再次阻断草稿发布。
 
 该接口只接受当前页面的同源请求并强制登录，只从签名会话账号 ID 读取配置，不能由
 请求体指定其他账号。微信官方限制正文少于 2 万字符且小于 1MB；超限、图片格式不符、
