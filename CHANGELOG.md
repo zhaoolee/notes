@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.8.1] - 2026-08-22
+
+### 修复
+
+- 修复正文并不长、但公众号主题反复写入相同段落样式后被误判为“超过 2 万字符”的问题；发布草稿现在让段落安全继承文章容器的字体、字号、颜色和行高，保持当前主题排版的同时显著缩短 HTML。
+
 ## [1.8.0] - 2026-08-22
 
 ### 新增
@@ -180,6 +186,7 @@
 - PC 版便签操作栏右侧按钮调整为“AI、删除、分享”的顺序，与 APP 版详情操作保持一致。
 - 重置 Hermes 安装链接前会明确提示旧链接立即失效，并要求二次确认，避免误触轮换。
 
+[1.8.1]: https://github.com/zhaoolee/notes/compare/1.8.0...1.8.1
 [1.8.0]: https://github.com/zhaoolee/notes/compare/1.7.2...1.8.0
 [1.7.2]: https://github.com/zhaoolee/notes/compare/1.7.1...1.7.2
 [1.7.1]: https://github.com/zhaoolee/notes/compare/1.7.0...1.7.1

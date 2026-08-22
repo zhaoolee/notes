@@ -82,23 +82,15 @@ function createWechatRenderContext(
     letterSpacing,
     baseHeadingStyle: {
       color: colors.heading,
-      fontFamily: themeStyle.headingFontFamily,
+      ...(isTelegraph
+        ? { fontFamily: themeStyle.headingFontFamily }
+        : {}),
       fontWeight: headingWeight,
-      letterSpacing,
       lineHeight: isBear ? 1.521 : isTelegraph ? 1.0625 : 1.32,
     },
     bodyParagraphStyle: {
       margin: "0",
-      color: colors.text,
-      fontFamily: themeStyle.fontFamily,
-      fontSize: bodyFontSize,
-      fontWeight: 400,
-      lineHeight: bodyLineHeight,
-      letterSpacing,
-      textAlign: "left",
       whiteSpace: "pre-wrap",
-      overflowWrap: "anywhere",
-      wordBreak: "break-word",
     },
   };
 }
@@ -131,9 +123,6 @@ function renderBlockquoteChildren(
         style: {
           ...child.props.style,
           margin: "0",
-          color: "inherit",
-          fontSize: "inherit",
-          lineHeight: "inherit",
           ...(isFirstTextBlock && !isTelegraph
             ? {
                 paddingLeft: quoteIndent,
@@ -293,8 +282,7 @@ function createMarkdownComponents(
   strong: ({ children }) => (
     <strong
       style={{
-        display: "inline",
-        color: isBear ? colors.accent : "inherit",
+        color: isBear ? colors.accent : undefined,
         fontWeight: isBear || isTelegraph ? 700 : 600,
         whiteSpace: "normal",
       }}
@@ -302,7 +290,7 @@ function createMarkdownComponents(
       {children}
     </strong>
   ),
-  em: ({ children }) => <em style={{ color: "inherit" }}>{children}</em>,
+  em: ({ children }) => <em>{children}</em>,
   a: ({ children, href }) => (
     <a
       href={href}
@@ -324,14 +312,9 @@ function createMarkdownComponents(
         padding: isTelegraph ? "0 0 0 15px" : "0",
         border: "0",
         borderLeft: isTelegraph ? "3px solid #000000" : "0",
-        backgroundColor: "transparent",
         color: colors.quote,
-        fontSize: bodyFontSize,
-        fontWeight: 400,
         lineHeight: isTelegraph ? 1.58 : 1.64,
         fontStyle: isTelegraph ? "italic" : "normal",
-        overflowWrap: "anywhere",
-        wordBreak: "break-word",
       }}
     >
       {renderBlockquoteChildren(children, context)}
@@ -541,7 +524,7 @@ function SectionHeading({
   components: Components;
   context: WechatRenderContext;
 }) {
-  const { baseHeadingStyle, colors, themeStyle } = context;
+  const { baseHeadingStyle, themeStyle } = context;
   const isTelegraph = themeStyle.layout === "telegraph";
   const titleComponents: Components = {
     ...components,
@@ -562,7 +545,6 @@ function SectionHeading({
           style={{
             ...baseHeadingStyle,
             margin: "0",
-            color: colors.heading,
             fontSize: isTelegraph ? "28px" : "17px",
             lineHeight: themeStyle.layout === "bear" ? 1.521 : isTelegraph ? 1.1 : 1.4,
             textAlign: "start",

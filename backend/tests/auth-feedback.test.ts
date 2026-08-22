@@ -564,6 +564,37 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
       /notes\.fangyuanxiaozhan\.com\/images/,
     );
 
+    const compactLongDraftMarkdown = [
+      "# 程序员狠话｜长度回归",
+      ...Array.from({ length: 10 }, (_, index) =>
+        [
+          `## **0x${String(index + 1).padStart(2, "0")}**`,
+          `> 话题：第 ${index + 1} 条长文章主题保持原有排版`,
+          "这是一段用于验证公众号草稿长度的正文。系统应保留标题、引用、正文、链接与空行的主题样式，同时让段落从文章容器继承相同的字体、字号、颜色和行高，避免为每一段重复写入完全相同的内联声明。",
+          `来源：https://example.com/items/${index + 1}`,
+        ].join("\n\n"),
+      ),
+    ].join("\n\n");
+    const compactLongDraftResponse = await postJson(
+      baseUrl,
+      "/api/wechat/draft",
+      {
+        markdown: compactLongDraftMarkdown,
+        theme: "apple-notes",
+      },
+      aliceCookie,
+    );
+    assert.equal(compactLongDraftResponse.status, 200);
+    assert.equal(wechatDraftPayloads.length, 2);
+    const compactLongDraftArticle = (
+      wechatDraftPayloads[1] as {
+        articles: Array<{ content: string; title: string }>;
+      }
+    ).articles[0];
+    assert.equal(compactLongDraftArticle.title, "程序员狠话｜长度回归");
+    assert.ok(Array.from(compactLongDraftArticle.content).length < 20_000);
+    assert.match(compactLongDraftArticle.content, /items\/10/);
+
     const adminWechatConfigurationAfterAliceSave = await fetch(
       `${baseUrl}/api/wechat/config`,
       { headers: { Cookie: adminNotesCookie } },
