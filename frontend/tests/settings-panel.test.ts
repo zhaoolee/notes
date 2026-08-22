@@ -101,6 +101,50 @@ test("AI 服务可用时才在工具与扩展显示开启选项，并明确逐�
   );
 });
 
+test("每个登录账号可在设置中保存并完整回显自己的公众号配置", () => {
+  const noop = () => undefined;
+  const html = renderToStaticMarkup(
+    createElement(SettingsPanel, {
+      authUsername: "feedback-admin",
+      canConfigureWechat: true,
+      selectedTheme: "default",
+      onClose: noop,
+      onThemeChange: noop,
+    }),
+  );
+  const appSource = readFileSync("src/App.tsx", "utf8");
+  const settingsSource = readFileSync(
+    "src/components/SettingsPanel.tsx",
+    "utf8",
+  );
+  const clientSource = readFileSync("src/lib/wechat-config.ts", "utf8");
+  const serverSource = readFileSync("server/index.ts", "utf8");
+  const authSource = readFileSync("server/auth.ts", "utf8");
+
+  assert.match(html, /aria-label="公众号配置"/);
+  assert.match(html, /aria-label="公众号 AppID"/);
+  assert.match(html, /aria-label="公众号 AppSecret"/);
+  assert.match(html, /type="password"/);
+  assert.match(html, /aria-label="显示公众号 AppSecret"/);
+  assert.match(html, /保存配置/);
+  assert.match(settingsSource, /setWechatAppSecret\(configuration\.appSecret\)/);
+  assert.match(settingsSource, /value=\{wechatAppSecret\}/);
+  assert.match(
+    appSource,
+    /canConfigureWechat=\{Boolean\(authUser\)\}/,
+  );
+  assert.match(clientSource, /GET|fetch\("\/api\/wechat\/config"/);
+  assert.match(clientSource, /method: "PUT"/);
+  assert.match(serverSource, /"\/api\/wechat\/config"/);
+  assert.match(serverSource, /Cache-Control", "no-store"/);
+  assert.match(
+    authSource,
+    /wechatConfigurations: Record<string, WechatConfiguration>/,
+  );
+  assert.match(serverSource, /getWechatConfiguration\(user\.id\)/);
+  assert.doesNotMatch(serverSource, /process\.env\.(?:AppID|AppSecret)/);
+});
+
 test("底部显示设置提供四角格、Logo 上传、双文本编辑、恢复默认与持久化", () => {
   const appSource = readFileSync("src/App.tsx", "utf8");
   const settingsSource = readFileSync("src/components/SettingsPanel.tsx", "utf8");
@@ -226,18 +270,25 @@ test("分享面板承接存图、复制和归档", () => {
   const noop = () => undefined;
   const html = renderToStaticMarkup(
     createElement(SharePanel, {
+      canPublishWechatDraft: true,
       copyButtonText: "已复制文字",
       isArchiving: true,
       isCopyingWechat: false,
       isExporting: false,
+      isPublishingWechatDraft: false,
       onArchiveDownload: noop,
       onClose: noop,
       onCopyMarkdown: noop,
       onCopyWechat: noop,
       onExport: noop,
+      onPublishWechatDraft: noop,
+      wechatDraftButtonText: "发布为公众号草稿",
       wechatButtonText: "复制到公众号",
     }),
   );
+  const appSource = readFileSync("src/App.tsx", "utf8");
+  const wechatSource = readFileSync("src/lib/wechat.ts", "utf8");
+  const wechatConfigSource = readFileSync("src/lib/wechat-config.ts", "utf8");
 
   assert.match(html, /id="app-share-panel"/);
   assert.match(html, /请选择操作/);
@@ -245,13 +296,23 @@ test("分享面板承接存图、复制和归档", () => {
   assert.match(html, /已复制文字/);
   assert.match(html, /复制到公众号/);
   assert.match(html, /上传图片并复制微信公众号富文本/);
+  assert.match(html, /发布为公众号草稿/);
+  assert.match(html, /发送当前文章及主题样式到公众号草稿箱/);
   assert.match(html, /归档中\.\.\./);
 
   assert.ok(
     html.indexOf("已复制文字") < html.indexOf("复制到公众号") &&
-      html.indexOf("复制到公众号") < html.indexOf("以图片形式分享") &&
+      html.indexOf("复制到公众号") < html.indexOf("发布为公众号草稿") &&
+      html.indexOf("发布为公众号草稿") < html.indexOf("以图片形式分享") &&
       html.indexOf("以图片形式分享") < html.indexOf("归档中..."),
-    "分享动作顺序应先文字、再公众号、图片和归档",
+    "分享动作顺序应先文字、公众号复制、公众号草稿、图片和归档",
+  );
+  assert.match(wechatConfigSource, /fetch\("\/api\/wechat\/status"/);
+  assert.match(wechatSource, /fetch\("\/api\/wechat\/draft"/);
+  assert.match(appSource, /status\.configured && status\.connected/);
+  assert.match(
+    appSource,
+    /canPublishWechatDraft \? \([\s\S]*getWechatDraftButtonText\(/,
   );
 });
 

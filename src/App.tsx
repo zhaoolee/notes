@@ -69,7 +69,11 @@ import {
   type NoteRoute,
   type NoteRouteView,
 } from "./lib/note-route";
-import { copyMarkdownForWechat } from "./lib/wechat";
+import { getWechatConnectionStatus } from "./lib/wechat-config";
+import {
+  copyMarkdownForWechat,
+  publishMarkdownAsWechatDraft,
+} from "./lib/wechat";
 import { useAppStore } from "./store/useAppStore";
 import type {
   CopyState,
@@ -82,6 +86,7 @@ import type {
 type MobileWorkspaceView = "notes" | "editor" | "preview";
 type DesktopWorkspaceView = "editor" | "preview";
 type WechatCopyState = "idle" | "preparing" | "copied" | "failed";
+type WechatDraftState = "idle" | "publishing" | "published" | "failed";
 type HermesSkillLinkActionState =
   | "idle"
   | "copying"
@@ -163,6 +168,22 @@ function getWechatCopyButtonText(copyState: WechatCopyState): string {
   return "复制到公众号";
 }
 
+function getWechatDraftButtonText(state: WechatDraftState): string {
+  if (state === "publishing") {
+    return "正在发布草稿...";
+  }
+
+  if (state === "published") {
+    return "已保存到公众号草稿";
+  }
+
+  if (state === "failed") {
+    return "草稿发布失败";
+  }
+
+  return "发布为公众号草稿";
+}
+
 function formatMobileNoteUpdatedAt(timestamp: number | undefined): string {
   if (!timestamp) {
     return "";
@@ -224,6 +245,9 @@ export default function App() {
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [wechatCopyState, setWechatCopyState] =
     useState<WechatCopyState>("idle");
+  const [wechatDraftState, setWechatDraftState] =
+    useState<WechatDraftState>("idle");
+  const [canPublishWechatDraft, setCanPublishWechatDraft] = useState(false);
   const [activeCategoryId, setActiveCategoryId] =
     useState<NoteCategoryId>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -715,6 +739,50 @@ export default function App() {
       window.clearTimeout(timeoutId);
     };
   }, [wechatCopyState]);
+
+  useEffect(() => {
+    if (wechatDraftState === "idle" || wechatDraftState === "publishing") {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setWechatDraftState("idle");
+    }, 3_000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [wechatDraftState]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!authUser || (!isShareOpen && !isDesktopSharePreview)) {
+      setCanPublishWechatDraft(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setCanPublishWechatDraft(false);
+    void getWechatConnectionStatus()
+      .then((status) => {
+        if (!cancelled) {
+          setCanPublishWechatDraft(status.configured && status.connected);
+        }
+      })
+      .catch((error) => {
+        console.error("Wechat connection check failed", error);
+
+        if (!cancelled) {
+          setCanPublishWechatDraft(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser, isDesktopSharePreview, isShareOpen]);
 
   useEffect(() => {
     if (!isSettingsOpen) {
@@ -1238,6 +1306,31 @@ export default function App() {
     }
   }
 
+  async function handlePublishWechatDraft() {
+    if (wechatDraftState === "publishing" || !canPublishWechatDraft) {
+      return;
+    }
+
+    try {
+      setWechatDraftState("publishing");
+      setExportError("");
+      await publishMarkdownAsWechatDraft(markdown, noteCardTheme, {
+        footerBrand,
+        footerLogoUrl,
+        footerVia,
+      });
+      setWechatDraftState("published");
+    } catch (error) {
+      console.error("Wechat draft publication failed", error);
+      setWechatDraftState("failed");
+      setExportError(
+        error instanceof Error
+          ? `发布公众号草稿失败：${error.message}`
+          : "发布公众号草稿失败",
+      );
+    }
+  }
+
   function handleCreateNote() {
     setIsSettingsOpen(false);
     setIsShareOpen(false);
@@ -1575,6 +1668,7 @@ export default function App() {
       aiEnabled={aiEnabled}
       authUsername={authUser?.username}
       canChangePassword={authUser?.role === "user"}
+      canConfigureWechat={Boolean(authUser)}
       cloudStatusLabel={
         canUseCloudWorkspace(authUser)
           ? cloudSyncState === "syncing"
@@ -1812,10 +1906,14 @@ export default function App() {
 
                     {isShareOpen ? (
                       <SharePanel
+                        canPublishWechatDraft={canPublishWechatDraft}
                         copyButtonText={getCopyButtonText(copyState)}
                         isArchiving={isArchiving}
                         isCopyingWechat={wechatCopyState === "preparing"}
                         isExporting={isExporting}
+                        isPublishingWechatDraft={
+                          wechatDraftState === "publishing"
+                        }
                         onArchiveDownload={() => {
                           setIsShareOpen(false);
                           void handleArchiveDownload();
@@ -1831,6 +1929,12 @@ export default function App() {
                           setIsShareOpen(false);
                           void handleExport();
                         }}
+                        onPublishWechatDraft={() => {
+                          void handlePublishWechatDraft();
+                        }}
+                        wechatDraftButtonText={getWechatDraftButtonText(
+                          wechatDraftState,
+                        )}
                         wechatButtonText={getWechatCopyButtonText(wechatCopyState)}
                       />
                     ) : null}
@@ -1857,6 +1961,17 @@ export default function App() {
                     >
                       {getWechatCopyButtonText(wechatCopyState)}
                     </button>
+                    {canPublishWechatDraft ? (
+                      <button
+                        type="button"
+                        disabled={wechatDraftState === "publishing"}
+                        onClick={() => {
+                          void handlePublishWechatDraft();
+                        }}
+                      >
+                        {getWechatDraftButtonText(wechatDraftState)}
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => {

@@ -1,7 +1,7 @@
 {
   "name": "notes",
   "private": true,
-  "version": "1.7.2",
+  "version": "1.8.0",
   "type": "module",
   "scripts": {
     "backend": "tsx server/index.ts",
@@ -36,6 +36,7 @@
     "react-dom": "^19.1.1",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "sharp": "^0.35.3",
     "zustand": "^5.0.12"
   },
   "devDependencies": {

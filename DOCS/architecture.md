@@ -201,6 +201,13 @@ Vite，普通编辑仍可使用，但 `/api/export`、`/api/archive` 和图片�
   密钥或上游错误正文
 - `POST /api/ai/suggestions`：登录用户提交当前 Markdown 与人类审阅要求，取得
   可逐条确认的原子修改建议；接口本身不写工作区
+- `GET /api/wechat/config`：登录账号读取自己服务端持久化的公众号 AppID 与
+  AppSecret；响应禁止缓存
+- `PUT /api/wechat/config`：登录账号保存并立即替换自己的公众号 AppID 与
+  AppSecret；配置按会话账号 ID 写入 `storage/data/notes-data.json`，不接受请求体
+  指定其他账号，也不读取 `.env` 回退值；保存后会立即验证微信接口连通性
+- `GET /api/wechat/status`：使用当前登录账号自己的配置取得并缓存微信接口调用凭据，
+  只返回是否已配置、是否连通和脱敏后的错误信息，不返回接口调用凭据
 - `POST /api/images/import`：上传图片或从 URL 下载图片
 - `POST /api/export`：将 Markdown 导出为 PNG
 - `POST /api/archive`：按 `theme` 生成包含 Markdown、主题化 HTML、图片和字体的 ZIP
@@ -210,6 +217,9 @@ Vite，普通编辑仍可使用，但 `/api/export`、`/api/archive` 和图片�
 - `POST /api/wechat`：上传文章图片到七牛并按 `theme` 生成带内联样式的公众号富文本；
   请求可携带 `footerBrand`、`footerLogoUrl` 与 `footerVia` 自定义底部署名，响应回显
   实际采用的 `theme`
+- `POST /api/wechat/draft`：登录账号把当前 Markdown、所选 `theme` 和底部署名先交给
+  `/api/wechat` 同源渲染链路生成公众号富文本，再将正文图片上传到微信、准备永久
+  封面并保存到该账号的微信公众号草稿箱
 - `GET /images/*`：读取持久化图片与导出结果
 
 图片内容使用 SHA-256 命名以实现去重，默认存储在 `storage/images`，单张图片最大 20 MB。
@@ -333,6 +343,29 @@ Data URL。
 和图片继续遵循 GFM。前端使用
 Clipboard API 同时写入 `text/html` 和 `text/plain`，不支持 ClipboardItem 时
 回退到富文本选区复制，粘贴到微信公众号编辑器后保留排版。
+
+## 微信公众号草稿发布链路
+
+分享入口打开时，前端使用 `GET /api/wechat/status` 检查当前登录账号自己的配置。
+只有 AppID 与 AppSecret 都存在且服务端成功取得微信接口调用凭据时，才在
+“复制到公众号”正下方显示“发布为公众号草稿”；未登录、未配置或连通失败时不显示，
+设置页会展示连通结果和可操作的错误原因。调用凭据只在服务端内存中按配置哈希缓存，
+不会返回浏览器。
+
+点击发布后，`POST /api/wechat/draft` 先调用与“复制到公众号”相同的
+`prepareWechatArticle`，确保当前 Markdown、卡片主题、署名、图片预处理和内联样式
+完全一致。由于微信草稿接口会过滤外部图片，服务端继续扫描渲染后的 HTML，把图片
+自动旋转、缩放并转成小于 1MB 的 JPG/PNG，再上传至 `/cgi-bin/media/uploadimg`，
+按转换后内容哈希去重并将 `src` 替换为微信返回的地址。封面优先使用文章首图，通过
+`/cgi-bin/material/add_material?type=image` 上传为永久素材；首图不符合永久素材
+要求或文章无图时使用 `public/header/logo.png` 默认封面。最后服务端从当前便签标题
+生成不超过 32 字的草稿标题，携带主题化 HTML 和 `thumb_media_id` 调用
+`/cgi-bin/draft/add`。响应只向浏览器返回草稿 `mediaId`、标题、主题和微信正文图片数。
+
+该接口只接受当前页面的同源请求并强制登录，只从签名会话账号 ID 读取配置，不能由
+请求体指定其他账号。微信官方限制正文少于 2 万字符且小于 1MB；超限、图片格式不符、
+IP 白名单未放行或凭据错误都会停止发布并在页面显示原因，不会降级为另一个账号或
+`.env` 凭据。无法解码或反复压缩后仍超过 1MB 的图片会给出明确错误。
 
 公众号组件不维护一套固定的暖白近似色，而是从五主题共享配置逐次读取当前主题，
 每次服务端渲染都创建新的闭包上下文，避免并发请求或连续切换主题时串色。默认

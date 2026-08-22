@@ -53,6 +53,12 @@ export interface StoredWorkspace {
   workspace: NoteWorkspace;
 }
 
+export interface WechatConfiguration {
+  appId: string;
+  appSecret: string;
+  updatedAt: number;
+}
+
 export interface AnonymousQuotaStatus {
   dateKey: string;
   limit: number;
@@ -77,6 +83,7 @@ interface AuthDatabase {
   hermesInstallLinks: Record<string, string>;
   users: StoredAccount[];
   version: 1;
+  wechatConfigurations: Record<string, WechatConfiguration>;
   workspaces: Record<string, StoredWorkspace>;
 }
 
@@ -163,6 +170,13 @@ export class AnonymousQuotaExceededError extends Error {
   }
 }
 
+export class InvalidWechatConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidWechatConfigurationError";
+  }
+}
+
 function createEmptyDatabase(): AuthDatabase {
   return {
     anonymousUploadQuota: {
@@ -172,8 +186,33 @@ function createEmptyDatabase(): AuthDatabase {
     hermesInstallLinks: {},
     users: [],
     version: 1,
+    wechatConfigurations: {},
     workspaces: {},
   };
+}
+
+export function validateWechatAppId(appId: string): string {
+  const normalized = appId.trim();
+
+  if (!/^wx[0-9a-f]{16}$/i.test(normalized)) {
+    throw new InvalidWechatConfigurationError(
+      "AppID 应为 wx 开头的 18 位公众号 AppID。",
+    );
+  }
+
+  return normalized;
+}
+
+export function validateWechatAppSecret(appSecret: string): string {
+  const normalized = appSecret.trim();
+
+  if (!/^[0-9a-z]{32}$/i.test(normalized)) {
+    throw new InvalidWechatConfigurationError(
+      "AppSecret 应为 32 位字母或数字。",
+    );
+  }
+
+  return normalized;
 }
 
 export function normalizeUsername(username: string): string {
@@ -355,6 +394,33 @@ function parseStoredWorkspace(value: unknown): StoredWorkspace | null {
   };
 }
 
+function parseWechatConfiguration(value: unknown): WechatConfiguration | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const configuration = value as Partial<WechatConfiguration>;
+
+  if (
+    typeof configuration.appId !== "string" ||
+    typeof configuration.appSecret !== "string" ||
+    typeof configuration.updatedAt !== "number" ||
+    !Number.isFinite(configuration.updatedAt)
+  ) {
+    return null;
+  }
+
+  try {
+    return {
+      appId: validateWechatAppId(configuration.appId),
+      appSecret: validateWechatAppSecret(configuration.appSecret),
+      updatedAt: configuration.updatedAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function parseDatabase(value: unknown): AuthDatabase {
   if (!value || typeof value !== "object") {
     return createEmptyDatabase();
@@ -375,6 +441,7 @@ function parseDatabase(value: unknown): AuthDatabase {
 
   const quota = database.anonymousUploadQuota;
   const hermesInstallLinks: Record<string, string> = {};
+  const wechatConfigurations: Record<string, WechatConfiguration> = {};
 
   if (
     database.hermesInstallLinks &&
@@ -383,6 +450,21 @@ function parseDatabase(value: unknown): AuthDatabase {
     for (const [ownerId, ticket] of Object.entries(database.hermesInstallLinks)) {
       if (ownerId && typeof ticket === "string" && ticket) {
         hermesInstallLinks[ownerId] = ticket;
+      }
+    }
+  }
+
+  if (
+    database.wechatConfigurations &&
+    typeof database.wechatConfigurations === "object"
+  ) {
+    for (const [ownerId, value] of Object.entries(
+      database.wechatConfigurations,
+    )) {
+      const configuration = parseWechatConfiguration(value);
+
+      if (ownerId && configuration) {
+        wechatConfigurations[ownerId] = configuration;
       }
     }
   }
@@ -406,6 +488,7 @@ function parseDatabase(value: unknown): AuthDatabase {
           .filter((account): account is StoredAccount => account !== null)
       : [],
     version: 1,
+    wechatConfigurations,
     workspaces,
   };
 }
@@ -707,6 +790,36 @@ export class NotesDataStore {
   async getWorkspace(userId: string): Promise<StoredWorkspace | null> {
     const database = await this.readDatabase();
     return database.workspaces[userId] ?? null;
+  }
+
+  async getWechatConfiguration(
+    ownerId: string,
+  ): Promise<WechatConfiguration | null> {
+    const database = await this.readDatabase();
+    return database.wechatConfigurations[ownerId] ?? null;
+  }
+
+  async saveWechatConfiguration(
+    ownerId: string,
+    appId: string,
+    appSecret: string,
+    now = Date.now(),
+  ): Promise<WechatConfiguration> {
+    return this.runExclusive(async () => {
+      const database = await this.readDatabase();
+      const configuration: WechatConfiguration = {
+        appId: validateWechatAppId(appId),
+        appSecret: validateWechatAppSecret(appSecret),
+        updatedAt: Math.max(
+          now,
+          (database.wechatConfigurations[ownerId]?.updatedAt ?? 0) + 1,
+        ),
+      };
+
+      database.wechatConfigurations[ownerId] = configuration;
+      await this.writeDatabase(database);
+      return configuration;
+    });
   }
 
   async saveWorkspace(

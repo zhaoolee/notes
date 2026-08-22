@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -127,9 +128,87 @@ async function postJson(
 
 test("管理员可使用便签服务、创建用户且各账号云工作区严格隔离", async (context) => {
   const port = await getUnusedPort();
+  let wechatPort = await getUnusedPort();
+
+  while (wechatPort === port) {
+    wechatPort = await getUnusedPort();
+  }
   const dataDir = await mkdtemp(path.join(tmpdir(), "notes-auth-data-"));
   const imageDir = await mkdtemp(path.join(tmpdir(), "notes-auth-images-"));
   const baseUrl = `http://127.0.0.1:${port}`;
+  const wechatDraftPayloads: unknown[] = [];
+  const wechatContentUploads: Buffer[] = [];
+  let wechatContentImageSequence = 0;
+  const wechatServer = createHttpServer(async (request, response) => {
+    const url = new URL(request.url || "/", `http://127.0.0.1:${wechatPort}`);
+    response.setHeader("Content-Type", "application/json");
+
+    if (request.method === "GET" && url.pathname === "/cgi-bin/token") {
+      response.end(
+        JSON.stringify({
+          access_token: `token-${url.searchParams.get("appid")}`,
+          expires_in: 7_200,
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/cgi-bin/media/uploadimg"
+    ) {
+      const chunks: Buffer[] = [];
+
+      for await (const chunk of request) {
+        chunks.push(Buffer.from(chunk));
+      }
+      wechatContentUploads.push(Buffer.concat(chunks));
+      wechatContentImageSequence += 1;
+      response.end(
+        JSON.stringify({
+          errcode: 0,
+          errmsg: "ok",
+          url: `https://mmbiz.qpic.cn/feedback-${wechatContentImageSequence}.png`,
+        }),
+      );
+      return;
+    }
+
+    if (
+      request.method === "POST" &&
+      url.pathname === "/cgi-bin/material/add_material"
+    ) {
+      for await (const _chunk of request) {
+        // 消费 multipart 请求体。
+      }
+      response.end(
+        JSON.stringify({
+          media_id: "feedback-cover-media-id",
+          url: "https://mmbiz.qpic.cn/feedback-cover.png",
+        }),
+      );
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/cgi-bin/draft/add") {
+      const chunks: Buffer[] = [];
+
+      for await (const chunk of request) {
+        chunks.push(Buffer.from(chunk));
+      }
+
+      wechatDraftPayloads.push(
+        JSON.parse(Buffer.concat(chunks).toString("utf8")),
+      );
+      response.end(JSON.stringify({ media_id: "feedback-draft-media-id" }));
+      return;
+    }
+
+    response.statusCode = 404;
+    response.end(JSON.stringify({ errcode: 404, errmsg: "not found" }));
+  });
+  wechatServer.listen(wechatPort, "127.0.0.1");
+  await once(wechatServer, "listening");
   const child = spawn(
     process.execPath,
     ["--import", "tsx", "server/index.ts"],
@@ -139,10 +218,15 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
         ...process.env,
         DATA_STORAGE_DIR: dataDir,
         IMAGE_STORAGE_DIR: imageDir,
+        AppID: "wxaaaaaaaaaaaaaaaa",
+        AppSecret: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         PORT: String(port),
         SESSION_SECRET: "feedback-session-secret-with-sufficient-entropy",
         SUPERADMIN: "feedback-admin",
         SUPERADMINPASSWORD: "feedback-admin-password",
+        WECHAT_API_BASE_URL: `http://127.0.0.1:${wechatPort}`,
+        WECHAT_FOOTER_HAMMER_URL:
+          "/smartisan/mobile/dark/note_background.webp",
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -159,6 +243,8 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
 
   context.after(async () => {
     await stopChild(child);
+    wechatServer.close();
+    await once(wechatServer, "close");
     await rm(dataDir, { force: true, recursive: true });
     await rm(imageDir, { force: true, recursive: true });
   });
@@ -226,6 +312,102 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
       },
     );
     const adminNotesCookie = getCookie(adminNotesLogin);
+
+    const anonymousWechatConfiguration = await fetch(
+      `${baseUrl}/api/wechat/config`,
+    );
+    assert.equal(anonymousWechatConfiguration.status, 401);
+
+    const initialWechatConfiguration = await fetch(
+      `${baseUrl}/api/wechat/config`,
+      { headers: { Cookie: adminNotesCookie } },
+    );
+    assert.equal(initialWechatConfiguration.status, 200);
+    assert.match(
+      initialWechatConfiguration.headers.get("cache-control") || "",
+      /no-store/,
+    );
+    assert.deepEqual(await initialWechatConfiguration.json(), {
+      appId: "",
+      appSecret: "",
+      updatedAt: null,
+    });
+
+    const invalidWechatConfiguration = await fetch(
+      `${baseUrl}/api/wechat/config`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: adminNotesCookie,
+        },
+        body: JSON.stringify({
+          appId: "not-a-wechat-app-id",
+          appSecret: "too-short",
+        }),
+      },
+    );
+    assert.equal(invalidWechatConfiguration.status, 400);
+
+    const savedWechatAppId = "wx1234567890abcdef";
+    const savedWechatAppSecret = "0123456789abcdef0123456789abcdef";
+    const saveWechatConfiguration = await fetch(
+      `${baseUrl}/api/wechat/config`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: adminNotesCookie,
+        },
+        body: JSON.stringify({
+          appId: savedWechatAppId,
+          appSecret: savedWechatAppSecret,
+        }),
+      },
+    );
+    assert.equal(saveWechatConfiguration.status, 200);
+    const savedWechatConfiguration = (await saveWechatConfiguration.json()) as {
+      appId: string;
+      appSecret: string;
+      configured: boolean;
+      connected: boolean;
+      connectionError: string | null;
+      updatedAt: number;
+    };
+    assert.equal(savedWechatConfiguration.appId, savedWechatAppId);
+    assert.equal(savedWechatConfiguration.appSecret, savedWechatAppSecret);
+    assert.equal(savedWechatConfiguration.configured, true);
+    assert.equal(savedWechatConfiguration.connected, true);
+    assert.equal(savedWechatConfiguration.connectionError, null);
+    assert.ok(savedWechatConfiguration.updatedAt > 0);
+
+    const echoedWechatConfiguration = await fetch(
+      `${baseUrl}/api/wechat/config`,
+      { headers: { Cookie: adminNotesCookie } },
+    );
+    assert.deepEqual(await echoedWechatConfiguration.json(), {
+      appId: savedWechatAppId,
+      appSecret: savedWechatAppSecret,
+      updatedAt: savedWechatConfiguration.updatedAt,
+    });
+
+    const adminWechatStatus = await fetch(`${baseUrl}/api/wechat/status`, {
+      headers: { Cookie: adminNotesCookie },
+    });
+    assert.equal(adminWechatStatus.status, 200);
+    assert.deepEqual(
+      {
+        ...(await adminWechatStatus.json()),
+        checkedAt: null,
+      },
+      {
+        configured: true,
+        connected: true,
+        connectionError: null,
+        checkedAt: null,
+      },
+    );
+
     const adminWorkspaceRead = await fetch(`${baseUrl}/api/workspace`, {
       headers: { Cookie: adminNotesCookie },
     });
@@ -288,6 +470,110 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
     assert.doesNotMatch(aliceLogin.headers.get("set-cookie") || "", /Max-Age/i);
     const aliceCookie = getCookie(aliceLogin);
 
+    const aliceInitialWechatConfiguration = await fetch(
+      `${baseUrl}/api/wechat/config`,
+      { headers: { Cookie: aliceCookie } },
+    );
+    assert.equal(aliceInitialWechatConfiguration.status, 200);
+    assert.deepEqual(await aliceInitialWechatConfiguration.json(), {
+      appId: "",
+      appSecret: "",
+      updatedAt: null,
+    });
+
+    const aliceWechatAppId = "wxfedcba0987654321";
+    const aliceWechatAppSecret = "fedcba9876543210fedcba9876543210";
+    const aliceSaveWechatConfiguration = await fetch(
+      `${baseUrl}/api/wechat/config`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: aliceCookie,
+        },
+        body: JSON.stringify({
+          appId: aliceWechatAppId,
+          appSecret: aliceWechatAppSecret,
+        }),
+      },
+    );
+    assert.equal(aliceSaveWechatConfiguration.status, 200);
+
+    const aliceEchoedWechatConfiguration = await fetch(
+      `${baseUrl}/api/wechat/config`,
+      { headers: { Cookie: aliceCookie } },
+    );
+    const aliceWechatConfiguration =
+      (await aliceEchoedWechatConfiguration.json()) as {
+        appId: string;
+        appSecret: string;
+      };
+    assert.equal(aliceWechatConfiguration.appId, aliceWechatAppId);
+    assert.equal(aliceWechatConfiguration.appSecret, aliceWechatAppSecret);
+
+    const aliceDraftResponse = await postJson(
+      baseUrl,
+      "/api/wechat/draft",
+      {
+        footerBrand: "由 feedback 便签发送",
+        footerVia: "Powered by feedback",
+        markdown: "# Alice 的公众号草稿\n\n正文内容",
+        theme: "default",
+      },
+      aliceCookie,
+    );
+    assert.equal(aliceDraftResponse.status, 200);
+    assert.deepEqual(await aliceDraftResponse.json(), {
+      imageCount: 1,
+      mediaId: "feedback-draft-media-id",
+      theme: "default",
+      title: "Alice 的公众号草稿",
+    });
+    assert.equal(wechatDraftPayloads.length, 1);
+    assert.equal(wechatContentUploads.length, 1);
+    assert.match(
+      wechatContentUploads[0].toString("latin1"),
+      /filename="wechat-[a-f0-9]+\.(?:jpg|png)"/,
+    );
+    assert.doesNotMatch(
+      wechatContentUploads[0].toString("latin1"),
+      /\.webp"/,
+    );
+    const [aliceDraftArticle] = (
+      wechatDraftPayloads[0] as {
+        articles: Array<{
+          article_type: string;
+          content: string;
+          thumb_media_id: string;
+          title: string;
+        }>;
+      }
+    ).articles;
+    assert.equal(aliceDraftArticle.article_type, "news");
+    assert.equal(aliceDraftArticle.title, "Alice 的公众号草稿");
+    assert.equal(
+      aliceDraftArticle.thumb_media_id,
+      "feedback-cover-media-id",
+    );
+    assert.match(
+      aliceDraftArticle.content,
+      /https:\/\/mmbiz\.qpic\.cn\/feedback-1\.png/,
+    );
+    assert.doesNotMatch(
+      aliceDraftArticle.content,
+      /notes\.fangyuanxiaozhan\.com\/images/,
+    );
+
+    const adminWechatConfigurationAfterAliceSave = await fetch(
+      `${baseUrl}/api/wechat/config`,
+      { headers: { Cookie: adminNotesCookie } },
+    );
+    assert.deepEqual(await adminWechatConfigurationAfterAliceSave.json(), {
+      appId: savedWechatAppId,
+      appSecret: savedWechatAppSecret,
+      updatedAt: savedWechatConfiguration.updatedAt,
+    });
+
     const aliceWorkspace = createWorkspace("alice-private", 1_000);
     const aliceSave = await fetch(`${baseUrl}/api/workspace`, {
       method: "PUT",
@@ -306,6 +592,24 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
     });
     assert.equal(bobLogin.status, 200);
     const bobCookie = getCookie(bobLogin);
+
+    const bobWechatStatus = await fetch(`${baseUrl}/api/wechat/status`, {
+      headers: { Cookie: bobCookie },
+    });
+    assert.deepEqual(await bobWechatStatus.json(), {
+      configured: false,
+      connected: false,
+      connectionError: null,
+      checkedAt: null,
+    });
+
+    const bobDraftWithoutConfiguration = await postJson(
+      baseUrl,
+      "/api/wechat/draft",
+      { markdown: "# Bob 草稿", theme: "default" },
+      bobCookie,
+    );
+    assert.equal(bobDraftWithoutConfiguration.status, 409);
 
     const bobInitialWorkspace = await fetch(`${baseUrl}/api/workspace`, {
       headers: { Cookie: bobCookie },
@@ -480,6 +784,11 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
     assert.doesNotMatch(databaseText, new RegExp(aliceChangedPassword));
     assert.doesNotMatch(databaseText, new RegExp(resetAlice.temporaryPassword));
     assert.doesNotMatch(databaseText, /feedback-admin-password/);
+    assert.match(databaseText, new RegExp(savedWechatAppId));
+    assert.match(databaseText, new RegExp(savedWechatAppSecret));
+    assert.match(databaseText, new RegExp(aliceWechatAppId));
+    assert.match(databaseText, new RegExp(aliceWechatAppSecret));
+    assert.doesNotMatch(databaseText, /wxaaaaaaaaaaaaaaaa/);
     assert.match(databaseText, /alice-private/);
     assert.match(databaseText, /bob-private/);
     assert.match(databaseText, /admin-private/);

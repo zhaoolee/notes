@@ -34,6 +34,22 @@ Secret 注入，并为 `SESSION_SECRET` 配置独立的高熵随机值。未配�
 会话密钥只在当前进程生命周期内有效。`NOTES_PUBLIC_BASE_URL` 可选，用于反向代理
 无法传递正确公开协议或域名时，指定写入 Hermes Skill `.env` 的服务地址。
 
+微信公众号 AppID 与 AppSecret 不属于启动环境变量。任一普通用户或超级管理员从
+便签首页登录后，都可在“设置 → 工具与扩展 → 公众号配置”中填写并保存自己的配置；
+服务端通过 `GET/PUT /api/wechat/config` 按签名会话中的账号 ID 读写
+`notes-data.json`，请求体不接受 ownerId，账号间严格隔离，匿名访问不能读取或修改。
+为满足设置页重新打开后的完整回显，GET 响应会把该账号真实 AppSecret 返回，因此
+接口和前端请求都使用 `no-store`，页面默认以密码输入框遮挡，并提供显式显示/隐藏
+操作。公众号接口只使用当前登录账号的持久化配置，不读取 `AppID`、`AppSecret`
+环境变量，也不做 `.env` 回退。
+
+保存配置后，服务端会用该账号的值向微信取得接口调用凭据，并在设置页展示“连接正常”
+或脱敏后的失败原因。分享面板每次打开都会通过 `GET /api/wechat/status` 检查当前会话；
+只有已配置且连通的账号才显示“发布为公众号草稿”。`POST /api/wechat/draft` 同样重新
+按当前会话账号 ID 取配置，不接收 ownerId，也不允许匿名或跨站调用。浏览器提交的
+只有当前便签 Markdown、主题和署名偏好，AppSecret 与微信 access token 始终留在
+服务端；access token 仅按配置哈希在进程内短期缓存。
+
 普通用户名为 3–32 个中英文、数字、点、下划线或连字符；邮箱最长 254 个字符。
 普通用户初始密码由服务端使用加密安全随机数生成，只在创建响应中显示一次。持久
 化文件只包含 scrypt 盐和哈希，不包含管理员密码、普通用户初始密码或会话令牌。
@@ -88,8 +104,8 @@ Token 失效。
 
 ## 数据边界
 
-服务端文件默认是 `storage/data/notes-data.json`，包含账号、工作区、匿名额度与
-当前 Hermes 安装票据，权限为 `0600`，写入流程为：
+服务端文件默认是 `storage/data/notes-data.json`，包含账号、工作区、匿名额度、
+当前 Hermes 安装票据与公众号 AppID/AppSecret，权限为 `0600`，写入流程为：
 
 1. 在进程内串行执行修改。
 2. 把完整新状态写入同目录临时文件。
@@ -160,3 +176,6 @@ Token 失效。
   Hermes ZIP 内容。
 - `frontend/tests/auth-ui.test.ts`：单一账号密码登录、浏览器密码管理语义、普通
   用户修改密码表单、管理员重置入口、管理员路由与云同步入口。
+- `frontend/tests/settings-panel.test.ts` 与 `backend/tests/auth-feedback.test.ts`：
+  登录账号公众号配置入口、AppSecret 完整回显、格式校验、`no-store`、账号隔离、
+  匿名拒绝、持久化，以及 `.env` 中同名值不参与配置回退。

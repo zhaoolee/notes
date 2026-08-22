@@ -2326,3 +2326,26 @@
 - 本次没有登录真实账号、修改云工作区或上传测试图片到七牛；账号同步、Secure Cookie
   和带图公众号链路沿用 `1.5.0` 已验证结果，没有为纯样式补丁重复触碰真实用户数据或
   匿名图片额度。
+
+## 2026-08-22：公众号凭据改由设置页持久化
+
+- 微信公众号 AppID 与 AppSecret 由每个登录账号独立维护；普通用户和超级管理员都
+  通过 `GET/PUT /api/wechat/config` 读写自己的配置。服务端只使用签名会话中的账号
+  ID，不接受前端指定 ownerId，匿名访问不能获取。
+- 配置按账号 ID 保存在权限为 `0600` 的 `storage/data/notes-data.json`。设置页重新打开时完整
+  回显两项真实值，AppSecret 默认使用密码输入框遮挡并提供显式显示/隐藏；相关响应
+  使用 `Cache-Control: no-store`。
+- 公众号配置不读取 `process.env.AppID` 或 `process.env.AppSecret`，`.env.example`
+  也不再声明这两项，避免界面值与环境变量形成两套来源。
+
+## 2026-08-22：当前账号一键发布微信公众号草稿
+
+- 分享面板只在 `GET /api/wechat/status` 确认当前登录账号已配置且微信接口连通时，
+  才在“复制到公众号”下方显示“发布为公众号草稿”；未登录、未配置或连通失败不显示。
+- `POST /api/wechat/draft` 复用 `prepareWechatArticle` 的当前 Markdown、卡片主题、署名
+  和内联样式输出，再用 Sharp 把 HTML 图片自动转成小于 1MB 的 JPG/PNG，按转换后
+  内容去重上传到微信 `media/uploadimg` 并替换 `src`；文章首图优先作为永久封面，
+  无图或首图不适用时使用 `public/header/logo.png`。
+- 草稿标题从当前便签提取并限制为 32 字，最终调用微信 `draft/add`；接口只使用签名
+  会话账号自己的配置，拒绝匿名和跨站请求，AppSecret 与 access token 不进入分享
+  请求或响应。微信正文 JPG/PNG 必须小于 1MB，HTML 必须少于 2 万字符且小于 1MB。

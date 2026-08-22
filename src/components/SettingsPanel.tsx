@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
   DEFAULT_FOOTER_BRAND,
   DEFAULT_FOOTER_LOGO_URL,
@@ -8,6 +8,11 @@ import {
 import { importImageFile } from "../lib/images.js";
 import { HERMES_SKILL_INSTALL_INSTRUCTION_PREVIEW } from "../lib/hermes.js";
 import { THEME_OPTIONS } from "../lib/themes.js";
+import {
+  getWechatConnectionStatus,
+  getWechatConfiguration,
+  saveWechatConfiguration,
+} from "../lib/wechat-config.js";
 import type { WorkspaceArchiveProgress } from "../lib/export.js";
 import type { ThemePreferenceId } from "../types/app.js";
 
@@ -15,6 +20,7 @@ interface SettingsPanelProps {
   aiAvailable?: boolean;
   aiEnabled?: boolean;
   authUsername?: string | null;
+  canConfigureWechat?: boolean;
   canChangePassword?: boolean;
   cloudStatusLabel?: string;
   footerBrand?: string;
@@ -63,6 +69,7 @@ export function SettingsPanel({
   aiAvailable = false,
   aiEnabled = false,
   authUsername = null,
+  canConfigureWechat = false,
   canChangePassword = false,
   cloudStatusLabel = "数据仅保存在当前浏览器",
   footerBrand = DEFAULT_FOOTER_BRAND,
@@ -91,6 +98,18 @@ export function SettingsPanel({
   const [category, setCategory] = useState<SettingsCategory>("general");
   const [isFooterLogoUploading, setIsFooterLogoUploading] = useState(false);
   const [footerLogoError, setFooterLogoError] = useState("");
+  const [wechatAppId, setWechatAppId] = useState("");
+  const [wechatAppSecret, setWechatAppSecret] = useState("");
+  const [wechatConfigurationError, setWechatConfigurationError] = useState("");
+  const [wechatConfigurationState, setWechatConfigurationState] = useState<
+    "idle" | "loading" | "ready" | "saving" | "saved"
+  >("idle");
+  const [wechatConnectionState, setWechatConnectionState] = useState<
+    "idle" | "checking" | "connected" | "failed"
+  >("idle");
+  const [wechatConnectionError, setWechatConnectionError] = useState("");
+  const [isWechatAppSecretVisible, setIsWechatAppSecretVisible] =
+    useState(false);
   const footerLogoInputRef = useRef<HTMLInputElement | null>(null);
   const isDefaultFooterLogo = footerLogoUrl === DEFAULT_FOOTER_LOGO_URL;
   const isDefaultFooter =
@@ -99,6 +118,106 @@ export function SettingsPanel({
     footerVia === DEFAULT_FOOTER_VIA;
   const accountInitial =
     authUsername?.trim().charAt(0).toLocaleUpperCase("zh-CN") || "便";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!canConfigureWechat) {
+      setWechatAppId("");
+      setWechatAppSecret("");
+      setWechatConfigurationError("");
+      setWechatConfigurationState("idle");
+      setWechatConnectionState("idle");
+      setWechatConnectionError("");
+      setIsWechatAppSecretVisible(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setWechatConfigurationState("loading");
+    setWechatConfigurationError("");
+    setWechatConnectionState("idle");
+    setWechatConnectionError("");
+
+    void getWechatConfiguration()
+      .then(async (configuration) => {
+        if (cancelled) {
+          return;
+        }
+
+        setWechatAppId(configuration.appId);
+        setWechatAppSecret(configuration.appSecret);
+
+        if (configuration.appId && configuration.appSecret) {
+          setWechatConnectionState("checking");
+
+          try {
+            const status = await getWechatConnectionStatus();
+
+            if (cancelled) {
+              return;
+            }
+
+            setWechatConnectionState(
+              status.connected ? "connected" : "failed",
+            );
+            setWechatConnectionError(status.connectionError || "");
+          } catch (error) {
+            if (cancelled) {
+              return;
+            }
+
+            setWechatConnectionState("failed");
+            setWechatConnectionError(
+              error instanceof Error ? error.message : "检查公众号连接失败。",
+            );
+          }
+        }
+
+        setWechatConfigurationState("ready");
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        setWechatConfigurationError(
+          error instanceof Error ? error.message : "读取公众号配置失败。",
+        );
+        setWechatConfigurationState("ready");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authUsername, canConfigureWechat]);
+
+  async function handleWechatConfigurationSave() {
+    try {
+      setWechatConfigurationState("saving");
+      setWechatConfigurationError("");
+      setWechatConnectionState("checking");
+      setWechatConnectionError("");
+      const configuration = await saveWechatConfiguration(
+        wechatAppId,
+        wechatAppSecret,
+      );
+      setWechatAppId(configuration.appId);
+      setWechatAppSecret(configuration.appSecret);
+      setWechatConnectionState(
+        configuration.connected ? "connected" : "failed",
+      );
+      setWechatConnectionError(configuration.connectionError || "");
+      setWechatConfigurationState("saved");
+    } catch (error) {
+      setWechatConfigurationError(
+        error instanceof Error ? error.message : "保存公众号配置失败。",
+      );
+      setWechatConfigurationState("ready");
+      setWechatConnectionState("failed");
+    }
+  }
 
   async function handleFooterLogoFileChange(
     event: ChangeEvent<HTMLInputElement>,
@@ -491,6 +610,122 @@ export function SettingsPanel({
                 <h3 id="settings-extensions-title">工具与扩展</h3>
                 <p>管理 AI 辅助能力和外部工具扩展。</p>
               </header>
+
+              {canConfigureWechat ? (
+                <section className="settings-group" aria-label="公众号配置">
+                  <div className="settings-group-heading">
+                    <strong>公众号配置</strong>
+                    <small>
+                      配置后由服务端保存并用于公众号接口，不再读取 .env 中的
+                      AppID 或 AppSecret。
+                    </small>
+                  </div>
+                  <form
+                    className="settings-card settings-wechat-configuration"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void handleWechatConfigurationSave();
+                    }}
+                  >
+                    <label className="settings-wechat-field">
+                      <span>AppID</span>
+                      <input
+                        type="text"
+                        value={wechatAppId}
+                        placeholder="wx1234567890abcdef"
+                        aria-label="公众号 AppID"
+                        autoComplete="off"
+                        spellCheck={false}
+                        disabled={wechatConfigurationState === "loading"}
+                        onChange={(event) => {
+                          setWechatAppId(event.target.value);
+                          setWechatConfigurationState("ready");
+                          setWechatConnectionState("idle");
+                          setWechatConnectionError("");
+                        }}
+                      />
+                    </label>
+                    <label className="settings-wechat-field">
+                      <span>AppSecret</span>
+                      <span className="settings-wechat-secret-input">
+                        <input
+                          type={isWechatAppSecretVisible ? "text" : "password"}
+                          value={wechatAppSecret}
+                          placeholder="请输入 32 位 AppSecret"
+                          aria-label="公众号 AppSecret"
+                          autoComplete="off"
+                          spellCheck={false}
+                          disabled={wechatConfigurationState === "loading"}
+                          onChange={(event) => {
+                            setWechatAppSecret(event.target.value);
+                            setWechatConfigurationState("ready");
+                            setWechatConnectionState("idle");
+                            setWechatConnectionError("");
+                          }}
+                        />
+                        <button
+                          type="button"
+                          aria-label={
+                            isWechatAppSecretVisible
+                              ? "隐藏公众号 AppSecret"
+                              : "显示公众号 AppSecret"
+                          }
+                          disabled={wechatConfigurationState === "loading"}
+                          onClick={() =>
+                            setIsWechatAppSecretVisible((visible) => !visible)
+                          }
+                        >
+                          {isWechatAppSecretVisible ? "隐藏" : "显示"}
+                        </button>
+                      </span>
+                    </label>
+                    <div className="settings-wechat-actions">
+                      <span aria-live="polite">
+                        {wechatConfigurationError ? (
+                          <span className="settings-wechat-error" role="alert">
+                            {wechatConfigurationError}
+                          </span>
+                        ) : wechatConnectionState === "failed" ? (
+                          <span
+                            className="settings-wechat-warning"
+                            role="status"
+                          >
+                            已保存，但尚未连通
+                            {wechatConnectionError
+                              ? `：${wechatConnectionError}`
+                              : "。"}
+                          </span>
+                        ) : wechatConnectionState === "checking" ? (
+                          <span role="status">正在检查公众号连接…</span>
+                        ) : wechatConnectionState === "connected" ? (
+                          <span className="settings-wechat-saved" role="status">
+                            连接正常，可以发布公众号草稿
+                          </span>
+                        ) : wechatConfigurationState === "saved" ? (
+                          <span className="settings-wechat-saved" role="status">
+                            已保存并生效
+                          </span>
+                        ) : null}
+                      </span>
+                      <button
+                        type="submit"
+                        disabled={
+                          wechatConfigurationState === "loading" ||
+                          wechatConfigurationState === "saving" ||
+                          !wechatAppId.trim() ||
+                          !wechatAppSecret.trim()
+                        }
+                      >
+                        {wechatConfigurationState === "loading"
+                          ? "读取中…"
+                          : wechatConfigurationState === "saving"
+                            ? "保存中…"
+                            : "保存配置"}
+                      </button>
+                    </div>
+                  </form>
+                </section>
+              ) : null}
 
               {aiAvailable ? (
                 <section className="settings-group" aria-label="智能工具">

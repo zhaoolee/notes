@@ -12,6 +12,7 @@ import multer, { MulterError } from "multer";
 import { chromium, type Browser, type Locator, type Page } from "playwright";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import sharp, { type Metadata } from "sharp";
 import { NoteSheet } from "../src/components/NoteSheet.js";
 import { WechatArticle } from "../src/components/WechatArticle.js";
 import {
@@ -54,6 +55,7 @@ import {
   getShanghaiDateKey,
   InvalidCurrentPasswordError,
   InvalidNewPasswordError,
+  InvalidWechatConfigurationError,
   InvalidUsernameError,
   normalizeUsername,
   NotesDataStore,
@@ -72,6 +74,16 @@ import {
   createAiSuggestions,
   isAiAvailable,
 } from "./ai.js";
+import {
+  addWechatDraft,
+  clearWechatAccessToken,
+  getWechatAccessToken,
+  uploadWechatContentImage,
+  uploadWechatPermanentImage,
+  WechatOfficialApiError,
+  type WechatImageUpload,
+  type WechatOfficialConfiguration,
+} from "./wechat-official.js";
 
 interface ExportRequestBody {
   markdown?: string;
@@ -133,6 +145,13 @@ interface AiSuggestionsRequestBody {
   instruction?: unknown;
   markdown?: unknown;
 }
+
+interface WechatConfigurationRequestBody {
+  appId?: unknown;
+  appSecret?: unknown;
+}
+
+interface WechatDraftRequestBody extends WechatRequestBody {}
 
 interface StoredImage {
   hash: string;
@@ -230,6 +249,13 @@ class UnsupportedExportThemeError extends Error {
   constructor(theme: unknown) {
     super(`不支持的导出主题：${String(theme)}`);
     this.name = "UnsupportedExportThemeError";
+  }
+}
+
+class WechatDraftPreparationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WechatDraftPreparationError";
   }
 }
 const maxImageSizeBytes = 20 * 1024 * 1024;
@@ -3373,6 +3399,284 @@ async function prepareWechatArticle(
   };
 }
 
+interface WechatConnectionStatus {
+  configured: boolean;
+  connected: boolean;
+  connectionError: string | null;
+  checkedAt: number | null;
+}
+
+async function checkWechatConnection(
+  configuration: WechatOfficialConfiguration | null,
+  forceRefresh = false,
+): Promise<WechatConnectionStatus> {
+  if (!configuration) {
+    return {
+      configured: false,
+      connected: false,
+      connectionError: null,
+      checkedAt: null,
+    };
+  }
+
+  try {
+    await getWechatAccessToken(configuration, forceRefresh);
+    return {
+      configured: true,
+      connected: true,
+      connectionError: null,
+      checkedAt: Date.now(),
+    };
+  } catch (error) {
+    return {
+      configured: true,
+      connected: false,
+      connectionError:
+        error instanceof Error ? error.message : "微信公众号连接失败。",
+      checkedAt: Date.now(),
+    };
+  }
+}
+
+function collectHtmlImageSources(html: string): string[] {
+  const sources: string[] = [];
+  const pattern = /<img\b[^>]*\bsrc=(['"])(.*?)\1[^>]*>/gi;
+
+  for (const match of html.matchAll(pattern)) {
+    sources.push(match[2]);
+  }
+
+  return Array.from(new Set(sources));
+}
+
+function decodeHtmlImageSource(source: string): string {
+  return source
+    .replace(/&amp;/g, "&")
+    .replace(/&#38;/g, "&")
+    .replace(/&quot;/g, '"');
+}
+
+async function resolveWechatDraftImage(
+  source: string,
+  publicBaseUrl: string,
+): Promise<ImageSource | null> {
+  if (source === defaultWechatFooterHammerUrl) {
+    return readRootRelativeArchiveImage(DEFAULT_FOOTER_LOGO_URL);
+  }
+
+  return resolveArchiveImage(decodeHtmlImageSource(source), publicBaseUrl);
+}
+
+async function toWechatContentImage(
+  image: ImageSource,
+  source: string,
+): Promise<WechatImageUpload> {
+  const extension = detectImageFormat(
+    image.buffer,
+    image.mimeType,
+    image.filename || source,
+  );
+
+  let outputBuffer = image.buffer;
+  let outputExtension = extension;
+
+  if (
+    (extension !== "png" && extension !== "jpg") ||
+    image.buffer.length >= 1024 * 1024
+  ) {
+    let metadata: Metadata;
+
+    try {
+      metadata = await sharp(image.buffer, { animated: false }).metadata();
+    } catch {
+      throw new WechatDraftPreparationError(
+        `无法把图片转换为公众号支持的格式：${source}`,
+      );
+    }
+
+    const usePng = metadata.hasAlpha === true;
+    let width = Math.min(metadata.width || 1_920, 1_920);
+    let quality = 88;
+    let converted: Buffer | null = null;
+
+    for (let attempt = 0; attempt < 7; attempt += 1) {
+      let pipeline = sharp(image.buffer, { animated: false })
+        .rotate()
+        .resize({
+          width: Math.max(320, Math.round(width)),
+          withoutEnlargement: true,
+        });
+
+      pipeline = usePng
+        ? pipeline.png({
+            compressionLevel: 9,
+            palette: true,
+            quality: Math.max(45, quality),
+          })
+        : pipeline.jpeg({
+            chromaSubsampling: "4:2:0",
+            mozjpeg: true,
+            quality: Math.max(45, quality),
+          });
+      converted = await pipeline.toBuffer();
+
+      if (converted.length < 1024 * 1024) {
+        break;
+      }
+
+      width *= 0.78;
+      quality -= 7;
+    }
+
+    if (!converted || converted.length >= 1024 * 1024) {
+      throw new WechatDraftPreparationError(
+        `图片压缩后仍超过公众号 1MB 限制：${source}`,
+      );
+    }
+
+    outputBuffer = converted;
+    outputExtension = usePng ? "png" : "jpg";
+  }
+
+  if (outputExtension !== "png" && outputExtension !== "jpg") {
+    throw new WechatDraftPreparationError(
+      `公众号正文图片仅支持 JPG/PNG：${source}`,
+    );
+  }
+
+  return {
+    buffer: outputBuffer,
+    filename: `wechat-${createHash("sha256").update(outputBuffer).digest("hex")}.${outputExtension}`,
+    mimeType: outputExtension === "png" ? "image/png" : "image/jpeg",
+  };
+}
+
+function toWechatCoverImage(
+  image: ImageSource,
+  source: string,
+): WechatImageUpload | null {
+  const extension = detectImageFormat(
+    image.buffer,
+    image.mimeType,
+    image.filename || source,
+  );
+  const supportedExtensions = new Set(["bmp", "png", "jpg", "gif"]);
+
+  if (!extension || !supportedExtensions.has(extension)) {
+    return null;
+  }
+
+  if (image.buffer.length > 10 * 1024 * 1024) {
+    return null;
+  }
+
+  const mimeTypes: Record<string, string> = {
+    bmp: "image/bmp",
+    gif: "image/gif",
+    jpg: "image/jpeg",
+    png: "image/png",
+  };
+
+  return {
+    buffer: image.buffer,
+    filename: `wechat-cover-${createHash("sha256").update(image.buffer).digest("hex")}.${extension}`,
+    mimeType: mimeTypes[extension],
+  };
+}
+
+async function replaceDraftContentImages(
+  html: string,
+  accessToken: string,
+  publicBaseUrl: string,
+): Promise<{ html: string; imageCount: number }> {
+  const sources = collectHtmlImageSources(html);
+  const uploadedByHash = new Map<string, string>();
+  let draftHtml = html;
+
+  for (const source of sources) {
+    const image = await resolveWechatDraftImage(source, publicBaseUrl);
+
+    if (!image?.buffer.length) {
+      throw new WechatDraftPreparationError(
+        `无法读取公众号草稿图片：${source}`,
+      );
+    }
+
+    const upload = await toWechatContentImage(image, source);
+    const hash = createHash("sha256").update(upload.buffer).digest("hex");
+    let wechatUrl = uploadedByHash.get(hash);
+
+    if (!wechatUrl) {
+      wechatUrl = await uploadWechatContentImage(accessToken, upload);
+      uploadedByHash.set(hash, wechatUrl);
+    }
+
+    draftHtml = replaceAll(draftHtml, source, wechatUrl);
+  }
+
+  return { html: draftHtml, imageCount: uploadedByHash.size };
+}
+
+async function uploadDraftCover(
+  markdown: string,
+  accessToken: string,
+  publicBaseUrl: string,
+): Promise<string> {
+  const firstArticleImage = collectMarkdownImageSources(markdown)[0];
+  let cover: WechatImageUpload | null = null;
+
+  if (firstArticleImage) {
+    try {
+      const image = await resolveWechatDraftImage(
+        firstArticleImage,
+        publicBaseUrl,
+      );
+      cover = image ? toWechatCoverImage(image, firstArticleImage) : null;
+
+      if (image && !cover) {
+        cover = await toWechatContentImage(image, firstArticleImage);
+      }
+    } catch {
+      // 正文准备阶段已经验证图片；首图不适合作封面时使用默认封面。
+    }
+  }
+
+  if (!cover) {
+    const defaultCoverSource = "/header/logo.png";
+    const image = await readRootRelativeArchiveImage(defaultCoverSource);
+
+    if (!image) {
+      throw new WechatDraftPreparationError("无法读取公众号默认草稿封面。");
+    }
+
+    cover = toWechatCoverImage(image, defaultCoverSource);
+  }
+
+  if (!cover) {
+    throw new WechatDraftPreparationError("公众号草稿封面格式不受支持。");
+  }
+
+  return uploadWechatPermanentImage(accessToken, cover);
+}
+
+function getWechatDraftTitle(markdown: string): string {
+  return Array.from(getNoteTitle(markdown)).slice(0, 32).join("");
+}
+
+function assertWechatDraftContentLimits(html: string): void {
+  if (Array.from(html).length >= 20_000) {
+    throw new WechatDraftPreparationError(
+      "当前文章转换后的公众号正文超过 2 万字符，请精简后再保存草稿。",
+    );
+  }
+
+  if (Buffer.byteLength(html, "utf8") >= 1024 * 1024) {
+    throw new WechatDraftPreparationError(
+      "当前文章转换后的公众号正文超过 1MB，请精简后再保存草稿。",
+    );
+  }
+}
+
 const app = express();
 app.set("trust proxy", 1);
 
@@ -3773,6 +4077,110 @@ app.post("/api/auth/logout", (request: Request, response: Response) => {
   clearAuthenticatedSession(request, response);
   response.json({ ok: true });
 });
+
+app.get(
+  "/api/wechat/config",
+  async (request: Request, response: Response) => {
+    response.setHeader("Cache-Control", "no-store");
+    response.setHeader("Pragma", "no-cache");
+
+    if (!isSameOriginRequest(request)) {
+      response.status(403).json({ error: "请从当前便签页面读取公众号配置。" });
+      return;
+    }
+
+    const user = await requireNoteServiceUser(request, response);
+
+    if (!user) {
+      return;
+    }
+
+    const configuration = await notesDataStore.getWechatConfiguration(user.id);
+    response.json(
+      configuration ?? {
+        appId: "",
+        appSecret: "",
+        updatedAt: null,
+      },
+    );
+  },
+);
+
+app.get(
+  "/api/wechat/status",
+  async (request: Request, response: Response) => {
+    response.setHeader("Cache-Control", "no-store");
+    response.setHeader("Pragma", "no-cache");
+
+    if (!isSameOriginRequest(request)) {
+      response.status(403).json({ error: "请从当前便签页面检查公众号连接。" });
+      return;
+    }
+
+    const user = await requireNoteServiceUser(request, response);
+
+    if (!user) {
+      return;
+    }
+
+    const configuration = await notesDataStore.getWechatConfiguration(user.id);
+    response.json(await checkWechatConnection(configuration));
+  },
+);
+
+app.put(
+  "/api/wechat/config",
+  async (
+    request: Request<
+      Record<string, never>,
+      unknown,
+      WechatConfigurationRequestBody
+    >,
+    response: Response,
+  ) => {
+    response.setHeader("Cache-Control", "no-store");
+    response.setHeader("Pragma", "no-cache");
+
+    if (!isSameOriginRequest(request)) {
+      response.status(403).json({ error: "请从当前便签页面保存公众号配置。" });
+      return;
+    }
+
+    const user = await requireNoteServiceUser(request, response);
+
+    if (!user) {
+      return;
+    }
+
+    const appId = request.body?.appId;
+    const appSecret = request.body?.appSecret;
+
+    if (typeof appId !== "string" || typeof appSecret !== "string") {
+      response.status(400).json({ error: "请输入公众号 AppID 和 AppSecret。" });
+      return;
+    }
+
+    try {
+      const configuration = await notesDataStore.saveWechatConfiguration(
+        user.id,
+        appId,
+        appSecret,
+      );
+      clearWechatAccessToken(configuration);
+      response.json({
+        ...configuration,
+        ...(await checkWechatConnection(configuration, true)),
+      });
+    } catch (error) {
+      response
+        .status(error instanceof InvalidWechatConfigurationError ? 400 : 500)
+        .json({
+          error:
+            error instanceof Error ? error.message : "保存公众号配置失败。",
+        });
+    }
+  },
+);
 
 app.get(
   "/api/superadmin/users",
@@ -4247,6 +4655,91 @@ app.post(
             : error instanceof QiniuConfigurationError
             ? "本地可通过 QINIU_CONFIG_PATH 复用现有 qiniu.json；生产环境请使用环境变量或只读挂载配置。"
             : undefined,
+      });
+    }
+  },
+);
+
+app.post(
+  "/api/wechat/draft",
+  async (
+    request: Request<Record<string, never>, unknown, WechatDraftRequestBody>,
+    response: Response,
+  ) => {
+    if (!isSameOriginRequest(request)) {
+      response.status(403).json({ error: "请从当前便签页面发布公众号草稿。" });
+      return;
+    }
+
+    const user = await requireNoteServiceUser(request, response);
+
+    if (!user) {
+      return;
+    }
+
+    try {
+      const configuration = await notesDataStore.getWechatConfiguration(user.id);
+
+      if (!configuration) {
+        response.status(409).json({
+          error: "请先在设置中配置并连通当前账号的公众号 AppID 和 AppSecret。",
+        });
+        return;
+      }
+
+      const body = request.body || {};
+      const theme = resolveTheme(body);
+      const markdown = await resolveMarkdown(body);
+      const publicBaseUrl = getPublicBaseUrl(request);
+      const accessToken = await getWechatAccessToken(configuration);
+      const prepared = await prepareWechatArticle(markdown, {
+        footer: resolveFooterConfig(body),
+        publicBaseUrl,
+        temporaryUploads: false,
+        theme,
+      });
+      assertWechatDraftContentLimits(prepared.html);
+      const content = await replaceDraftContentImages(
+        prepared.html,
+        accessToken,
+        publicBaseUrl,
+      );
+      assertWechatDraftContentLimits(content.html);
+      const thumbMediaId = await uploadDraftCover(
+        prepared.markdown,
+        accessToken,
+        publicBaseUrl,
+      );
+      const title = getWechatDraftTitle(markdown);
+      const mediaId = await addWechatDraft(accessToken, {
+        content: content.html,
+        thumbMediaId,
+        title,
+      });
+
+      response.json({
+        imageCount: content.imageCount,
+        mediaId,
+        theme: prepared.theme,
+        title,
+      });
+    } catch (error) {
+      console.error("Wechat draft publication failed:", error);
+
+      const status =
+        error instanceof UnsupportedExportThemeError ||
+        error instanceof WechatDraftPreparationError
+          ? 400
+          : error instanceof QiniuConfigurationError
+            ? 503
+            : error instanceof QiniuUploadError ||
+                error instanceof WechatOfficialApiError
+              ? 502
+              : 500;
+
+      response.status(status).json({
+        error:
+          error instanceof Error ? error.message : "发布公众号草稿失败。",
       });
     }
   },

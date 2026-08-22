@@ -1,13 +1,17 @@
 interface SharePanelProps {
+  canPublishWechatDraft: boolean;
   copyButtonText: string;
   isArchiving: boolean;
   isCopyingWechat: boolean;
   isExporting: boolean;
+  isPublishingWechatDraft: boolean;
   onArchiveDownload: () => void;
   onClose: () => void;
   onCopyMarkdown: () => void;
   onCopyWechat: () => void;
   onExport: () => void;
+  onPublishWechatDraft: () => void;
+  wechatDraftButtonText: string;
   wechatButtonText: string;
 }
 
@@ -38,15 +42,19 @@ function ShareAction({
 }
 
 export function SharePanel({
+  canPublishWechatDraft,
   copyButtonText,
   isArchiving,
   isCopyingWechat,
   isExporting,
+  isPublishingWechatDraft,
   onArchiveDownload,
   onClose,
   onCopyMarkdown,
   onCopyWechat,
   onExport,
+  onPublishWechatDraft,
+  wechatDraftButtonText,
   wechatButtonText,
 }: SharePanelProps) {
   return (
@@ -87,6 +95,14 @@ export function SharePanel({
             disabled={isCopyingWechat}
             onClick={onCopyWechat}
           />
+          {canPublishWechatDraft ? (
+            <ShareAction
+              label={wechatDraftButtonText}
+              description="发送当前文章及主题样式到公众号草稿箱"
+              disabled={isPublishingWechatDraft}
+              onClick={onPublishWechatDraft}
+            />
+          ) : null}
           <ShareAction
             label={isExporting ? "正在生成图片..." : "以图片形式分享"}
             description="导出当前便签长图"
