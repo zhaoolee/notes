@@ -44,13 +44,13 @@ MEMORY/                  经测试确认的长期事实
 或 `smartisan-dark`，其中 `system` 通过 `prefers-color-scheme` 解析为后两者之一并
 监听系统明暗变化。页面 CSS 使用解析后的全局主题；预览卡片另有持久化的
 `notes.previewCardTheme` 覆盖值，当前可为 `default`、`smartisan-dark`、
-`apple-notes`、`apple-notes-light`、`bear` 或 `telegraph`。浮动主题选择器只在 `.preview-card-theme` 边界内
+`apple-notes`、`apple-notes-light`、`bear`、`bazhahei` 或 `telegraph`。浮动主题选择器只在 `.preview-card-theme` 边界内
 重定义便签纸、正文、边框、图片和页脚 Token，不改变木纹舞台或页面其余区域。
 选项的展示顺序由 `NOTE_CARD_THEME_OPTIONS` 唯一决定；Apple 两项固定为
 `apple-notes-light` 在前、`apple-notes` 在后，调整顺序不能改写主题 ID 或存储值。
 PNG 导出使用当前卡片主题，Playwright 也只接收最终的
-`default | smartisan-dark | apple-notes | apple-notes-light | bear | telegraph`，不能把 `system`
-发送给后端导出接口。`apple-notes*`、`bear` 与 `telegraph` 只属于卡片主题，不能用作页面全局外观偏好；Playwright 页面从
+`default | smartisan-dark | apple-notes | apple-notes-light | bear | bazhahei | telegraph`，不能把 `system`
+发送给后端导出接口。`apple-notes*`、`bear`、`bazhahei` 与 `telegraph` 只属于卡片主题，不能用作页面全局外观偏好；Playwright 页面从
 `theme` 查询参数优先恢复卡片主题，保证该配色可由后端稳定导出。
 保存 PNG、下载当前便签离线归档和复制到公众号都会显式传递同一个最终卡片主题。
 `/api/export` 与 `/api/archive` 分别用 `X-Export-Theme`、`X-Archive-Theme` 回显
@@ -73,7 +73,16 @@ Apple 深浅主题的纸张外层保留 `12px × note-scale` 左右内边距，�
 
 Bear 的正文粗体与链接共用 `#dd4c4f` 强调色，并保持 `700` 字重；这条规则必须分别
 同步到网页预览与 PNG、离线归档内嵌 CSS、公众号内联样式，且只能在 `bear` 作用域
-生效，另外五种主题的粗体继续继承各自正文颜色。
+生效，其他主题的粗体继续使用各自的主题规则。
+
+`bazhahei` 的可见名称是“老罗巴扎嘿”，视觉语言取自
+`LuoJiangYong/editing-skill` 仓库 `templates/formats` 的共同底板，而不绑定其日报或
+专题的固定栏目结构：纸面使用 `#FAF9F5`，标题 `#141413`、正文 `#3D3D3A`、
+卡片 `#EFE9DE`、分隔线 `#E6DFD8`、强调线 `#D4734B`。正文保持
+`15px / 1.8` 的系统无衬线字体，二级标题使用 `■` 杂志标记，三级标题使用珊瑚色
+下划线，引用渲染为圆角米色摘要卡片；预览、PNG、离线归档和公众号内联样式必须
+同步。入口固定排在 Bear 之后、Telegra.ph 之前，图标以同一色板和专题增量四色
+`#E8C0A8 / #E8D4B0 / #E0D8A8 / #B8CCD8` 用 CSS 绘制，不依赖外部图片。
 
 卡片主题选择器的视觉图标仍由主题自身作用域控制。Bear 使用
 `public/bear-theme-icon.png`，同一资源同时用于右下角当前主题按钮与展开后的主题

@@ -56,6 +56,11 @@ export const NOTE_CARD_THEME_OPTIONS: NoteCardThemeOption[] = [
     description: "红色极简排版",
   },
   {
+    id: "bazhahei",
+    label: "老罗巴扎嘿",
+    description: "暖色杂志排版",
+  },
+  {
     id: "telegraph",
     label: "Telegra.ph",
     description: "简洁出版排版",

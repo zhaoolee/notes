@@ -34,7 +34,7 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
   assert.match(changelog, /^# 更新日志\n/);
   assert.equal(
     secondLevelHeadings[latestReleaseIndex],
-    `[${packageVersion.version}] - 2026-08-22`,
+    `[${packageVersion.version}] - 2026-08-24`,
   );
   assert.ok(categoryHeadings.length > 0);
 
@@ -42,7 +42,7 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
     assert.match(changelog, /^## \[未发布\]\n\n### \S+\n\n- \S/m);
     assert.match(
       changelog,
-      /^\[未发布\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.7\.2\.\.\.HEAD$/m,
+      /^\[未发布\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.9\.0\.\.\.HEAD$/m,
     );
   }
 
@@ -56,6 +56,10 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
   }
 
   assert.doesNotMatch(changelog, /^- [0-9a-f]{7,40}\s+/m);
+  assert.match(
+    changelog,
+    /^\[1\.9\.0\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.8\.4\.\.\.1\.9\.0$/m,
+  );
   assert.match(
     changelog,
     /^\[1\.8\.2\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.8\.1\.\.\.1\.8\.2$/m,
@@ -126,22 +130,31 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
   const sections = getChangelogSections(changelog);
   const hasUnreleasedSection = /^## \[未发布\]/m.test(changelog);
   const currentReleaseSectionIndex = hasUnreleasedSection ? 2 : 1;
-  const latestReleaseSectionIndex = currentReleaseSectionIndex + 1;
+  const previousReleaseSectionIndex = currentReleaseSectionIndex + 1;
+  const latestReleaseSectionIndex = previousReleaseSectionIndex + 1;
 
   assert.equal(sections[0]?.heading, "");
   assert.match(sections[0]?.content ?? "", /^# 更新日志/m);
   if (hasUnreleasedSection) {
     assert.equal(
       sections[1]?.heading,
-      "[未发布](https://github.com/zhaoolee/notes/compare/1.7.2...HEAD)",
+      "[未发布](https://github.com/zhaoolee/notes/compare/1.9.0...HEAD)",
     );
   }
   assert.equal(
     sections[currentReleaseSectionIndex]?.heading,
-    "[1.8.4](https://github.com/zhaoolee/notes/compare/1.8.3...1.8.4) - 2026-08-22",
+    "[1.9.0](https://github.com/zhaoolee/notes/compare/1.8.4...1.9.0) - 2026-08-24",
   );
   assert.match(
     sections[currentReleaseSectionIndex]?.content ?? "",
+    /老罗巴扎嘿.*Bear 便签.*editing-skill.*网页预览.*保存图片.*离线归档.*微信公众号富文本/s,
+  );
+  assert.equal(
+    sections[previousReleaseSectionIndex]?.heading,
+    "[1.8.4](https://github.com/zhaoolee/notes/compare/1.8.3...1.8.4) - 2026-08-22",
+  );
+  assert.match(
+    sections[previousReleaseSectionIndex]?.content ?? "",
     /引用.*默认灰色左边线.*主题大引号.*Telegra\.ph.*清除.*引用边框和缩进/s,
   );
   assert.equal(

@@ -4,6 +4,7 @@ export type NoteCardThemeLayout =
   | "smartisan"
   | "apple"
   | "bear"
+  | "bazhahei"
   | "telegraph";
 
 export interface NoteCardThemeColors {
@@ -45,6 +46,8 @@ const appleFont =
   '-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro SC","PingFang SC","Helvetica Neue",Arial,sans-serif';
 const bearFont =
   '"Avenir Next","AvenirNext-Regular",Avenir,-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",Arial,sans-serif';
+const bazhaheiFont =
+  '-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif';
 const telegraphSerifFont =
   'Georgia,Cambria,"Times New Roman","Noto Serif SC","Songti SC",serif';
 const telegraphSansFont =
@@ -202,6 +205,36 @@ export const NOTE_CARD_THEME_STYLES: Record<
       quoteMark: "#dd4c4f",
       tableHead: "#f3f5f7",
       text: "#444444",
+    },
+  },
+  bazhahei: {
+    id: "bazhahei",
+    layout: "bazhahei",
+    fontFamily: bazhaheiFont,
+    headingFontFamily: bazhaheiFont,
+    paperShadow: "0 24px 54px rgba(61,54,43,0.14)",
+    wechatPaperShadow: "0 16.8px 37.8px rgba(61,54,43,0.14)",
+    footerLogoFilter: "grayscale(1)",
+    footerLogoOpacity: 0.56,
+    colors: {
+      accent: "#d4734b",
+      border: "#e6dfd8",
+      code: "#efe9de",
+      codeText: "#3d3d3a",
+      footer: "#8e8b82",
+      footerVia: "#aaa69d",
+      frame: "transparent",
+      heading: "#141413",
+      imageFrame: "#e6dfd8",
+      imageMat: "#ffffff",
+      imageShadow: "rgba(61,54,43,0.1)",
+      paper: "#faf9f5",
+      pre: "#efe9de",
+      preText: "#3d3d3a",
+      quote: "#6c6a64",
+      quoteMark: "#d4734b",
+      tableHead: "#efe9de",
+      text: "#3d3d3a",
     },
   },
   telegraph: {

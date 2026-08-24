@@ -1774,6 +1774,182 @@ ${fontFaceCss}
         margin-top: calc(24px * var(--note-scale));
       }
 
+      body[data-note-card-theme="bazhahei"] {
+        --bazhahei-accent: #d4734b;
+        --bazhahei-surface: #efe9de;
+        --bazhahei-hairline: #e6dfd8;
+        --bazhahei-block-gap: max(calc(0.5rem * var(--note-scale)), 12px);
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-sheet {
+        padding:
+          calc(18px * var(--note-scale))
+          calc(16px * var(--note-scale))
+          calc(24px * var(--note-scale));
+      }
+
+      body[data-note-card-theme="bazhahei"] .sheet-frame,
+      body[data-note-card-theme="bazhahei"] .sheet-corner {
+        display: none;
+      }
+
+      body[data-note-card-theme="bazhahei"] .sheet-inner {
+        padding: 0;
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-section.is-document-title {
+        margin-top: 0;
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-section.is-document-title .note-centered-line {
+        margin-bottom: calc(12px * var(--note-scale));
+        text-align: center;
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-section.has-heading {
+        margin-top: calc(20px * var(--note-scale));
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-section.has-heading:first-child {
+        margin-top: 0;
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-index {
+        margin-bottom: calc(8px * var(--note-scale));
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-index h2 {
+        color: var(--note-heading);
+        font-family: var(--note-heading-font);
+        font-size: max(calc(0.625rem * var(--note-scale)), 17px);
+        font-weight: 700;
+        line-height: 1.5;
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-index h2::before {
+        content: "■";
+        margin-right: 0.38em;
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-copy {
+        color: var(--note-copy);
+        font-family: var(--note-font);
+        font-size: max(calc(0.46875rem * var(--note-scale)), 13px);
+        line-height: 1.8;
+        letter-spacing: 0;
+        -webkit-text-stroke: 0;
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-copy h1,
+      body[data-note-card-theme="bazhahei"] .note-copy h2,
+      body[data-note-card-theme="bazhahei"] .note-copy h3,
+      body[data-note-card-theme="bazhahei"] .note-copy h4,
+      body[data-note-card-theme="bazhahei"] .note-copy h5,
+      body[data-note-card-theme="bazhahei"] .note-copy h6 {
+        color: var(--note-heading);
+        font-family: var(--note-heading-font);
+        font-weight: 700;
+        line-height: 1.5;
+        letter-spacing: 0;
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-copy h1 {
+        padding-block:
+          calc(10px * var(--note-scale))
+          calc(8px * var(--note-scale));
+        font-size: max(calc(0.9375rem * var(--note-scale)), 24px);
+        line-height: 1.4;
+        text-align: center;
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-copy h2 {
+        padding-block:
+          calc(10px * var(--note-scale))
+          calc(6px * var(--note-scale));
+        font-size: max(calc(0.625rem * var(--note-scale)), 17px);
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-copy h2::before {
+        content: "■";
+        margin-right: 0.38em;
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-copy h3 {
+        display: inline;
+        padding-bottom: 0.12em;
+        border-bottom: 0.16em solid var(--bazhahei-accent);
+        font-size: max(calc(0.53125rem * var(--note-scale)), 15px);
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-copy strong {
+        color: var(--note-heading);
+        font-weight: 700;
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-copy a {
+        color: var(--bazhahei-accent);
+        text-decoration: none;
+        border-bottom: 0.1em solid currentColor;
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-copy .markdown-blank-line {
+        height: var(--bazhahei-block-gap);
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-copy code {
+        border-radius: calc(3px * var(--note-scale));
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-copy pre {
+        margin: calc(10px * var(--note-scale)) 0;
+        border-radius: calc(8px * var(--note-scale));
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-copy blockquote {
+        margin: calc(12px * var(--note-scale)) 0;
+        padding:
+          calc(12px * var(--note-scale))
+          calc(14px * var(--note-scale));
+        border: 0;
+        border-radius: calc(8px * var(--note-scale));
+        background: var(--bazhahei-surface);
+        color: var(--note-quote);
+        font-size: inherit;
+        line-height: 1.8;
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-copy blockquote::before {
+        content: none;
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-copy ul,
+      body[data-note-card-theme="bazhahei"] .note-copy ol {
+        margin: calc(8px * var(--note-scale)) 0;
+        padding-left: 1.4em;
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-copy li::marker {
+        color: var(--bazhahei-accent);
+        font-weight: 700;
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-copy table {
+        margin: calc(12px * var(--note-scale)) 0;
+        font-size: inherit;
+        line-height: 1.6;
+      }
+
+      body[data-note-card-theme="bazhahei"] .note-copy img.note-image-frame {
+        margin: calc(12px * var(--note-scale)) auto calc(4px * var(--note-scale));
+        padding: 0;
+        border: 1px solid var(--bazhahei-hairline);
+        border-radius: calc(8px * var(--note-scale));
+      }
+
+      body[data-note-card-theme="bazhahei"] .sheet-footer {
+        margin-top: calc(24px * var(--note-scale));
+      }
+
       body[data-note-card-theme="telegraph"] {
         --telegraph-block-gap: max(calc(0.375rem * var(--note-scale)), 10.5px);
       }

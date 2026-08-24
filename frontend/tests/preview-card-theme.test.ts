@@ -19,6 +19,7 @@ test("预览主题清单只包含可直接渲染的主题", () => {
       { id: "apple-notes-light", label: "iPhone 浅色" },
       { id: "apple-notes", label: "iPhone 深色" },
       { id: "bear", label: "Bear 便签" },
+      { id: "bazhahei", label: "老罗巴扎嘿" },
       { id: "telegraph", label: "Telegra.ph" },
     ],
   );
@@ -28,6 +29,7 @@ test("预览主题清单只包含可直接渲染的主题", () => {
   assert.equal(isNoteCardThemeId("apple-notes"), true);
   assert.equal(isNoteCardThemeId("apple-notes-light"), true);
   assert.equal(isNoteCardThemeId("bear"), true);
+  assert.equal(isNoteCardThemeId("bazhahei"), true);
   assert.equal(isNoteCardThemeId("telegraph"), true);
   assert.equal(isNoteCardThemeId("system"), false);
 });
@@ -143,6 +145,23 @@ test("Telegra.ph 配色入口使用官网声明的 T 字母图标", () => {
   );
 });
 
+test("老罗巴扎嘿入口位于 Bear 下方并使用上游暖色杂志标识", () => {
+  const styles = readFileSync("src/styles.css", "utf8");
+
+  assert.deepEqual(
+    NOTE_CARD_THEME_OPTIONS.slice(4, 7).map(({ id }) => id),
+    ["bear", "bazhahei", "telegraph"],
+  );
+  assert.match(
+    styles,
+    /\.preview-theme-trigger-swatch\[data-preview-theme="bazhahei"\],\s*\.preview-theme-swatch\[data-preview-theme="bazhahei"\]\s*\{[^}]*#141413[^}]*#d4734b[^}]*#e8c0a8[^}]*#e8d4b0[^}]*#e0d8a8[^}]*#b8ccd8[^}]*#faf9f5;/s,
+  );
+  assert.match(
+    styles,
+    /\.preview-theme-trigger-swatch\[data-preview-theme="bazhahei"\] i\s*\{[^}]*display:\s*none;/s,
+  );
+});
+
 test("iPhone 备忘录明暗配色共用用户指定图标并仅给暗色叠加遮罩", () => {
   const styles = readFileSync("src/styles.css", "utf8");
   const icon = readFileSync("public/apple-notes-theme-icon.png");
@@ -216,6 +235,10 @@ test("卡片主题覆盖完整纸张 token，页面其余区域继续使用全�
   );
   assert.match(
     styles,
+    /\.preview-card-theme\[data-preview-theme="bazhahei"\]\s*\{[^}]*--bazhahei-accent:\s*#d4734b;[^}]*--bazhahei-surface:\s*#efe9de;[^}]*--sheet-surface:\s*#faf9f5;[^}]*--note-heading:\s*#141413;[^}]*--note-copy:\s*#3d3d3a;/s,
+  );
+  assert.match(
+    styles,
     /\.preview-card-theme\[data-preview-theme="telegraph"\]\s*\{[^}]*--telegraph-block-gap:\s*max\(calc\(0\.375rem \* var\(--note-scale\)\), 10\.5px\);[^}]*--sheet-surface:\s*#ffffff;[^}]*--note-heading:\s*rgba\(0, 0, 0, 0\.8\);[^}]*--note-copy:\s*rgba\(0, 0, 0, 0\.8\);[^}]*--note-code-bg:\s*#f5f8fc;/s,
   );
   assert.match(
@@ -265,6 +288,14 @@ test("卡片主题覆盖完整纸张 token，页面其余区域继续使用全�
   assert.match(
     styles,
     /\.preview-card-theme\[data-preview-theme="telegraph"\] \.note-copy a\s*\{[^}]*color:\s*inherit;[^}]*border-bottom:\s*0\.1em solid rgba\(0, 0, 0, 0\.7\);/s,
+  );
+  assert.match(
+    styles,
+    /\.preview-card-theme\[data-preview-theme="bazhahei"\] \.note-index h2::before\s*\{[^}]*content:\s*"■";/s,
+  );
+  assert.match(
+    styles,
+    /\.preview-card-theme\[data-preview-theme="bazhahei"\] \.note-copy blockquote\s*\{[^}]*background:\s*var\(--bazhahei-surface\);[^}]*line-height:\s*1\.8;/s,
   );
   assert.match(
     styles,

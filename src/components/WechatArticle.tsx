@@ -42,6 +42,7 @@ function scaledRem(value: number): string {
 
 const quoteIndent = "18px";
 const bearBlockGap = "0.704em";
+const bazhaheiBlockGap = "0.8em";
 const telegraphBlockGap = "0.667em";
 
 interface WechatRenderContext {
@@ -61,17 +62,22 @@ function createWechatRenderContext(
   const themeStyle = getNoteCardThemeStyle(theme);
   const { colors } = themeStyle;
   const isBear = themeStyle.layout === "bear";
+  const isBazhahei = themeStyle.layout === "bazhahei";
   const isTelegraph = themeStyle.layout === "telegraph";
   const bodyFontSize = isTelegraph ? "18px" : "15px";
-  const bodyLineHeight = isTelegraph ? 1.58 : isBear ? 1.755 : 1.75;
-  const blockGap = isTelegraph ? telegraphBlockGap : bearBlockGap;
+  const bodyLineHeight = isTelegraph ? 1.58 : isBear ? 1.755 : isBazhahei ? 1.8 : 1.75;
+  const blockGap = isTelegraph
+    ? telegraphBlockGap
+    : isBazhahei
+      ? bazhaheiBlockGap
+      : bearBlockGap;
   const letterSpacing =
-    isBear || isTelegraph
+    isBear || isBazhahei || isTelegraph
       ? "0"
       : themeStyle.layout === "apple"
         ? "0.01em"
         : "0.03em";
-  const headingWeight = isBear ? 400 : isTelegraph ? 700 : 600;
+  const headingWeight = isBear ? 400 : isBazhahei || isTelegraph ? 700 : 600;
 
   return {
     colors,
@@ -86,7 +92,7 @@ function createWechatRenderContext(
         ? { fontFamily: themeStyle.headingFontFamily }
         : {}),
       fontWeight: headingWeight,
-      lineHeight: isBear ? 1.521 : isTelegraph ? 1.0625 : 1.32,
+      lineHeight: isBear ? 1.521 : isTelegraph ? 1.0625 : isBazhahei ? 1.5 : 1.32,
     },
     bodyParagraphStyle: {
       margin: "0",
@@ -100,6 +106,7 @@ function renderBlockquoteChildren(
 ): ReactNode {
   const { colors, themeStyle } = context;
   const isBear = themeStyle.layout === "bear";
+  const isBazhahei = themeStyle.layout === "bazhahei";
   const isTelegraph = themeStyle.layout === "telegraph";
   let hasQuoteMark = false;
 
@@ -122,7 +129,7 @@ function renderBlockquoteChildren(
         style: {
           ...child.props.style,
           margin: "0",
-          ...(isFirstTextBlock && !isTelegraph
+          ...(isFirstTextBlock && !isTelegraph && !isBazhahei
             ? {
                 paddingLeft: quoteIndent,
                 textIndent: `-${quoteIndent}`,
@@ -130,7 +137,7 @@ function renderBlockquoteChildren(
             : {}),
         },
       },
-      isFirstTextBlock && !isTelegraph ? (
+      isFirstTextBlock && !isTelegraph && !isBazhahei ? (
         <>
           <span
             aria-hidden="true"
@@ -168,6 +175,7 @@ function createMarkdownComponents(
     themeStyle,
   } = context;
   const isBear = themeStyle.layout === "bear";
+  const isBazhahei = themeStyle.layout === "bazhahei";
   const isTelegraph = themeStyle.layout === "telegraph";
 
   return {
@@ -176,8 +184,9 @@ function createMarkdownComponents(
       style={{
         ...baseHeadingStyle,
         margin: "0",
-        padding: isTelegraph ? "21px 0 12px" : undefined,
-        fontSize: isTelegraph ? "32px" : "22px",
+        padding: isTelegraph ? "21px 0 12px" : isBazhahei ? "20px 0 16px" : undefined,
+        fontSize: isTelegraph ? "32px" : isBazhahei ? "30px" : "22px",
+        textAlign: isBazhahei ? "center" : undefined,
       }}
     >
       {children}
@@ -188,11 +197,12 @@ function createMarkdownComponents(
       style={{
         ...baseHeadingStyle,
         margin: "0",
-        padding: isTelegraph ? "18px 0 7px" : undefined,
-        fontSize: isTelegraph ? "24px" : "17px",
+        padding: isTelegraph ? "18px 0 7px" : isBazhahei ? "16px 0 8px" : undefined,
+        fontSize: isTelegraph ? "24px" : isBazhahei ? "20px" : "17px",
         lineHeight: isTelegraph ? 1.1 : baseHeadingStyle.lineHeight,
       }}
     >
+      {isBazhahei ? <span aria-hidden="true">■ </span> : null}
       {children}
     </h2>
   ),
@@ -201,8 +211,9 @@ function createMarkdownComponents(
       style={{
         ...baseHeadingStyle,
         margin: "0",
-        padding: isTelegraph ? "18px 0 9px" : undefined,
-        fontSize: isTelegraph ? "28px" : "16px",
+        padding: isTelegraph ? "18px 0 9px" : isBazhahei ? "14px 0 6px" : undefined,
+        borderBottom: isBazhahei ? `3px solid ${colors.accent}` : undefined,
+        fontSize: isTelegraph ? "28px" : isBazhahei ? "17px" : "16px",
         lineHeight: isTelegraph ? 1.1 : baseHeadingStyle.lineHeight,
       }}
     >
@@ -266,8 +277,8 @@ function createMarkdownComponents(
   strong: ({ children }) => (
     <strong
       style={{
-        color: isBear ? colors.accent : undefined,
-        fontWeight: isBear || isTelegraph ? 700 : 600,
+        color: isBear ? colors.accent : isBazhahei ? colors.heading : undefined,
+        fontWeight: isBear || isBazhahei || isTelegraph ? 700 : 600,
       }}
     >
       {children}
@@ -282,6 +293,8 @@ function createMarkdownComponents(
         textDecoration: "none",
         ...(isTelegraph
           ? { borderBottom: "0.1em solid rgba(0,0,0,0.7)" }
+          : isBazhahei
+            ? { borderBottom: `0.1em solid ${colors.accent}` }
           : {}),
       }}
     >
@@ -291,10 +304,12 @@ function createMarkdownComponents(
   blockquote: ({ children }) => (
     <blockquote
       style={{
-        margin: isTelegraph ? "18px 21px 16px 6px" : `${scaledPx(8)} 0`,
-        padding: isTelegraph ? "0 0 0 15px" : "0",
+        margin: isTelegraph ? "18px 21px 16px 6px" : isBazhahei ? "16px 0" : `${scaledPx(8)} 0`,
+        padding: isTelegraph ? "0 0 0 15px" : isBazhahei ? "16px 18px" : "0",
         border: "0",
         borderLeft: isTelegraph ? "3px solid #000000" : "0",
+        borderRadius: isBazhahei ? "8px" : undefined,
+        background: isBazhahei ? colors.pre : undefined,
         color: colors.quote,
         lineHeight: isTelegraph ? 1.58 : 1.64,
         fontStyle: isTelegraph ? "italic" : "normal",
@@ -362,7 +377,7 @@ function createMarkdownComponents(
       className={className}
       style={{
         padding: className ? "0" : isTelegraph ? "1px 3px" : "0.08em 0.32em",
-        borderRadius: "0",
+        borderRadius: isBazhahei ? "3px" : "0",
         background: className ? "transparent" : colors.code,
         color: className ? colors.text : colors.codeText,
         fontFamily:
@@ -381,7 +396,7 @@ function createMarkdownComponents(
         padding: isTelegraph ? "7px 21px" : `${scaledPx(9)} ${scaledPx(11)}`,
         overflow: "hidden",
         border: "0",
-        borderRadius: "0",
+        borderRadius: isBazhahei ? "8px" : "0",
         background: colors.pre,
         color: colors.preText,
         fontSize: isTelegraph ? "16px" : "13px",
@@ -406,9 +421,9 @@ function createMarkdownComponents(
         width: "100% !important",
         maxWidth: "100% !important",
         margin: isTelegraph ? "0 auto 16px" : `${scaledPx(12)} auto ${scaledPx(2)}`,
-        padding: isBear || isTelegraph ? "0" : scaledPx(3),
+        padding: isBear || isBazhahei || isTelegraph ? "0" : scaledPx(3),
         border: isBear || isTelegraph ? "0" : `1px solid ${colors.imageFrame}`,
-        borderRadius: "0",
+        borderRadius: isBazhahei ? "8px" : "0",
         backgroundColor: colors.imageMat,
         boxShadow: isBear || isTelegraph
           ? "none"
@@ -508,6 +523,7 @@ function SectionHeading({
   context: WechatRenderContext;
 }) {
   const { baseHeadingStyle, themeStyle } = context;
+  const isBazhahei = themeStyle.layout === "bazhahei";
   const isTelegraph = themeStyle.layout === "telegraph";
   const titleComponents: Components = {
     ...components,
@@ -519,6 +535,8 @@ function SectionHeading({
               ? `0 0 ${bearBlockGap}`
               : isTelegraph
                 ? "0 0 9px"
+                : isBazhahei
+                  ? "0 0 10px"
                 : `0 0 ${scaledPx(6)}`,
         }}
       >
@@ -526,10 +544,11 @@ function SectionHeading({
           style={{
             ...baseHeadingStyle,
             margin: "0",
-            fontSize: isTelegraph ? "28px" : "17px",
-            lineHeight: themeStyle.layout === "bear" ? 1.521 : isTelegraph ? 1.1 : 1.4,
+            fontSize: isTelegraph ? "28px" : isBazhahei ? "20px" : "17px",
+            lineHeight: themeStyle.layout === "bear" ? 1.521 : isTelegraph ? 1.1 : isBazhahei ? 1.5 : 1.4,
           }}
         >
+          {isBazhahei ? <span aria-hidden="true">■ </span> : null}
           {titleChildren as ReactNode}
         </h2>
       </header>
@@ -684,6 +703,7 @@ function WechatArticleContent({
   const { bodyFontSize, bodyLineHeight, colors, themeStyle } = context;
   const isBear = themeStyle.layout === "bear";
   const isApple = themeStyle.layout === "apple";
+  const isBazhahei = themeStyle.layout === "bazhahei";
   const isTelegraph = themeStyle.layout === "telegraph";
 
   return (
@@ -696,6 +716,8 @@ function WechatArticleContent({
           ? `0 0 ${scaledPx(14)}`
           : isTelegraph
             ? "0 0 21px"
+            : isBazhahei
+              ? "0 0 20px"
             : isApple
               ? `${scaledPx(10)} ${scaledPx(16)} ${scaledPx(14)}`
               : `${scaledPx(31.5)} ${scaledPx(19.8333)} ${scaledPx(14)}`,
@@ -718,6 +740,8 @@ function WechatArticleContent({
                       ? `${bearBlockGap} 0 0`
                       : isTelegraph
                         ? "18px 0 0"
+                        : isBazhahei
+                          ? "32px 0 0"
                         : `${scaledPx(18)} 0 0`
                     : "0",
             }}
@@ -784,6 +808,7 @@ export function WechatArticle({
   const sections = splitSections(markdown);
   const isSmartisan = themeStyle.layout === "smartisan";
   const isApple = themeStyle.layout === "apple";
+  const isBazhahei = themeStyle.layout === "bazhahei";
   const isTelegraph = themeStyle.layout === "telegraph";
 
   return (
@@ -819,6 +844,8 @@ export function WechatArticle({
               ? `${scaledPx(20)} ${scaledPx(18)} 0`
               : isTelegraph
                 ? "21px 15px 0"
+                : isBazhahei
+                  ? "24px 20px 0"
                 : `${scaledPx(15)} ${scaledPx(6.6667)} 0`,
           paddingBottom: "12%",
           width: "100%",

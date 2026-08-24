@@ -628,7 +628,7 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.doesNotMatch(html, /\[公众号居中正文\]/);
 });
 
-test("WechatArticle 为六种卡片主题生成互不共享的内联配色", () => {
+test("WechatArticle 为七种卡片主题生成互不共享的内联配色", () => {
   const themes = Object.keys(NOTE_CARD_THEME_STYLES) as NoteCardThemeId[];
 
   assert.deepEqual(themes, [
@@ -637,6 +637,7 @@ test("WechatArticle 为六种卡片主题生成互不共享的内联配色", () 
     "apple-notes",
     "apple-notes-light",
     "bear",
+    "bazhahei",
     "telegraph",
   ]);
 
@@ -671,6 +672,28 @@ test("WechatArticle 为六种卡片主题生成互不共享的内联配色", () 
     );
     assert.equal(html.includes(">▎</span>"), style.layout === "bear");
   }
+});
+
+test("WechatArticle 为老罗巴扎嘿保留暖色杂志排版", () => {
+  const html = renderToStaticMarkup(
+    createElement(WechatArticle, {
+      footerBrand: "老罗巴扎嘿排版测试",
+      footerHammerUrl: "https://cdn.example.com/hammer.png",
+      footerVia: "via Feedback",
+      markdown: "# 杂志标题\n\n## 核心判断\n\n> 摘要卡片\n\n正文与**重点**、[链接](https://example.com)",
+      theme: "bazhahei",
+    }),
+  );
+
+  assert.match(html, /data-note-card-theme="bazhahei"/);
+  assert.match(html, /background-color:#faf9f5/);
+  assert.match(html, /font-size:30px;[^\"]*text-align:center/);
+  assert.match(html, />■ <\/span>核心判断/);
+  assert.match(html, /background:#efe9de/);
+  assert.match(html, /border-radius:8px/);
+  assert.match(html, /<strong style="[^"]*color:#141413;[^"]*font-weight:700/);
+  assert.match(html, /border-bottom:0\.1em solid #d4734b/);
+  assert.doesNotMatch(html, />[“▎]<\/span>摘要卡片/);
 });
 
 test("WechatArticle 为 Telegra.ph 保留原站正文节奏与引用线", () => {

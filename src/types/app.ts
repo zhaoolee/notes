@@ -4,6 +4,7 @@ export type NoteCardThemeId =
   | "apple-notes"
   | "apple-notes-light"
   | "bear"
+  | "bazhahei"
   | "telegraph";
 export type ThemePreferenceId = ThemeId | "system";
 

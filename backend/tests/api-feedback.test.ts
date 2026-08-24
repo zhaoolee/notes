@@ -38,7 +38,7 @@ interface WechatPreparation {
   imageCount: number;
   uploadedImageCount: number;
   reusedImageCount: number;
-  theme: "default" | "smartisan-dark" | "apple-notes" | "apple-notes-light" | "bear" | "telegraph";
+  theme: "default" | "smartisan-dark" | "apple-notes" | "apple-notes-light" | "bear" | "bazhahei" | "telegraph";
 }
 
 function createFeedbackQiniuConfig(uploadUrls: string[] = []): QiniuConfig {
@@ -354,6 +354,44 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
     assert.match(bearArchiveHtml, /<strong>重点文字<\/strong>/);
     assert.doesNotMatch(bearArchiveHtml, /data-note-apple-toolbar="true"/);
 
+    const bazhaheiArchiveResponse = await fetch(`${baseUrl}/api/archive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        markdown: "# 杂志标题\n\n## 核心判断\n\n> 摘要卡片\n\n正文",
+        theme: "bazhahei",
+      }),
+    });
+    assert.equal(bazhaheiArchiveResponse.status, 200);
+    assert.equal(
+      bazhaheiArchiveResponse.headers.get("X-Archive-Theme"),
+      "bazhahei",
+    );
+    const bazhaheiArchiveEntries = readZipEntries(
+      Buffer.from(await bazhaheiArchiveResponse.arrayBuffer()),
+    );
+    const bazhaheiArchiveHtmlEntry = Array.from(
+      bazhaheiArchiveEntries.entries(),
+    ).find(([filename]) => filename.endsWith("/index.html"));
+    assert.ok(bazhaheiArchiveHtmlEntry);
+    const bazhaheiArchiveHtml = bazhaheiArchiveHtmlEntry[1].toString("utf8");
+    assert.match(
+      bazhaheiArchiveHtml,
+      /<body data-note-card-theme="bazhahei">/,
+    );
+    assert.match(
+      bazhaheiArchiveHtml,
+      /--bazhahei-accent: #d4734b;/,
+    );
+    assert.match(
+      bazhaheiArchiveHtml,
+      /background: var\(--bazhahei-surface\);/,
+    );
+    assert.match(
+      bazhaheiArchiveHtml,
+      /\.note-index h2::before \{\s*content: "■";/,
+    );
+
     const telegraphArchiveResponse = await fetch(`${baseUrl}/api/archive`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -645,6 +683,24 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
       /<strong style="[^"]*color:#dd4c4f;[^"]*font-weight:700[^"]*">重点文字<\/strong>/,
     );
     assert.doesNotMatch(bearWechat.html, /data-note-apple-toolbar="true"/);
+
+    const bazhaheiWechatResponse = await fetch(`${baseUrl}/api/wechat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        markdown: "# 杂志标题\n\n## 核心判断\n\n> 摘要卡片\n\n正文与**重点**",
+        theme: "bazhahei",
+      }),
+    });
+    assert.equal(bazhaheiWechatResponse.status, 200);
+    const bazhaheiWechat =
+      (await bazhaheiWechatResponse.json()) as WechatPreparation;
+    assert.equal(bazhaheiWechat.theme, "bazhahei");
+    assert.match(bazhaheiWechat.html, /data-note-card-theme="bazhahei"/);
+    assert.match(bazhaheiWechat.html, /background-color:#faf9f5/);
+    assert.match(bazhaheiWechat.html, />■ <\/span>核心判断/);
+    assert.match(bazhaheiWechat.html, /background:#efe9de/);
+    assert.doesNotMatch(bazhaheiWechat.html, />[“▎]<\/span>摘要卡片/);
 
     const telegraphWechatResponse = await fetch(`${baseUrl}/api/wechat`, {
       method: "POST",
