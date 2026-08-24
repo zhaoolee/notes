@@ -2,6 +2,18 @@
 
 本文件只记录已从代码或 feedback 测试中确认、预计会影响后续任务的信息。临时调试输出和未经验证的推测不写入这里。
 
+## 2026-08-24：老罗巴扎嘿统一使用 OPPO Sans
+
+- `bazhahei` 的正文与标题和锤子明暗主题一样使用项目内置 OPPOSans；网页预览与
+  Playwright PNG 通过 `@font-face` 加载 R/M/B 三档 WOFF2，公众号内联样式通过
+  `NOTE_CARD_THEME_STYLES` 使用同一字体栈。
+- 离线归档不能再只用 `layout === "smartisan"` 判断是否添加 `OPPOSansArchive`
+  前缀；`bazhahei` 也需要把正文 `--note-font` 和标题 `--note-heading-font` 同时指向
+  ZIP 内按文章内容裁剪的字体，否则 Linux 或未安装 OPPOSans 的系统仍会回退。
+- 当前反馈为前端 116 项、后端 15 项、DSH 插件 17 项全通过，完整类型检查与生产
+  构建通过；Playwright 容器实际字形确认标题为 `OPPOSans B`、正文为
+  `OPPOSans R`。本次未部署生产，也未重启本地旧后端进程。
+
 ## 2026-08-18：1.7.2 顶部分享按钮单行修复生产发布
 
 - 根版本、锁文件、更新日志和 GitHub 注释标签 `1.7.2` 均精确指向

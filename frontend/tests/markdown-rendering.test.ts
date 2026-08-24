@@ -675,6 +675,15 @@ test("WechatArticle 为七种卡片主题生成互不共享的内联配色", () 
 });
 
 test("WechatArticle 为老罗巴扎嘿保留暖色杂志排版", () => {
+  assert.equal(
+    NOTE_CARD_THEME_STYLES.bazhahei.fontFamily,
+    NOTE_CARD_THEME_STYLES.default.fontFamily,
+  );
+  assert.equal(
+    NOTE_CARD_THEME_STYLES.bazhahei.headingFontFamily,
+    NOTE_CARD_THEME_STYLES.default.headingFontFamily,
+  );
+
   const html = renderToStaticMarkup(
     createElement(WechatArticle, {
       footerBrand: "老罗巴扎嘿排版测试",
@@ -687,6 +696,7 @@ test("WechatArticle 为老罗巴扎嘿保留暖色杂志排版", () => {
 
   assert.match(html, /data-note-card-theme="bazhahei"/);
   assert.match(html, /background-color:#faf9f5/);
+  assert.match(html, /font-family:&quot;OPPOSans&quot;/);
   assert.match(html, /font-size:30px;[^\"]*text-align:center/);
   assert.match(html, />■ <\/span>核心判断/);
   assert.match(html, /background:#efe9de/);

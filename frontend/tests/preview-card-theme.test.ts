@@ -235,7 +235,7 @@ test("卡片主题覆盖完整纸张 token，页面其余区域继续使用全�
   );
   assert.match(
     styles,
-    /\.preview-card-theme\[data-preview-theme="bazhahei"\]\s*\{[^}]*--bazhahei-accent:\s*#d4734b;[^}]*--bazhahei-surface:\s*#efe9de;[^}]*--sheet-surface:\s*#faf9f5;[^}]*--note-heading:\s*#141413;[^}]*--note-copy:\s*#3d3d3a;/s,
+    /\.preview-card-theme\[data-preview-theme="bazhahei"\]\s*\{[^}]*--bazhahei-accent:\s*#d4734b;[^}]*--bazhahei-surface:\s*#efe9de;[^}]*--sheet-surface:\s*#faf9f5;[^}]*--note-heading:\s*#141413;[^}]*--note-copy:\s*#3d3d3a;[^}]*--note-font:\s*"OPPOSans",[^}]*--note-heading-font:\s*var\(--note-font\);/s,
   );
   assert.match(
     styles,

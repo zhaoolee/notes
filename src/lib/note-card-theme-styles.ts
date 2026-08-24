@@ -46,8 +46,6 @@ const appleFont =
   '-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro SC","PingFang SC","Helvetica Neue",Arial,sans-serif';
 const bearFont =
   '"Avenir Next","AvenirNext-Regular",Avenir,-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",Arial,sans-serif';
-const bazhaheiFont =
-  '-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif';
 const telegraphSerifFont =
   'Georgia,Cambria,"Times New Roman","Noto Serif SC","Songti SC",serif';
 const telegraphSansFont =
@@ -210,8 +208,8 @@ export const NOTE_CARD_THEME_STYLES: Record<
   bazhahei: {
     id: "bazhahei",
     layout: "bazhahei",
-    fontFamily: bazhaheiFont,
-    headingFontFamily: bazhaheiFont,
+    fontFamily: smartisanFont,
+    headingFontFamily: smartisanFont,
     paperShadow: "0 24px 54px rgba(61,54,43,0.14)",
     wechatPaperShadow: "0 16.8px 37.8px rgba(61,54,43,0.14)",
     footerLogoFilter: "grayscale(1)",

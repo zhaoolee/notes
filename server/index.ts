@@ -1097,10 +1097,16 @@ function buildArchiveIndexHtml(
   const fontFaceCss = buildArchiveFontFaceCss(fonts);
   const fontFamilyPrefix = fonts.length ? `"OPPOSansArchive", ` : "";
   const themeStyle = getNoteCardThemeStyle(theme);
+  const usesBundledOppoSans =
+    theme === "default" || theme === "smartisan-dark" || theme === "bazhahei";
   const archiveFontFamily =
-    themeStyle.layout === "smartisan"
+    usesBundledOppoSans
       ? `${fontFamilyPrefix}${themeStyle.fontFamily}`
       : themeStyle.fontFamily;
+  const archiveHeadingFontFamily =
+    usesBundledOppoSans
+      ? `${fontFamilyPrefix}${themeStyle.headingFontFamily}`
+      : themeStyle.headingFontFamily;
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -1113,6 +1119,7 @@ ${fontFaceCss}
       :root {
         ${buildNoteCardThemeCssVariables(theme)}
         --note-font: ${archiveFontFamily};
+        --note-heading-font: ${archiveHeadingFontFamily};
         --note-scale: 2;
         --note-sheet-width: calc(330px * var(--note-scale));
       }

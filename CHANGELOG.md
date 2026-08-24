@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.9.1] - 2026-08-24
+
+### 修复
+
+- “老罗巴扎嘿”的正文与标题统一改用项目内置的 OPPO Sans，避免 PNG 导出容器回退到文泉驿正黑与 Liberation Sans；网页预览、保存图片、离线归档和微信公众号富文本同步使用同一字体声明。
+
 ## [1.9.0] - 2026-08-24
 
 ### 新增
@@ -210,6 +216,7 @@
 - PC 版便签操作栏右侧按钮调整为“AI、删除、分享”的顺序，与 APP 版详情操作保持一致。
 - 重置 Hermes 安装链接前会明确提示旧链接立即失效，并要求二次确认，避免误触轮换。
 
+[1.9.1]: https://github.com/zhaoolee/notes/compare/1.9.0...1.9.1
 [1.9.0]: https://github.com/zhaoolee/notes/compare/1.8.4...1.9.0
 [1.8.4]: https://github.com/zhaoolee/notes/compare/1.8.3...1.8.4
 [1.8.3]: https://github.com/zhaoolee/notes/compare/1.8.2...1.8.3

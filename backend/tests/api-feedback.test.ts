@@ -391,6 +391,24 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
       bazhaheiArchiveHtml,
       /\.note-index h2::before \{\s*content: "■";/,
     );
+    const bazhaheiArchiveHasBundledFonts = Array.from(
+      bazhaheiArchiveEntries.keys(),
+    ).some((filename) => filename.endsWith("OPPOSans-R-subset.woff2"));
+    const bazhaheiArchiveFontPrefix = bazhaheiArchiveHasBundledFonts
+      ? '"OPPOSansArchive", '
+      : "";
+    assert.match(
+      bazhaheiArchiveHtml,
+      new RegExp(
+        `--note-font: ${bazhaheiArchiveFontPrefix}"OPPOSans","Noto Sans SC"`,
+      ),
+    );
+    assert.match(
+      bazhaheiArchiveHtml,
+      new RegExp(
+        `--note-heading-font: ${bazhaheiArchiveFontPrefix}"OPPOSans","Noto Sans SC"`,
+      ),
+    );
 
     const telegraphArchiveResponse = await fetch(`${baseUrl}/api/archive`, {
       method: "POST",
