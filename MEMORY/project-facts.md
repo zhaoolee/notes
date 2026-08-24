@@ -2,17 +2,24 @@
 
 本文件只记录已从代码或 feedback 测试中确认、预计会影响后续任务的信息。临时调试输出和未经验证的推测不写入这里。
 
-## 2026-08-24：老罗巴扎嘿统一使用 OPPO Sans
+## 2026-08-24：1.9.1 老罗巴扎嘿 OPPO Sans 修复生产发布
 
+- 发布提交与标签 `1.9.1` 均指向
+  `dd3b45c7414471c305a4447a7a95a809f394ea95`，上一可回滚版本为 `1.9.0`。
 - `bazhahei` 的正文与标题和锤子明暗主题一样使用项目内置 OPPOSans；网页预览与
   Playwright PNG 通过 `@font-face` 加载 R/M/B 三档 WOFF2，公众号内联样式通过
-  `NOTE_CARD_THEME_STYLES` 使用同一字体栈。
-- 离线归档不能再只用 `layout === "smartisan"` 判断是否添加 `OPPOSansArchive`
-  前缀；`bazhahei` 也需要把正文 `--note-font` 和标题 `--note-heading-font` 同时指向
-  ZIP 内按文章内容裁剪的字体，否则 Linux 或未安装 OPPOSans 的系统仍会回退。
-- 当前反馈为前端 116 项、后端 15 项、DSH 插件 17 项全通过，完整类型检查与生产
-  构建通过；Playwright 容器实际字形确认标题为 `OPPOSans B`、正文为
-  `OPPOSans R`。本次未部署生产，也未重启本地旧后端进程。
+  `NOTE_CARD_THEME_STYLES` 使用同一字体栈。发布验收实际字形确认标题为
+  `OPPOSans B`、正文为 `OPPOSans R`，均为自定义字体，不再回退到文泉驿正黑或
+  Liberation Sans。
+- 离线归档不能只用 `layout === "smartisan"` 判断是否添加 `OPPOSansArchive` 前缀；
+  `bazhahei` 也需要把正文 `--note-font` 和标题 `--note-heading-font` 同时指向 ZIP 内
+  按文章内容裁剪的字体。发布验收确认归档包含 R/M/B 三个字体子集，HTML 的两套
+  字体变量都以 `OPPOSansArchive` 开头。
+- 公网真实 Chrome 确认首页和已有登录工作区只读加载正常，`/changelog` 首项为
+  `1.9.1 - 2026-08-24`；`390 × 844` 手机视口宽度与滚动宽度均为 `390px`，页面无
+  横向溢出，控制台无错误或警告。发布门禁为前端 116 项、后端 15 项、DSH 插件
+  17 项全部通过，完整生产构建通过，生产依赖审计为 0 漏洞；公网无图 PNG、图片导入、
+  带图 PNG 和 ZIP 归档均通过。
 
 ## 2026-08-18：1.7.2 顶部分享按钮单行修复生产发布
 
