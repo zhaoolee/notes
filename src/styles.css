@@ -5414,12 +5414,25 @@ body,
 }
 
 .ai-review-quick-actions {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.ai-review-quick-actions button,
+.ai-review-quick-actions legend {
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 0;
+  color: var(--ink);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.ai-review-quick-actions label,
 .ai-suggestion-actions button,
 .ai-review-footer button {
   min-height: 34px;
@@ -5432,12 +5445,43 @@ body,
   font-size: 0.76rem;
 }
 
-.ai-review-quick-actions button.is-active,
-.ai-review-quick-actions button[aria-pressed="true"] {
+.ai-review-quick-actions label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+}
+
+.ai-review-quick-actions input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--accent-strong);
+}
+
+.ai-review-quick-actions label.is-active {
   border-color: var(--toolbar-hover-border);
   background: var(--selector-active);
   color: var(--accent-strong);
   box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.ai-review-quick-actions label:focus-within {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.ai-review-quick-actions label.is-disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
+.ai-review-mode-hint {
+  width: 100%;
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
 }
 
 .ai-review-submit {

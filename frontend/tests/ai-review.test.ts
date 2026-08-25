@@ -12,6 +12,10 @@ import {
   validateAiSuggestions,
   type AiSuggestion,
 } from "../../src/lib/ai-suggestions.js";
+import {
+  buildAiReviewInstruction,
+  type QuickReviewModeId,
+} from "../../src/lib/ai-review-modes.js";
 
 const sourceMarkdown = "这里有一个错字。\n这行应该加粗。";
 const suggestions: AiSuggestion[] = [
@@ -175,21 +179,52 @@ test("越界、原文不符和重叠建议会被拒绝", () => {
   );
 });
 
+test("多个 AI 审阅功能与补充要求会合并为一轮提示词", () => {
+  const selectedModeIds = new Set<QuickReviewModeId>([
+    "punctuation",
+    "bold",
+    "readability",
+  ]);
+  const instruction = buildAiReviewInstruction(
+    selectedModeIds,
+    "保留英文产品名",
+  );
+
+  assert.match(instruction, /同一轮审阅中同时完成以下要求/);
+  assert.match(instruction, /1\. 请纠正文章中的错别字、病句和标点错误/);
+  assert.match(instruction, /2\. 请识别对公众阅读最重要的短语或句子/);
+  assert.match(instruction, /3\. 请对文章进行通俗化润色/);
+  assert.match(instruction, /补充要求：保留英文产品名/);
+});
+
+test("没有勾选功能时仍可只发送自定义补充要求", () => {
+  assert.equal(
+    buildAiReviewInstruction(new Set(), "  只调整标题  "),
+    "补充要求：只调整标题",
+  );
+  assert.equal(buildAiReviewInstruction(new Set(), "   "), "");
+});
+
 test("AI 审阅支持三种快捷模式、逐条确认和底部接受剩余建议", () => {
   const source = readFileSync("src/components/AiReviewDialog.tsx", "utf8");
+  const modesSource = readFileSync("src/lib/ai-review-modes.ts", "utf8");
   const appSource = readFileSync("src/App.tsx", "utf8");
   const styles = readFileSync("src/styles.css", "utf8");
 
-  assert.match(source, /纠正标点语法/);
-  assert.match(source, /重点加粗/);
-  assert.match(source, /通俗化润色/);
-  assert.doesNotMatch(source, /让公众更易读/);
-  assert.match(source, /把过长、结构复杂或信息过密的句子拆成自然、易读的短句/);
-  assert.match(source, /把专业术语、抽象表达和行业黑话改用公众容易理解的简单概念表达/);
-  assert.match(source, /保持原意、事实、语气和 Markdown 结构/);
+  assert.match(modesSource, /纠正标点语法/);
+  assert.match(modesSource, /重点加粗/);
+  assert.match(modesSource, /通俗化润色/);
+  assert.doesNotMatch(modesSource, /让公众更易读/);
+  assert.match(modesSource, /把过长、结构复杂或信息过密的句子拆成自然、易读的短句/);
+  assert.match(modesSource, /把专业术语、抽象表达和行业黑话改用公众容易理解的简单概念表达/);
+  assert.match(modesSource, /保持原意、事实、语气和 Markdown 结构/);
+  assert.match(source, /选择审阅功能（可多选）/);
+  assert.match(source, /type="checkbox"/);
+  assert.match(source, /checked=\{selectedModeIds\.has\(mode\.id\)\}/);
+  assert.match(source, /buildAiReviewInstruction\(selectedModeIds, customInstruction\)/);
   assert.match(
     source,
-    /session\.instruction === QUICK_REVIEW_MODES\[0\]\.instruction[\s\S]*"大模型已检查，无需纠正"[\s\S]*"大模型已检查，暂无修改建议"/s,
+    /session\.isPunctuationOnly[\s\S]*"大模型已检查，无需纠正"[\s\S]*"大模型已检查，暂无修改建议"/s,
   );
   assert.doesNotMatch(source, /AI 没有发现需要修改的地方/);
   assert.match(source, /支持逐条确认，也可以一键接受剩余待处理建议/);

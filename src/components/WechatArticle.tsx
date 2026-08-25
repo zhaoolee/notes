@@ -96,6 +96,7 @@ function createWechatRenderContext(
     },
     bodyParagraphStyle: {
       margin: "0",
+      lineHeight: bodyLineHeight,
     },
   };
 }
@@ -129,6 +130,7 @@ function renderBlockquoteChildren(
         style: {
           ...child.props.style,
           margin: "0",
+          lineHeight: isTelegraph ? 1.58 : 1.64,
           ...(isFirstTextBlock && !isTelegraph && !isBazhahei
             ? {
                 paddingLeft: quoteIndent,

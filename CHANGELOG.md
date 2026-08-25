@@ -2,6 +2,16 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.10.0] - 2026-08-25
+
+### 变更
+
+- AI 辅助审阅的“纠正标点语法”“重点加粗”“通俗化润色”改为可同时勾选；所有选中功能与可选补充要求会合并到同一轮 AI 请求中，一次生成完整修改建议。
+
+### 修复
+
+- 修复各主题发布到微信公众号编辑器后，普通正文段落因微信覆盖继承行高而整体变紧的问题；段落现在会直接携带对应主题的行高，同时保持引用等特殊区块的独立节奏。
+
 ## [1.9.1] - 2026-08-24
 
 ### 修复
@@ -216,6 +226,7 @@
 - PC 版便签操作栏右侧按钮调整为“AI、删除、分享”的顺序，与 APP 版详情操作保持一致。
 - 重置 Hermes 安装链接前会明确提示旧链接立即失效，并要求二次确认，避免误触轮换。
 
+[1.10.0]: https://github.com/zhaoolee/notes/compare/1.9.1...1.10.0
 [1.9.1]: https://github.com/zhaoolee/notes/compare/1.9.0...1.9.1
 [1.9.0]: https://github.com/zhaoolee/notes/compare/1.8.4...1.9.0
 [1.8.4]: https://github.com/zhaoolee/notes/compare/1.8.3...1.8.4

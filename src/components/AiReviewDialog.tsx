@@ -8,6 +8,11 @@ import {
   type AiSuggestion,
   type TextDiffPart,
 } from "../lib/ai-suggestions";
+import {
+  buildAiReviewInstruction,
+  QUICK_REVIEW_MODES,
+  type QuickReviewModeId,
+} from "../lib/ai-review-modes";
 
 interface AiReviewDialogProps {
   currentMarkdown: string;
@@ -20,32 +25,11 @@ interface ReviewSession {
   acceptedIds: Set<string>;
   expectedMarkdown: string;
   ignoredIds: Set<string>;
-  instruction: string;
+  isPunctuationOnly: boolean;
   sourceMarkdown: string;
   sourceNoteId: string;
   suggestions: AiSuggestion[];
 }
-
-const QUICK_REVIEW_MODES = [
-  {
-    id: "punctuation",
-    instruction:
-      "请纠正文章中的错别字、病句和标点错误，只提出必要的最小修改，并保持原意和 Markdown 结构。",
-    label: "纠正标点语法",
-  },
-  {
-    id: "bold",
-    instruction:
-      "请识别对公众阅读最重要的短语或句子，并用 Markdown **粗体**突出，避免过度加粗或改变原意。",
-    label: "重点加粗",
-  },
-  {
-    id: "readability",
-    instruction:
-      "请对文章进行通俗化润色：把过长、结构复杂或信息过密的句子拆成自然、易读的短句；把专业术语、抽象表达和行业黑话改用公众容易理解的简单概念表达。保持原意、事实、语气和 Markdown 结构，不扩写，也不改写无关内容。",
-    label: "通俗化润色",
-  },
-] as const;
 
 function renderTextDiffParts(parts: TextDiffPart[]) {
   return parts.map((part, index) => {
@@ -116,9 +100,12 @@ export function AiReviewDialog({
   onClose,
   onMarkdownChange,
 }: AiReviewDialogProps) {
-  const [instruction, setInstruction] = useState<string>(
-    QUICK_REVIEW_MODES[0].instruction,
+  const [selectedModeIds, setSelectedModeIds] = useState<
+    Set<QuickReviewModeId>
+  >(
+    () => new Set(["punctuation"]),
   );
+  const [customInstruction, setCustomInstruction] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [session, setSession] = useState<ReviewSession | null>(null);
@@ -126,6 +113,10 @@ export function AiReviewDialog({
   const currentNoteIdRef = useRef(currentNoteId);
   currentMarkdownRef.current = currentMarkdown;
   currentNoteIdRef.current = currentNoteId;
+  const instruction = useMemo(
+    () => buildAiReviewInstruction(selectedModeIds, customInstruction),
+    [customInstruction, selectedModeIds],
+  );
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -147,6 +138,10 @@ export function AiReviewDialog({
 
     const sourceMarkdown = currentMarkdown;
     const sourceNoteId = currentNoteId;
+    const isPunctuationOnly =
+      selectedModeIds.size === 1 &&
+      selectedModeIds.has("punctuation") &&
+      !customInstruction.trim();
 
     try {
       setIsLoading(true);
@@ -169,7 +164,7 @@ export function AiReviewDialog({
         acceptedIds: new Set(),
         expectedMarkdown: sourceMarkdown,
         ignoredIds: new Set(),
-        instruction: normalizedInstruction,
+        isPunctuationOnly,
         sourceMarkdown,
         sourceNoteId,
         suggestions: result.suggestions,
@@ -183,6 +178,20 @@ export function AiReviewDialog({
     } finally {
       setIsLoading(false);
     }
+  }
+
+  function handleModeToggle(modeId: QuickReviewModeId) {
+    setSelectedModeIds((currentModeIds) => {
+      const nextModeIds = new Set(currentModeIds);
+
+      if (nextModeIds.has(modeId)) {
+        nextModeIds.delete(modeId);
+      } else {
+        nextModeIds.add(modeId);
+      }
+
+      return nextModeIds;
+    });
   }
 
   function handleAccept(suggestion: AiSuggestion) {
@@ -301,32 +310,45 @@ export function AiReviewDialog({
         </header>
 
         <div className="ai-review-body">
+          <fieldset className="ai-review-quick-actions">
+            <legend>选择审阅功能（可多选）</legend>
+            {QUICK_REVIEW_MODES.map((mode) => (
+              <label
+                key={mode.id}
+                className={[
+                  selectedModeIds.has(mode.id) ? "is-active" : "",
+                  isLoading ? "is-disabled" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedModeIds.has(mode.id)}
+                  disabled={isLoading}
+                  onChange={() => handleModeToggle(mode.id)}
+                />
+                <span>{mode.label}</span>
+              </label>
+            ))}
+            <p className="ai-review-mode-hint" aria-live="polite">
+              {selectedModeIds.size > 0
+                ? `已选 ${selectedModeIds.size} 项，将合并到一次请求中完成`
+                : "未选择预设功能，可填写下方补充要求"}
+            </p>
+          </fieldset>
+
           <label className="ai-review-instruction">
-            <span>你希望 AI 做什么？</span>
+            <span>补充要求（可选）</span>
             <textarea
-              value={instruction}
-              maxLength={2_000}
-              rows={3}
-              placeholder="例如：请检查文章的错别字和标点"
-              onChange={(event) => setInstruction(event.target.value)}
+              value={customInstruction}
+              maxLength={1_500}
+              rows={2}
+              placeholder="例如：保留文中的英文产品名"
+              disabled={isLoading}
+              onChange={(event) => setCustomInstruction(event.target.value)}
             />
           </label>
-
-          <div className="ai-review-quick-actions" aria-label="常用审阅要求">
-            {QUICK_REVIEW_MODES.map((mode) => (
-              <button
-                key={mode.id}
-                type="button"
-                aria-pressed={instruction === mode.instruction}
-                className={
-                  instruction === mode.instruction ? "is-active" : undefined
-                }
-                onClick={() => setInstruction(mode.instruction)}
-              >
-                {mode.label}
-              </button>
-            ))}
-          </div>
 
           <button
             type="button"
@@ -410,7 +432,7 @@ export function AiReviewDialog({
                 </>
               ) : (
                 <p className="ai-review-empty">
-                  {session.instruction === QUICK_REVIEW_MODES[0].instruction
+                  {session.isPunctuationOnly
                     ? "大模型已检查，无需纠正"
                     : "大模型已检查，暂无修改建议"}
                 </p>

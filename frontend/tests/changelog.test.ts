@@ -34,7 +34,7 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
   assert.match(changelog, /^# 更新日志\n/);
   assert.equal(
     secondLevelHeadings[latestReleaseIndex],
-    `[${packageVersion.version}] - 2026-08-24`,
+    `[${packageVersion.version}] - 2026-08-25`,
   );
   assert.ok(categoryHeadings.length > 0);
 
@@ -42,7 +42,10 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
     assert.match(changelog, /^## \[未发布\]\n\n### \S+\n\n- \S/m);
     assert.match(
       changelog,
-      /^\[未发布\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.9\.0\.\.\.HEAD$/m,
+      new RegExp(
+        `^\\[未发布\\]: https://github\\.com/zhaoolee/notes/compare/${packageVersion.version.replaceAll(".", "\\.")}\\.\\.\\.HEAD$`,
+        "m",
+      ),
     );
   }
 
@@ -131,58 +134,66 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
   const hasUnreleasedSection = /^## \[未发布\]/m.test(changelog);
   const currentReleaseSectionIndex = hasUnreleasedSection ? 2 : 1;
   const previousReleaseSectionIndex = currentReleaseSectionIndex + 1;
-  const latestReleaseSectionIndex = previousReleaseSectionIndex + 2;
+  const latestReleaseSectionIndex = previousReleaseSectionIndex + 3;
 
   assert.equal(sections[0]?.heading, "");
   assert.match(sections[0]?.content ?? "", /^# 更新日志/m);
   if (hasUnreleasedSection) {
     assert.equal(
       sections[1]?.heading,
-      "[未发布](https://github.com/zhaoolee/notes/compare/1.9.1...HEAD)",
+      "[未发布](https://github.com/zhaoolee/notes/compare/1.10.0...HEAD)",
     );
   }
   assert.equal(
     sections[currentReleaseSectionIndex]?.heading,
-    "[1.9.1](https://github.com/zhaoolee/notes/compare/1.9.0...1.9.1) - 2026-08-24",
+    "[1.10.0](https://github.com/zhaoolee/notes/compare/1.9.1...1.10.0) - 2026-08-25",
   );
   assert.match(
     sections[currentReleaseSectionIndex]?.content ?? "",
-    /老罗巴扎嘿.*OPPO Sans.*PNG.*文泉驿正黑.*Liberation Sans.*网页预览.*离线归档.*微信公众号富文本/s,
+    /AI 辅助审阅.*可同时勾选.*同一轮 AI 请求.*正文段落.*微信.*行高.*引用/s,
   );
   assert.equal(
     sections[previousReleaseSectionIndex]?.heading,
-    "[1.9.0](https://github.com/zhaoolee/notes/compare/1.8.4...1.9.0) - 2026-08-24",
+    "[1.9.1](https://github.com/zhaoolee/notes/compare/1.9.0...1.9.1) - 2026-08-24",
   );
   assert.match(
     sections[previousReleaseSectionIndex]?.content ?? "",
-    /老罗巴扎嘿.*Bear 便签.*editing-skill.*网页预览.*保存图片.*离线归档.*微信公众号富文本/s,
+    /老罗巴扎嘿.*OPPO Sans.*PNG.*文泉驿正黑.*Liberation Sans.*网页预览.*离线归档.*微信公众号富文本/s,
   );
   assert.equal(
     sections[previousReleaseSectionIndex + 1]?.heading,
-    "[1.8.4](https://github.com/zhaoolee/notes/compare/1.8.3...1.8.4) - 2026-08-22",
+    "[1.9.0](https://github.com/zhaoolee/notes/compare/1.8.4...1.9.0) - 2026-08-24",
   );
   assert.match(
     sections[previousReleaseSectionIndex + 1]?.content ?? "",
+    /老罗巴扎嘿.*Bear 便签.*editing-skill.*网页预览.*保存图片.*离线归档.*微信公众号富文本/s,
+  );
+  assert.equal(
+    sections[previousReleaseSectionIndex + 2]?.heading,
+    "[1.8.4](https://github.com/zhaoolee/notes/compare/1.8.3...1.8.4) - 2026-08-22",
+  );
+  assert.match(
+    sections[previousReleaseSectionIndex + 2]?.content ?? "",
     /引用.*默认灰色左边线.*主题大引号.*Telegra\.ph.*清除.*引用边框和缩进/s,
   );
   assert.equal(
-    sections[latestReleaseSectionIndex]?.heading,
+    sections[previousReleaseSectionIndex + 3]?.heading,
     "[1.8.3](https://github.com/zhaoolee/notes/compare/1.8.2...1.8.3) - 2026-08-22",
   );
   assert.match(
-    sections[latestReleaseSectionIndex]?.content ?? "",
+    sections[previousReleaseSectionIndex + 3]?.content ?? "",
     /无正文图片.*ENOENT.*前 20 个可见字符.*当前主题.*专属封面.*不再依赖.*固定 Logo/s,
   );
   assert.equal(
-    sections[latestReleaseSectionIndex + 1]?.heading,
+    sections[previousReleaseSectionIndex + 4]?.heading,
     "[1.8.2](https://github.com/zhaoolee/notes/compare/1.8.1...1.8.2) - 2026-08-22",
   );
   assert.match(
-    sections[latestReleaseSectionIndex + 1]?.content ?? "",
+    sections[previousReleaseSectionIndex + 4]?.content ?? "",
     /iPhone.*Bear.*Telegra\.ph.*四角表格.*36600.*11913.*40%/s,
   );
   assert.equal(
-    sections[latestReleaseSectionIndex + 2]?.heading,
+    sections[previousReleaseSectionIndex + 5]?.heading,
     "[1.8.1](https://github.com/zhaoolee/notes/compare/1.8.0...1.8.1) - 2026-08-22",
   );
   assert.match(

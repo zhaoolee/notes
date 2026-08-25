@@ -509,7 +509,7 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.doesNotMatch(html, /<header[^>]*text-align:center/);
   assert.match(
     html,
-    /<p style="margin:0;text-align:center">公众号居中正文<\/p>/,
+    /<p style="margin:0;line-height:1\.75;text-align:center">公众号居中正文<\/p>/,
   );
   assert.match(
     html,
@@ -533,7 +533,7 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.doesNotMatch(html, /<\/strong>[\u00a0\u2060]vibe coding/);
   assert.match(
     html,
-    /<p style="margin:0">正文包含/,
+    /<p style="margin:0;line-height:1\.75">正文包含/,
   );
   assert.match(
     html,
@@ -671,6 +671,21 @@ test("WechatArticle 为七种卡片主题生成互不共享的内联配色", () 
       style.layout === "apple",
     );
     assert.equal(html.includes(">▎</span>"), style.layout === "bear");
+    const expectedBodyLineHeight =
+      style.layout === "telegraph"
+        ? 1.58
+        : style.layout === "bear"
+          ? 1.755
+          : style.layout === "bazhahei"
+            ? 1.8
+            : 1.75;
+    assert.match(
+      html,
+      new RegExp(
+        `<p style="margin:0;line-height:${expectedBodyLineHeight}">正文与`,
+      ),
+      `${theme} 的正文段落必须自行携带主题行高，不能只依赖父容器继承`,
+    );
   }
 });
 
@@ -766,14 +781,14 @@ test("WechatArticle 只把 Bear 粗体渲染为链接红色", () => {
   assert.doesNotMatch(defaultHtml, /<strong style="[^"]*color:#dd4c4f/);
 });
 
-test("WechatArticle 让长文章继承主题样式而不是逐段重复到超过微信限制", () => {
+test("WechatArticle 长文只在段落重复微信需要的行高且不超过长度限制", () => {
   const markdown = [
     "# 程序员狠话｜长度回归",
     ...Array.from({ length: 10 }, (_, index) =>
       [
         `## **0x${String(index + 1).padStart(2, "0")}**`,
         `> 话题：第 ${index + 1} 条长文章主题保持原有排版`,
-        "这是一段用于验证公众号草稿长度的正文。系统应保留标题、引用、正文、链接与空行的主题样式，同时让段落从文章容器继承相同的字体、字号、颜色和行高，避免为每一段重复写入完全相同的内联声明。",
+        "这是一段用于验证公众号草稿长度的正文。系统应保留标题、引用、正文、链接与空行的主题样式，让段落直接携带行高，同时继续从文章容器继承字体、字号和颜色，避免为每一段重复写入整套内联声明。",
         `来源：https://example.com/items/${index + 1}`,
       ].join("\n\n"),
     ),
@@ -797,6 +812,7 @@ test("WechatArticle 让长文章继承主题样式而不是逐段重复到超过
   assert.equal((html.match(/来源：<a /g) ?? []).length, 10);
   assert.doesNotMatch(html, /data-smartisan-frame="outer"/);
   assert.doesNotMatch(html, /<p style="[^"]*font-family:/);
+  assert.match(html, /<p style="margin:0;line-height:1\.75">/);
   assert.match(
     html,
     /data-smartisan-theme="apple-notes" style="[^"]*font-size:15px[^"]*line-height:1\.75[^"]*white-space:pre-wrap/,
