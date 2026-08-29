@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.10.1] - 2026-08-29
+
+### 修复
+
+- 修复 GIF 动图发布为微信公众号草稿后被转换成单帧静态图片的问题；符合微信永久图片素材限制的 GIF 现在会保留原始动画，并复用为文章首图封面，避免重复上传同一份素材。
+
 ## [1.10.0] - 2026-08-25
 
 ### 变更
@@ -226,6 +232,7 @@
 - PC 版便签操作栏右侧按钮调整为“AI、删除、分享”的顺序，与 APP 版详情操作保持一致。
 - 重置 Hermes 安装链接前会明确提示旧链接立即失效，并要求二次确认，避免误触轮换。
 
+[1.10.1]: https://github.com/zhaoolee/notes/compare/1.10.0...1.10.1
 [1.10.0]: https://github.com/zhaoolee/notes/compare/1.9.1...1.10.0
 [1.9.1]: https://github.com/zhaoolee/notes/compare/1.9.0...1.9.1
 [1.9.0]: https://github.com/zhaoolee/notes/compare/1.8.4...1.9.0

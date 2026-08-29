@@ -365,11 +365,13 @@ Clipboard API 同时写入 `text/html` 和 `text/plain`，不支持 ClipboardIte
 
 点击发布后，`POST /api/wechat/draft` 先调用与“复制到公众号”相同的
 `prepareWechatArticle`，确保当前 Markdown、卡片主题、署名、图片预处理和内联样式
-完全一致。由于微信草稿接口会过滤外部图片，服务端继续扫描渲染后的 HTML，把图片
-自动旋转、缩放并转成小于 1MB 的 JPG/PNG，再上传至 `/cgi-bin/media/uploadimg`，
-按转换后内容哈希去重并将 `src` 替换为微信返回的地址。封面优先使用文章首图，通过
-`/cgi-bin/material/add_material?type=image` 上传为永久素材；首图不符合永久素材
-要求或文章无图时，提取便签标题的前 20 个 Unicode 字符，按当前卡片主题在内存中生成
+完全一致。由于微信草稿接口会过滤外部图片，服务端继续扫描渲染后的 HTML。普通图片
+会自动旋转、缩放并转成小于 1MB 的 JPG/PNG，再上传至 `/cgi-bin/media/uploadimg`；
+GIF 动图则保留原始二进制，通过 `/cgi-bin/material/add_material?type=image` 上传为
+永久图片素材，并使用微信返回的 URL 作为正文 `src`。两条链路都按实际上传内容哈希
+去重。封面优先使用文章首图；首图 GIF 已作为正文永久素材上传时直接复用同一个
+`media_id`，其他首图再单独上传为永久素材。首图不符合永久素材要求或文章无图时，
+提取便签标题的前 20 个 Unicode 字符，按当前卡片主题在内存中生成
 `900 × 383` PNG 专属封面。最后服务端从当前便签标题
 生成不超过 32 字的草稿标题，携带主题化 HTML 和 `thumb_media_id` 调用
 `/cgi-bin/draft/add`。响应只向浏览器返回草稿 `mediaId`、标题、主题和微信正文图片数。

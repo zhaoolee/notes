@@ -2,6 +2,18 @@
 
 本文件只记录已从代码或 feedback 测试中确认、预计会影响后续任务的信息。临时调试输出和未经验证的推测不写入这里。
 
+## 2026-08-29：公众号草稿保留 GIF 动画
+
+- `POST /api/wechat/draft` 的正文 GIF 不再进入 `sharp(..., { animated: false })` 的
+  单帧 JPG/PNG 转换链路，而是保留原始二进制，通过
+  `/cgi-bin/material/add_material?type=image` 上传永久图片素材，并使用微信返回的
+  `url` 写入草稿正文。普通静态图片仍走小于 1MB 的 `/cgi-bin/media/uploadimg`。
+- 正文 GIF 同时是文章首图时，封面直接复用该次永久素材上传返回的 `media_id`；相同
+  GIF 按原始内容哈希去重，不能为正文和封面重复占用素材。
+- feedback 使用可验证的两帧 GIF，确认七牛预处理、永久素材 multipart 和最终草稿
+  HTML 全程保留原始 GIF 字节与 `.gif` URL；前端 118 项、后端 15 项、DSH 插件
+  17 项全部通过，完整生产构建通过。尚未调用真实微信接口，也未部署到生产环境。
+
 ## 2026-08-24：1.9.1 老罗巴扎嘿 OPPO Sans 修复生产发布
 
 - 发布提交与标签 `1.9.1` 均指向

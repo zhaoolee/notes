@@ -25,6 +25,11 @@ interface ResetUserPassword {
   username: string;
 }
 
+const twoFrameGif = Buffer.from(
+  "R0lGODlhAgACAPAAAP8AAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQACgAAACwAAAAAAgACAAACAoRRACH5BAAKAAAALAAAAAACAAIAgAAA/wAAAAIChFEAOw==",
+  "base64",
+);
+
 async function getUnusedPort(): Promise<number> {
   const probe = createServer();
   probe.listen(0, "127.0.0.1");
@@ -155,10 +160,30 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
   const wechatDraftPayloads: unknown[] = [];
   const wechatContentUploads: Buffer[] = [];
   const wechatCoverUploads: Buffer[] = [];
+  const qiniuUploads: Buffer[] = [];
   let wechatContentImageSequence = 0;
   const wechatServer = createHttpServer(async (request, response) => {
     const url = new URL(request.url || "/", `http://127.0.0.1:${wechatPort}`);
+
+    if (request.method === "GET" && url.pathname.startsWith("/cdn/")) {
+      response.setHeader("Content-Type", "image/gif");
+      response.end(twoFrameGif);
+      return;
+    }
+
     response.setHeader("Content-Type", "application/json");
+
+    if (request.method === "POST" && url.pathname === "/") {
+      const chunks: Buffer[] = [];
+
+      for await (const chunk of request) {
+        chunks.push(Buffer.from(chunk));
+      }
+
+      qiniuUploads.push(Buffer.concat(chunks));
+      response.end(JSON.stringify({ hash: "feedback", key: "feedback.gif" }));
+      return;
+    }
 
     if (request.method === "GET" && url.pathname === "/cgi-bin/token") {
       response.end(
@@ -200,11 +225,17 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
       for await (const chunk of request) {
         chunks.push(Buffer.from(chunk));
       }
-      wechatCoverUploads.push(Buffer.concat(chunks));
+      const upload = Buffer.concat(chunks);
+      const isAnimatedGif = upload.includes(twoFrameGif);
+      wechatCoverUploads.push(upload);
       response.end(
         JSON.stringify({
-          media_id: "feedback-cover-media-id",
-          url: "https://mmbiz.qpic.cn/feedback-cover.png",
+          media_id: isAnimatedGif
+            ? "feedback-gif-media-id"
+            : "feedback-cover-media-id",
+          url: isAnimatedGif
+            ? "https://mmbiz.qpic.cn/feedback-animated.gif"
+            : "https://mmbiz.qpic.cn/feedback-cover.png",
         }),
       );
       return;
@@ -241,6 +272,12 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
         AppID: "wxaaaaaaaaaaaaaaaa",
         AppSecret: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         PORT: String(port),
+        QINIU_ACCESS_KEY: "feedback-access-key",
+        QINIU_SECRET_KEY: "feedback-secret-key",
+        QINIU_BUCKET: "feedback-bucket",
+        QINIU_DOMAIN: `http://127.0.0.1:${wechatPort}/cdn`,
+        QINIU_PREFIX: "feedback",
+        QINIU_UPLOAD_URLS: `http://127.0.0.1:${wechatPort}`,
         SESSION_SECRET: "feedback-session-secret-with-sufficient-entropy",
         SUPERADMIN: "feedback-admin",
         SUPERADMINPASSWORD: "feedback-admin-password",
@@ -632,6 +669,57 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
     assert.equal(compactLongDraftArticle.title, "程序员狠话｜长度回归");
     assert.ok(Array.from(compactLongDraftArticle.content).length < 13_000);
     assert.match(compactLongDraftArticle.content, /items\/10/);
+
+    const gifMetadata = await sharp(twoFrameGif, { animated: true }).metadata();
+    assert.equal(gifMetadata.pages, 2);
+    const animatedGifDraftResponse = await postJson(
+      baseUrl,
+      "/api/wechat/draft",
+      {
+        markdown: [
+          "# 动态 GIF 草稿",
+          "",
+          `![两帧动图](data:image/gif;base64,${twoFrameGif.toString("base64")})`,
+        ].join("\n"),
+        theme: "default",
+      },
+      aliceCookie,
+    );
+    assert.equal(animatedGifDraftResponse.status, 200);
+    assert.deepEqual(await animatedGifDraftResponse.json(), {
+      imageCount: 2,
+      mediaId: "feedback-draft-media-id",
+      theme: "default",
+      title: "动态 GIF 草稿",
+    });
+    assert.equal(qiniuUploads.length, 1);
+    assert.ok(qiniuUploads[0].includes(twoFrameGif));
+    assert.equal(wechatDraftPayloads.length, 3);
+    assert.equal(wechatContentUploads.length, 3);
+    assert.equal(wechatCoverUploads.length, 3);
+    assert.ok(wechatCoverUploads[2].includes(twoFrameGif));
+    assert.match(
+      wechatCoverUploads[2].toString("latin1"),
+      /filename="wechat-permanent-[a-f0-9]+\.gif"/,
+    );
+    const animatedGifDraftArticle = (
+      wechatDraftPayloads[2] as {
+        articles: Array<{
+          content: string;
+          thumb_media_id: string;
+          title: string;
+        }>;
+      }
+    ).articles[0];
+    assert.equal(animatedGifDraftArticle.title, "动态 GIF 草稿");
+    assert.equal(
+      animatedGifDraftArticle.thumb_media_id,
+      "feedback-gif-media-id",
+    );
+    assert.match(
+      animatedGifDraftArticle.content,
+      /https:\/\/mmbiz\.qpic\.cn\/feedback-animated\.gif/,
+    );
 
     const adminWechatConfigurationAfterAliceSave = await fetch(
       `${baseUrl}/api/wechat/config`,

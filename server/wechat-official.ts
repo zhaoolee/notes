@@ -11,6 +11,11 @@ export interface WechatImageUpload {
   mimeType: string;
 }
 
+export interface WechatPermanentImage {
+  mediaId: string;
+  url: string | null;
+}
+
 export interface WechatDraftArticle {
   content: string;
   thumbMediaId: string;
@@ -34,6 +39,7 @@ interface WechatPermanentImageResponse {
   errcode?: unknown;
   errmsg?: unknown;
   media_id?: unknown;
+  url?: unknown;
 }
 
 interface WechatDraftResponse {
@@ -79,7 +85,7 @@ function getWechatErrorMessage(code: number | null, message: string): string {
     case 40164:
       return "当前服务器出口 IP 不在微信公众号白名单中。";
     case 40007:
-      return "微信公众号拒绝了草稿封面素材。";
+      return "微信公众号拒绝了图片素材。";
     case 45009:
       return "微信公众号接口调用额度已用完。";
     default:
@@ -228,7 +234,7 @@ export async function uploadWechatContentImage(
 export async function uploadWechatPermanentImage(
   accessToken: string,
   image: WechatImageUpload,
-): Promise<string> {
+): Promise<WechatPermanentImage> {
   const url = createWechatApiUrl("/cgi-bin/material/add_material");
   url.searchParams.set("access_token", accessToken);
   url.searchParams.set("type", "image");
@@ -238,14 +244,17 @@ export async function uploadWechatPermanentImage(
       method: "POST",
       body: createImageFormData(image),
     },
-    "上传公众号草稿封面",
+    "上传公众号永久图片素材",
   );
 
   if (typeof payload.media_id !== "string" || !payload.media_id) {
-    throw new WechatOfficialApiError(null, "微信没有返回封面素材 ID");
+    throw new WechatOfficialApiError(null, "微信没有返回永久图片素材 ID");
   }
 
-  return payload.media_id;
+  return {
+    mediaId: payload.media_id,
+    url: typeof payload.url === "string" && payload.url ? payload.url : null,
+  };
 }
 
 export async function addWechatDraft(

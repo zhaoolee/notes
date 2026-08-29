@@ -83,6 +83,7 @@ import {
   WechatOfficialApiError,
   type WechatImageUpload,
   type WechatOfficialConfiguration,
+  type WechatPermanentImage,
 } from "./wechat-official.js";
 
 interface ExportRequestBody {
@@ -3734,7 +3735,7 @@ async function toWechatContentImage(
   };
 }
 
-function toWechatCoverImage(
+function toWechatPermanentImage(
   image: ImageSource,
   source: string,
 ): WechatImageUpload | null {
@@ -3762,7 +3763,7 @@ function toWechatCoverImage(
 
   return {
     buffer: image.buffer,
-    filename: `wechat-cover-${createHash("sha256").update(image.buffer).digest("hex")}.${extension}`,
+    filename: `wechat-permanent-${createHash("sha256").update(image.buffer).digest("hex")}.${extension}`,
     mimeType: mimeTypes[extension],
   };
 }
@@ -3771,9 +3772,15 @@ async function replaceDraftContentImages(
   html: string,
   accessToken: string,
   publicBaseUrl: string,
-): Promise<{ html: string; imageCount: number }> {
+): Promise<{
+  html: string;
+  imageCount: number;
+  permanentImagesBySource: Map<string, WechatPermanentImage>;
+}> {
   const sources = collectHtmlImageSources(html);
   const uploadedByHash = new Map<string, string>();
+  const permanentImagesByHash = new Map<string, WechatPermanentImage>();
+  const permanentImagesBySource = new Map<string, WechatPermanentImage>();
   let draftHtml = html;
 
   for (const source of sources) {
@@ -3785,19 +3792,62 @@ async function replaceDraftContentImages(
       );
     }
 
-    const upload = await toWechatContentImage(image, source);
-    const hash = createHash("sha256").update(upload.buffer).digest("hex");
-    let wechatUrl = uploadedByHash.get(hash);
+    const extension = detectImageFormat(
+      image.buffer,
+      image.mimeType,
+      image.filename || source,
+    );
+    let wechatUrl: string;
 
-    if (!wechatUrl) {
-      wechatUrl = await uploadWechatContentImage(accessToken, upload);
-      uploadedByHash.set(hash, wechatUrl);
+    if (extension === "gif") {
+      const upload = toWechatPermanentImage(image, source);
+
+      if (!upload) {
+        throw new WechatDraftPreparationError(
+          `公众号 GIF 图片必须小于 10MB：${source}`,
+        );
+      }
+
+      const hash = createHash("sha256").update(upload.buffer).digest("hex");
+      let permanentImage = permanentImagesByHash.get(hash);
+
+      if (!permanentImage) {
+        permanentImage = await uploadWechatPermanentImage(accessToken, upload);
+
+        if (!permanentImage.url) {
+          throw new WechatDraftPreparationError(
+            `微信没有返回 GIF 图片地址：${source}`,
+          );
+        }
+
+        permanentImagesByHash.set(hash, permanentImage);
+        uploadedByHash.set(hash, permanentImage.url);
+      }
+
+      wechatUrl = permanentImage.url as string;
+      permanentImagesBySource.set(source, permanentImage);
+      permanentImagesBySource.set(decodeHtmlImageSource(source), permanentImage);
+    } else {
+      const upload = await toWechatContentImage(image, source);
+      const hash = createHash("sha256").update(upload.buffer).digest("hex");
+      const uploadedUrl = uploadedByHash.get(hash);
+
+      if (uploadedUrl) {
+        wechatUrl = uploadedUrl;
+      } else {
+        wechatUrl = await uploadWechatContentImage(accessToken, upload);
+        uploadedByHash.set(hash, wechatUrl);
+      }
     }
 
     draftHtml = replaceAll(draftHtml, source, wechatUrl);
   }
 
-  return { html: draftHtml, imageCount: uploadedByHash.size };
+  return {
+    html: draftHtml,
+    imageCount: uploadedByHash.size,
+    permanentImagesBySource,
+  };
 }
 
 async function uploadDraftCover(
@@ -3805,9 +3855,18 @@ async function uploadDraftCover(
   accessToken: string,
   publicBaseUrl: string,
   theme: NoteCardThemeId,
+  permanentImagesBySource: Map<string, WechatPermanentImage>,
 ): Promise<string> {
   const firstArticleImage = collectMarkdownImageSources(markdown)[0];
   let cover: WechatImageUpload | null = null;
+
+  if (firstArticleImage) {
+    const existingPermanentImage = permanentImagesBySource.get(firstArticleImage);
+
+    if (existingPermanentImage) {
+      return existingPermanentImage.mediaId;
+    }
+  }
 
   if (firstArticleImage) {
     try {
@@ -3815,7 +3874,7 @@ async function uploadDraftCover(
         firstArticleImage,
         publicBaseUrl,
       );
-      cover = image ? toWechatCoverImage(image, firstArticleImage) : null;
+      cover = image ? toWechatPermanentImage(image, firstArticleImage) : null;
 
       if (image && !cover) {
         cover = await toWechatContentImage(image, firstArticleImage);
@@ -3829,7 +3888,7 @@ async function uploadDraftCover(
     cover = await createWechatTitleCover(markdown, theme);
   }
 
-  return uploadWechatPermanentImage(accessToken, cover);
+  return (await uploadWechatPermanentImage(accessToken, cover)).mediaId;
 }
 
 function escapeSvgText(value: string): string {
@@ -4946,6 +5005,7 @@ app.post(
         accessToken,
         publicBaseUrl,
         prepared.theme,
+        content.permanentImagesBySource,
       );
       const title = getWechatDraftTitle(markdown);
       const mediaId = await addWechatDraft(accessToken, {
