@@ -555,55 +555,12 @@ test("Express 提供健康检查和内容寻址图片存储", async (context) =>
       (wechat.html.match(/data-smartisan-corner=/g) ?? []).length,
       4,
     );
-    assert.match(wechat.html, /<table data-smartisan-frame="outer"/);
     assert.match(
       wechat.html,
-      /<table data-smartisan-frame="outer"[^>]*style="[^"]*border:0/,
+      /<section data-smartisan-frame="outer" style="[^"]*margin:0 5px;padding:2\.8px;border:1px solid #e8e4dc/,
     );
-    assert.match(
-      wechat.html,
-      /<col width="6" style="width:6px"\/><col\/><col width="6"/,
-    );
-    assert.doesNotMatch(
-      wechat.html,
-      /data-smartisan-corner="[^"]+"[^>]*(?:rowSpan|colSpan)=/,
-    );
-    assert.equal(
-      (
-        wechat.html.match(
-          /border-bottom:1px solid #e8e4dc/g,
-        ) ?? []
-      ).length,
-      1,
-    );
-    assert.equal(
-      (
-        wechat.html.match(
-          /border-left:1px solid #e8e4dc/g,
-        ) ?? []
-      ).length,
-      1,
-    );
-    assert.equal(
-      (
-        wechat.html.match(
-          /border-right:1px solid #e8e4dc/g,
-        ) ?? []
-      ).length,
-      1,
-    );
-    assert.equal(
-      (
-        wechat.html.match(
-          /border-top:1px solid #e8e4dc/g,
-        ) ?? []
-      ).length,
-      1,
-    );
-    assert.match(
-      wechat.html,
-      /<td style="padding:2\.8px;border:0"><section data-smartisan-frame="inner"/,
-    );
+    assert.doesNotMatch(wechat.html, /<table data-smartisan-frame=/);
+    assert.doesNotMatch(wechat.html, /<(?:caption|colgroup)\b/);
     assert.doesNotMatch(
       wechat.html,
       /data-smartisan-corner="[^"]+"[^>]*position:absolute/,

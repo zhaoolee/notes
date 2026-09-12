@@ -34,7 +34,7 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
   assert.match(changelog, /^# 更新日志\n/);
   assert.equal(
     secondLevelHeadings[latestReleaseIndex],
-    `[${packageVersion.version}] - 2026-08-29`,
+    `[${packageVersion.version}] - 2026-09-12`,
   );
   assert.ok(categoryHeadings.length > 0);
 
@@ -133,7 +133,8 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
   const sections = getChangelogSections(changelog);
   const hasUnreleasedSection = /^## \[未发布\]/m.test(changelog);
   const currentReleaseSectionIndex = hasUnreleasedSection ? 2 : 1;
-  const previousReleaseSectionIndex = currentReleaseSectionIndex + 1;
+  const gifReleaseSectionIndex = currentReleaseSectionIndex + 1;
+  const previousReleaseSectionIndex = gifReleaseSectionIndex + 1;
   const latestReleaseSectionIndex = previousReleaseSectionIndex + 4;
 
   assert.equal(sections[0]?.heading, "");
@@ -141,15 +142,23 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
   if (hasUnreleasedSection) {
     assert.equal(
       sections[1]?.heading,
-      "[未发布](https://github.com/zhaoolee/notes/compare/1.10.1...HEAD)",
+      "[未发布](https://github.com/zhaoolee/notes/compare/1.10.2...HEAD)",
     );
   }
   assert.equal(
     sections[currentReleaseSectionIndex]?.heading,
-    "[1.10.1](https://github.com/zhaoolee/notes/compare/1.10.0...1.10.1) - 2026-08-29",
+    "[1.10.2](https://github.com/zhaoolee/notes/compare/1.10.1...1.10.2) - 2026-09-12",
   );
   assert.match(
     sections[currentReleaseSectionIndex]?.content ?? "",
+    /锤子明暗主题.*双线纸框.*装饰表格.*虚线.*额外表格边框/s,
+  );
+  assert.equal(
+    sections[gifReleaseSectionIndex]?.heading,
+    "[1.10.1](https://github.com/zhaoolee/notes/compare/1.10.0...1.10.1) - 2026-08-29",
+  );
+  assert.match(
+    sections[gifReleaseSectionIndex]?.content ?? "",
     /GIF 动图.*微信公众号草稿.*单帧静态图片.*原始动画.*首图封面.*重复上传/s,
   );
   assert.equal(

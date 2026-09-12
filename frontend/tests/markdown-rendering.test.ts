@@ -401,6 +401,31 @@ test("NoteSheet 为首个居中 H1 使用上窄下宽的文档标题间距", () 
   );
 });
 
+test("WechatArticle 明暗纸框不触发微信表格加工且只包含双框和四角", () => {
+  for (const theme of ["default", "smartisan-dark"] as const) {
+    const html = renderToStaticMarkup(
+      createElement(WechatArticle, {
+        footerBrand: "由测试发送",
+        footerHammerUrl: "https://cdn.example.com/hammer.png",
+        footerVia: "via Feedback",
+        theme,
+        markdown: "# 纸框回归\n\n正文没有表格，导出不能引入装饰表格。",
+      }),
+    );
+
+    assert.doesNotMatch(html, /<(?:table|caption|colgroup|col|tbody|tr|td)\b/);
+    assert.equal((html.match(/data-smartisan-frame="outer"/g) ?? []).length, 1);
+    assert.equal((html.match(/data-smartisan-frame="inner"/g) ?? []).length, 1);
+    assert.equal((html.match(/data-smartisan-corner=/g) ?? []).length, 4);
+    const borders = [...html.matchAll(/border:1px solid ([^;"<>]+)/g)];
+    assert.equal(borders.length, 6, "只有内外两框与四个角方格带边框");
+    assert.equal(new Set(borders.map((match) => match[1])).size, 1);
+    assert.doesNotMatch(html, /dashed|dotted|position:absolute/);
+    assert.match(html, /data-smartisan-corners="top"[^>]*margin:0 0 -1px/);
+    assert.match(html, /data-smartisan-corners="bottom"[^>]*margin:-1px 0 0/);
+  }
+});
+
 test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   const html = renderToStaticMarkup(
     createElement(WechatArticle, {
@@ -451,46 +476,13 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
   assert.equal((html.match(/data-smartisan-corner=/g) ?? []).length, 4);
   assert.match(html, /data-smartisan-corner="top-left"/);
   assert.match(html, /data-smartisan-corner="bottom-right"/);
-  assert.match(html, /<table data-smartisan-frame="outer"/);
   assert.match(
     html,
-    /<table data-smartisan-frame="outer"[^>]*style="[^"]*border:0/,
+    /<section data-smartisan-frame="outer" style="[^"]*margin:0 5px;padding:2\.8px;border:1px solid #e8e4dc/,
   );
-  assert.match(html, /<col width="6" style="width:6px"\/><col\/><col width="6"/);
-  assert.doesNotMatch(
-    html,
-    /data-smartisan-corner="[^"]+"[^>]*(?:rowSpan|colSpan)=/,
-  );
-  assert.equal(
-    (
-      html.match(
-        /border-bottom:1px solid #e8e4dc/g,
-      ) ?? []
-    ).length,
-    1,
-  );
-  assert.equal(
-    (
-      html.match(/border-left:1px solid #e8e4dc/g) ??
-      []
-    ).length,
-    1,
-  );
-  assert.equal(
-    (
-      html.match(/border-right:1px solid #e8e4dc/g) ??
-      []
-    ).length,
-    1,
-  );
-  assert.equal(
-    (
-      html.match(/border-top:1px solid #e8e4dc/g) ??
-      []
-    ).length,
-    1,
-  );
-  assert.match(html, /<td style="padding:2\.8px;border:0"><section data-smartisan-frame="inner"/);
+  assert.doesNotMatch(html, /<table data-smartisan-frame=/);
+  assert.doesNotMatch(html, /<(?:caption|colgroup)\b/);
+  assert.equal((html.match(/<table\b/g) ?? []).length, 1, "保留正文的真实 Markdown 表格");
   assert.match(
     html,
     /data-smartisan-frame="inner" style="[^"]*padding:44\.1px 27\.7666px 19\.6px[^"]*background-color:#fffcf7/,
@@ -500,7 +492,7 @@ test("WechatArticle 生成公众号可粘贴的内联样式富文本", () => {
     /data-smartisan-theme="default" style="[^"]*color:#665749[^"]*font-size:15px[^"]*line-height:1\.75[^"]*white-space:pre-wrap/,
   );
   assert.doesNotMatch(html, /-webkit-text-stroke/);
-  assert.match(html, /<td data-smartisan-corner="top-left"/);
+  assert.match(html, /<span data-smartisan-corner="top-left"/);
   assert.doesNotMatch(
     html,
     /data-smartisan-corner="[^"]+"[^>]*position:absolute/,

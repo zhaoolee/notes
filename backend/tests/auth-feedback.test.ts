@@ -620,6 +620,16 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
     ).articles;
     assert.equal(aliceDraftArticle.article_type, "news");
     assert.equal(aliceDraftArticle.title, "Alice 的公众号草稿");
+    assert.doesNotMatch(
+      aliceDraftArticle.content,
+      /<(?:table|caption|colgroup|col|tbody|tr|td)\b/,
+      "实际发给微信的无表格正文不能携带装饰表格",
+    );
+    assert.equal(
+      (aliceDraftArticle.content.match(/data-smartisan-frame=/g) ?? []).length,
+      2,
+      "草稿只保留主题的内外两层边框",
+    );
     assert.equal(
       aliceDraftArticle.thumb_media_id,
       "feedback-cover-media-id",

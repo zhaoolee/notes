@@ -655,41 +655,54 @@ function protectWechatInlineBoundaries(markdown: string): string {
     .join("\n");
 }
 
-const cornerPositions = [
-  "top-left",
-  "top-right",
-  "bottom-left",
-  "bottom-right",
-] as const;
-
-function FrameCornerCell({
+function FrameCornerRow({
   colors,
-  position,
+  edge,
 }: {
   colors: NoteCardThemeColors;
-  position: (typeof cornerPositions)[number];
+  edge: "top" | "bottom";
 }) {
+  // 装饰不能使用 table：微信会补入带虚线的 caption，并在编辑保存时重建表格容器。
+  // 四角留在文档流中，与外框相交 1px，避免依赖保存时可能被移除的绝对定位。
   return (
-    <td
-      data-smartisan-corner={position}
+    <section
+      data-smartisan-corners={edge}
       aria-hidden="true"
-      width="6"
-      height="6"
       style={{
-        boxSizing: "border-box",
-        width: "6px",
+        display: "flex",
+        justifyContent: "space-between",
+        width: "100%",
         height: "6px",
+        margin: edge === "top" ? "0 0 -1px" : "-1px 0 0",
         padding: "0",
-        overflow: "hidden",
-        border: `1px solid ${colors.frame}`,
-        backgroundColor: colors.paper,
-        color: "transparent",
+        border: "0",
         fontSize: "0",
         lineHeight: "0",
       }}
     >
-      {"\u00a0"}
-    </td>
+      {(["left", "right"] as const).map((side) => (
+        <span
+          key={side}
+          data-smartisan-corner={`${edge}-${side}`}
+          style={{
+            boxSizing: "border-box",
+            display: "block",
+            flex: "0 0 6px",
+            width: "6px",
+            height: "6px",
+            padding: "0",
+            overflow: "hidden",
+            border: `1px solid ${colors.frame}`,
+            backgroundColor: colors.paper,
+            color: "transparent",
+            fontSize: "0",
+            lineHeight: "0",
+          }}
+        >
+          {"\u00a0"}
+        </span>
+      ))}
+    </section>
   );
 }
 
@@ -876,105 +889,26 @@ export function WechatArticle({
           </section>
         ) : null}
         {isSmartisan ? (
-        <table
-          data-smartisan-frame="outer"
-          role="presentation"
-          cellPadding="0"
-          cellSpacing="0"
-          style={{
-            boxSizing: "border-box",
-            width: "100%",
-            maxWidth: "100%",
-            borderCollapse: "collapse",
-            borderSpacing: "0",
-            border: "0",
-            tableLayout: "fixed",
-            backgroundColor: colors.paper,
-          }}
-        >
-          <colgroup>
-            <col width="6" style={{ width: "6px" }} />
-            <col />
-            <col width="6" style={{ width: "6px" }} />
-          </colgroup>
-          <tbody>
-            <tr>
-              <FrameCornerCell colors={colors} position="top-left" />
-              <td
-                aria-hidden="true"
-                height="6"
-                style={{
-                  height: "6px",
-                  padding: "0",
-                  border: "0",
-                  borderBottom: `1px solid ${colors.frame}`,
-                  fontSize: "0",
-                  lineHeight: "0",
-                }}
-              >
-                {"\u00a0"}
-              </td>
-              <FrameCornerCell colors={colors} position="top-right" />
-            </tr>
-            <tr>
-              <td
-                aria-hidden="true"
-                width="6"
-                style={{
-                  boxSizing: "border-box",
-                  width: "6px",
-                  padding: "0",
-                  border: "0",
-                  borderRight: `1px solid ${colors.frame}`,
-                  fontSize: "0",
-                  lineHeight: "0",
-                }}
-              >
-                {"\u00a0"}
-              </td>
-              <td style={{ padding: isSmartisan ? scaledPx(2) : "0", border: "0" }}>
-                <WechatArticleContent
-                  components={components}
-                  context={context}
-                  sections={sections}
-                />
-              </td>
-              <td
-                aria-hidden="true"
-                width="6"
-                style={{
-                  boxSizing: "border-box",
-                  width: "6px",
-                  padding: "0",
-                  border: "0",
-                  borderLeft: `1px solid ${colors.frame}`,
-                  fontSize: "0",
-                  lineHeight: "0",
-                }}
-              >
-                {"\u00a0"}
-              </td>
-            </tr>
-            <tr>
-              <FrameCornerCell colors={colors} position="bottom-left" />
-              <td
-                aria-hidden="true"
-                height="6"
-                style={{
-                  height: "6px",
-                  padding: "0",
-                  border: "0",
-                  borderTop: `1px solid ${colors.frame}`,
-                  fontSize: "0",
-                  lineHeight: "0",
-                }}
-              >
-                {"\u00a0"}
-              </td>
-              <FrameCornerCell colors={colors} position="bottom-right" />
-            </tr>
-          </tbody>
-        </table>
+          <>
+            <FrameCornerRow colors={colors} edge="top" />
+            <section
+              data-smartisan-frame="outer"
+              style={{
+                boxSizing: "border-box",
+                margin: "0 5px",
+                padding: scaledPx(2),
+                border: `1px solid ${colors.frame}`,
+                backgroundColor: colors.paper,
+              }}
+            >
+              <WechatArticleContent
+                components={components}
+                context={context}
+                sections={sections}
+              />
+            </section>
+            <FrameCornerRow colors={colors} edge="bottom" />
+          </>
         ) : (
           <WechatArticleContent
             components={components}

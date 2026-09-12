@@ -2,11 +2,15 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [未发布]
+## [1.10.2] - 2026-09-12
 
 ### 新增
 
 - 明确主项目自有代码采用 Apache-2.0 许可证，并说明独立组件与第三方资源的许可范围。
+
+### 修复
+
+- 微信公众号导出的锤子明暗主题改用普通容器绘制双线纸框与四角，移除会触发微信表格加工的装饰表格，避免顶部空表格标题的虚线与额外表格边框；复制到公众号和发布草稿共用修正后的结构。
 
 ## [1.10.1] - 2026-08-29
 
@@ -238,7 +242,7 @@
 - PC 版便签操作栏右侧按钮调整为“AI、删除、分享”的顺序，与 APP 版详情操作保持一致。
 - 重置 Hermes 安装链接前会明确提示旧链接立即失效，并要求二次确认，避免误触轮换。
 
-[未发布]: https://github.com/zhaoolee/notes/compare/1.10.1...HEAD
+[1.10.2]: https://github.com/zhaoolee/notes/compare/1.10.1...1.10.2
 [1.10.1]: https://github.com/zhaoolee/notes/compare/1.10.0...1.10.1
 [1.10.0]: https://github.com/zhaoolee/notes/compare/1.9.1...1.10.0
 [1.9.1]: https://github.com/zhaoolee/notes/compare/1.9.0...1.9.1
