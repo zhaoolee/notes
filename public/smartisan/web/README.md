@@ -1,15 +1,4 @@
-# 锤子便签网页版 UI 资源快照
-
-这些文件用于本开源项目的界面兼容性与像素对照验证，抓取自锤子便签网页版实际加载的静态资源。
-
-- 对照页面：<https://yun.smartisan.com/?from=snote#/notes>
-- 页面应用：<https://yun.smartisan.com/apps/note/>
-- 样式快照：<https://static.smartisanos.cn/cloud/note/css/note-all_4bbfbe751b.css>
-- 图片根路径：<https://static.smartisanos.cn/cloud/note/img/>
-- 抓取日期：2026-07-27
-- 下载脚本：`TOOLS/download-smartisan-web-assets.sh`
-
-本目录没有改变原素材的权利归属。发布或二次分发前，应由项目维护者按实际授权范围再次确认。
+# 桌面界面资源
 
 ## 当前界面使用的资源
 

@@ -152,3 +152,15 @@ docker run -d \
 `storage/data` 保存账号与云端工作区，两者都应持久化和备份。仅使用匿名编辑与导出
 时可省略 `--env-file .env`；需要局域网访问时可将端口映射改为
 `-p 18080:3001`，公网部署应使用 HTTPS 反向代理。
+
+## 许可证
+
+本项目自有代码采用 [Apache License 2.0](./LICENSE)，版权声明见 [NOTICE](./NOTICE)。
+
+以下组件保留各自的许可证：
+
+- DSH 插件：见 [dsh-plugin/LICENSE](./dsh-plugin/LICENSE)，采用 MIT。
+- 便签导出 API Skill：见 [skill-card.md](./skills/notes-export-api/skill-card.md)，采用 MIT-0。
+
+第三方依赖及图片、字体、图标等第三方资源不因本项目的代码许可证而被重新授权，
+其权利与使用条件以各自权利方的许可为准。本项目的代码许可证不授予第三方商标权。

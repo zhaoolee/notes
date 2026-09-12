@@ -1,23 +1,13 @@
-# 安卓版锤子便签 4.2.1 设计参考
+# 移动界面设计参考
 
-本目录是从用户设备 `Download` 目录中的 APK 做资源级静态解包后，按便签核心界面的实际引用关系筛选出的设计参考。
-
-## APK 信息
-
-- 包名：`com.smartisan.notes`
-- 版本：`4.2.1`
-- versionCode：`42100`
-- APK SHA-256：`ea7249a92756d3c36592beb216d5c9bd74a3a1b0cbcd0a9f74aa738532eb104f`
-- 分析方式：`apktool --no-src`，只解码 Manifest 和资源，不反编译业务代码
-- 资源密度：本目录保留客户端在 `xxhdpi` 下使用的原始文件，换算设计尺寸时除以 `3`
-
-这些资源的权利仍属于原应用权利方。本目录用于本项目内部的兼容性分析和视觉比对，不应整包再分发，也不要在未确认授权的情况下直接作为产品素材发布。
+本目录记录便签核心界面的尺寸、颜色、布局与交互基准。
+图片密度为 `xxhdpi`，换算设计尺寸时除以 `3`。
 
 ## 目录内容
 
 ```text
-assets/drawable-xxhdpi/  顶栏、按钮、列表纸片、木纹、搜索框等原始图片
-layouts/                 便签主界面、列表、详情和顶栏的反编译布局 XML
+assets/drawable-xxhdpi/  顶栏、按钮、列表纸片、木纹、搜索框等图片
+layouts/                 便签主界面、列表、详情和顶栏的布局 XML
 selectors/               普通、按下、禁用等状态之间的资源映射
 contact-sheet.png        核心资源速览图
 ```
@@ -26,7 +16,7 @@ contact-sheet.png        核心资源速览图
 
 ## 可直接核对的尺寸
 
-| 元素 | APK 依据 | 设计尺寸 |
+| 元素 | 布局依据 | 设计尺寸 |
 | --- | --- | --- |
 | 手机端顶栏 | `titlebar_height`；`action_bar_default.png` 为 1080 × 144 px | `48dp` |
 | 顶栏按钮 | `TitleBarButton`；按钮 PNG 为 108 × 108 px | `36 × 36dp`，上边距 `6dp`，右边距 `6dp` |
@@ -52,7 +42,7 @@ contact-sheet.png        核心资源速览图
 
 ## 可直接核对的颜色
 
-APK 的纸张和顶栏图片包含纹理与渐变，不能用一个纯色完全表示。下面同时记录资源色值和代表性像素：
+纸张和顶栏图片包含纹理与渐变，不能用一个纯色完全表示。下面同时记录资源色值和代表性像素：
 
 | 用途 | 值 |
 | --- | --- |
@@ -83,7 +73,7 @@ APK 的纸张和顶栏图片包含纹理与渐变，不能用一个纯色完全�
   “保存图片”。裁剪调用系统图片裁剪 Activity；Web 复刻保持同等入口和结果，
   但使用站内裁剪层以兼容普通浏览器。
 - 本目录 `assets/drawable-xxhdpi/` 保留了上述五个按钮、禁用裁剪按钮和拖动柄的
-  原始 `xxhdpi` PNG，用于尺寸与交互比对。
+  `xxhdpi` PNG，用于尺寸与交互比对。
 - 长图分享预览由 `Convert2PicturePreviewActivity` 使用
   `convert_to_picture_preview_weibo_image_item.xml` 渲染；图片外层不是普通
   `border`，而是 `longlength_weibo_image_bg.9.png` 提供的暖灰细线、白色衬边和
