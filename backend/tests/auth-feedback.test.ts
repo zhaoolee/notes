@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -161,13 +161,28 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
   const wechatContentUploads: Buffer[] = [];
   const wechatCoverUploads: Buffer[] = [];
   const qiniuUploads: Buffer[] = [];
+  let cdnReads = 0;
+  let remoteImageReads = 0;
+  const remotePng = await sharp({
+    create: { width: 8, height: 8, channels: 3, background: "blue" },
+  }).png().toBuffer();
   let wechatContentImageSequence = 0;
   const wechatServer = createHttpServer(async (request, response) => {
     const url = new URL(request.url || "/", `http://127.0.0.1:${wechatPort}`);
 
     if (request.method === "GET" && url.pathname.startsWith("/cdn/")) {
+      cdnReads += 1;
       response.setHeader("Content-Type", "image/gif");
       response.end(twoFrameGif);
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/remote.png") {
+      assert.equal(url.searchParams.get("kind"), "photo");
+      assert.equal(url.searchParams.get("v"), "1");
+      remoteImageReads += 1;
+      response.setHeader("Content-Type", "image/png");
+      response.end(remotePng);
       return;
     }
 
@@ -702,8 +717,8 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
       theme: "default",
       title: "动态 GIF 草稿",
     });
-    assert.equal(qiniuUploads.length, 1);
-    assert.ok(qiniuUploads[0].includes(twoFrameGif));
+    assert.equal(qiniuUploads.length, 0, "GIF 草稿不能再经七牛中转");
+    assert.equal(cdnReads, 0);
     assert.equal(wechatDraftPayloads.length, 3);
     assert.equal(wechatContentUploads.length, 3);
     assert.equal(wechatCoverUploads.length, 3);
@@ -730,6 +745,110 @@ test("管理员可使用便签服务、创建用户且各账号云工作区严�
       animatedGifDraftArticle.content,
       /https:\/\/mmbiz\.qpic\.cn\/feedback-animated\.gif/,
     );
+
+    const localPng = await sharp({
+      create: { width: 8, height: 8, channels: 3, background: "red" },
+    }).png().toBuffer();
+    await writeFile(path.join(imageDir, "local.png"), localPng);
+    const pixels = Buffer.alloc(128 * 128 * 3);
+    let random = 42;
+    for (let index = 0; index < pixels.length; index += 1) {
+      random = (Math.imul(random, 1664525) + 1013904223) >>> 0;
+      pixels[index] = random >>> 24;
+    }
+    const embeddedPng = await sharp(pixels, {
+      raw: { width: 128, height: 128, channels: 3 },
+    }).png().toBuffer();
+    const remoteSource = `http://127.0.0.1:${wechatPort}/remote.png?kind=photo&v=1`;
+    const localSource = "https://notes-feedback.invalid/images/local.png";
+    const directDraftBody = {
+      markdown: [
+        "# 直接上传图片的草稿",
+        `![远程首图](${remoteSource})`,
+        `![本地图片](${localSource})`,
+        `![内嵌图片](data:image/png;base64,${embeddedPng.toString("base64")})`,
+        `![重复首图](${remoteSource})`,
+        "`![图片语法示例](https://example.com/example.png)`",
+      ].join("\n\n"),
+      footerLogoUrl: localSource,
+      theme: "smartisan-dark",
+    };
+    assert.ok(directDraftBody.markdown.length > 20_000);
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const contentCount: number = wechatContentUploads.length;
+      const coverCount: number = wechatCoverUploads.length;
+      const directDraft = await fetch(`${baseUrl}/api/wechat/draft`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: aliceCookie,
+          "X-Forwarded-Host": "notes-feedback.invalid",
+          "X-Forwarded-Proto": "https",
+        },
+        body: JSON.stringify(directDraftBody),
+      });
+      assert.equal(directDraft.status, 200);
+      assert.equal(((await directDraft.json()) as { imageCount: number }).imageCount, 3);
+      assert.match(directDraft.headers.get("server-timing") || "", /prepare;dur=\d+, token;dur=\d+, images;dur=\d+, cover;dur=\d+, save;dur=\d+, total;dur=\d+/);
+      assert.equal(remoteImageReads, attempt, "正文重复图片和封面每次发布只下载一次");
+      assert.equal(qiniuUploads.length, 0, "静态图片和自定义页脚也不能上传七牛");
+      assert.equal(cdnReads, 0, "草稿不应回读七牛 CDN");
+      assert.equal(wechatContentUploads.length, contentCount + 3);
+      assert.equal(wechatCoverUploads.length, coverCount + 1);
+      assert.ok(wechatCoverUploads[coverCount].includes(remotePng));
+      const uploads = wechatContentUploads.slice(contentCount);
+      for (const original of [remotePng, localPng, embeddedPng]) {
+        assert.ok(uploads.some((upload) => upload.includes(original)));
+      }
+      const article = (wechatDraftPayloads.at(-1) as {
+        articles: Array<{ content: string; thumb_media_id: string }>;
+      }).articles[0];
+      assert.equal(article.thumb_media_id, "feedback-cover-media-id");
+      assert.doesNotMatch(article.content, /data:image|wechat-draft\.invalid|notes-feedback\.invalid|remote\.png/);
+      assert.equal((article.content.match(/<img\b/g) || []).length, 5);
+      assert.match(article.content, /https:\/\/example\.com\/example\.png/);
+      assert.match(article.content, /data-note-card-theme="smartisan-dark"/);
+      assert.equal((article.content.match(/data-smartisan-frame=/g) || []).length, 2);
+    }
+
+    const manyImages = await Promise.all(Array.from({ length: 12 }, (_, index) =>
+      sharp({
+        create: {
+          width: 4, height: 4, channels: 3,
+          background: { r: index * 19, g: 60, b: 150 },
+        },
+      }).png().toBuffer(),
+    ));
+    const contentCountBeforeMany: number = wechatContentUploads.length;
+    const manyImageDraft = await postJson(baseUrl, "/api/wechat/draft", {
+      markdown: ["# 多图草稿", ...manyImages.map((buffer, index) =>
+        `![图片 ${index}](data:image/png;base64,${buffer.toString("base64")})`,
+      )].join("\n\n"),
+    }, aliceCookie);
+    assert.equal(manyImageDraft.status, 200);
+    const manyImageHtml = (wechatDraftPayloads.at(-1) as {
+      articles: Array<{ content: string }>;
+    }).articles[0].content;
+    const imageUrls = [...manyImageHtml.matchAll(/<img\b[^>]*src="([^"]+)"/g)]
+      .map(match => match[1]);
+    assert.deepEqual(imageUrls, Array.from({ length: 13 }, (_, index) =>
+      `https://mmbiz.qpic.cn/feedback-${contentCountBeforeMany + index + 1}.png`,
+    ), "两位数图片序号不能被较短序号替换而串图");
+    assert.equal(qiniuUploads.length, 0);
+
+    const draftCountBeforeFailure = wechatDraftPayloads.length;
+    const missingImageDraft = await postJson(baseUrl, "/api/wechat/draft", {
+      markdown: `# 缺失图片\n\n![图片](http://127.0.0.1:${wechatPort}/missing.png)`,
+    }, aliceCookie);
+    assert.equal(missingImageDraft.ok, false);
+    assert.equal(wechatDraftPayloads.length, draftCountBeforeFailure);
+    const contentCountBeforeLimit = wechatContentUploads.length;
+    const oversizedDraft = await postJson(baseUrl, "/api/wechat/draft", {
+      markdown: "正文".repeat(11_000),
+    }, aliceCookie);
+    assert.equal(oversizedDraft.status, 400);
+    assert.equal(wechatContentUploads.length, contentCountBeforeLimit);
+    assert.equal(wechatDraftPayloads.length, draftCountBeforeFailure);
 
     const adminWechatConfigurationAfterAliceSave = await fetch(
       `${baseUrl}/api/wechat/config`,

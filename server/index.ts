@@ -3423,6 +3423,75 @@ async function renderNotePng(markdown: string, renderUrl: string): Promise<Buffe
   }
 }
 
+function renderWechatArticle(
+  markdown: string,
+  footer: FooterConfig,
+  theme: NoteCardThemeId,
+): string {
+  const footerHammerUrl =
+    footer.logoUrl && footer.logoUrl !== DEFAULT_FOOTER_LOGO_URL
+      ? footer.logoUrl
+      : process.env.WECHAT_FOOTER_HAMMER_URL?.trim() ||
+        defaultWechatFooterHammerUrl;
+
+  return renderToStaticMarkup(
+    createElement(WechatArticle, {
+      footerBrand: footer.brand ?? DEFAULT_FOOTER_BRAND,
+      markdown,
+      footerHammerUrl,
+      footerVia: footer.via ?? DEFAULT_FOOTER_VIA,
+      theme,
+    }),
+  ).replace(
+    /<link\b[^>]*\brel="preload"[^>]*\bas="image"[^>]*\/?>/gi,
+    "",
+  );
+}
+
+function prepareWechatDraftArticle(
+  markdown: string,
+  footer: FooterConfig,
+  theme: NoteCardThemeId,
+) {
+  const articleSources = collectMarkdownImageSources(markdown);
+  const sources = Array.from(
+    new Set([
+      ...articleSources,
+      ...(footer.logoUrl && footer.logoUrl !== DEFAULT_FOOTER_LOGO_URL
+        ? [footer.logoUrl]
+        : []),
+    ]),
+  );
+  const sourceByPlaceholder = new Map<string, string>();
+  const placeholderBySource = new Map<string, string>();
+
+  for (const [index, source] of sources.entries()) {
+    // 只在本次渲染中使用；避免 Data URL 被 Markdown 过滤或计入正文长度。
+    const placeholder = `https://wechat-draft.invalid/image/${index}/`;
+    sourceByPlaceholder.set(placeholder, source);
+    placeholderBySource.set(source, placeholder);
+  }
+
+  let draftMarkdown = markdown;
+  for (const [source, placeholder] of Array.from(placeholderBySource).sort(
+    ([left], [right]) => right.length - left.length,
+  )) {
+    draftMarkdown = replaceAll(draftMarkdown, source, placeholder);
+  }
+
+  return {
+    html: renderWechatArticle(
+      draftMarkdown,
+      {
+        ...footer,
+        logoUrl: placeholderBySource.get(footer.logoUrl || "") || footer.logoUrl,
+      },
+      theme,
+    ),
+    sourceByPlaceholder,
+  };
+}
+
 async function prepareWechatArticle(
   markdown: string,
   options: {
@@ -3559,17 +3628,10 @@ async function prepareWechatArticle(
     ? replacements.get(customFooterLogoSource) || customFooterLogoSource
     : process.env.WECHAT_FOOTER_HAMMER_URL?.trim() ||
       defaultWechatFooterHammerUrl;
-  const html = renderToStaticMarkup(
-    createElement(WechatArticle, {
-      footerBrand: options.footer.brand ?? DEFAULT_FOOTER_BRAND,
-      markdown: wechatMarkdown,
-      footerHammerUrl,
-      footerVia: options.footer.via ?? DEFAULT_FOOTER_VIA,
-      theme: options.theme,
-    }),
-  ).replace(
-    /<link\b[^>]*\brel="preload"[^>]*\bas="image"[^>]*\/?>/gi,
-    "",
+  const html = renderWechatArticle(
+    wechatMarkdown,
+    { ...options.footer, logoUrl: footerHammerUrl },
+    options.theme,
   );
 
   return {
@@ -3772,24 +3834,35 @@ async function replaceDraftContentImages(
   html: string,
   accessToken: string,
   publicBaseUrl: string,
+  sourceByPlaceholder: Map<string, string>,
+  coverSource: string | undefined,
 ): Promise<{
   html: string;
   imageCount: number;
   permanentImagesBySource: Map<string, WechatPermanentImage>;
+  coverImage: ImageSource | null;
 }> {
   const sources = collectHtmlImageSources(html);
   const uploadedByHash = new Map<string, string>();
   const permanentImagesByHash = new Map<string, WechatPermanentImage>();
   const permanentImagesBySource = new Map<string, WechatPermanentImage>();
   let draftHtml = html;
+  let coverImage: ImageSource | null = null;
 
-  for (const source of sources) {
+  for (const htmlSource of sources) {
+    const source = decodeHtmlImageSource(
+      sourceByPlaceholder.get(htmlSource) || htmlSource,
+    );
     const image = await resolveWechatDraftImage(source, publicBaseUrl);
 
     if (!image?.buffer.length) {
       throw new WechatDraftPreparationError(
         `无法读取公众号草稿图片：${source}`,
       );
+    }
+
+    if (coverSource && source === decodeHtmlImageSource(coverSource)) {
+      coverImage = image;
     }
 
     const extension = detectImageFormat(
@@ -3840,13 +3913,25 @@ async function replaceDraftContentImages(
       }
     }
 
-    draftHtml = replaceAll(draftHtml, source, wechatUrl);
+    draftHtml = replaceAll(draftHtml, htmlSource, wechatUrl);
+  }
+
+  // 代码示例等纯文本也可能包含图片语法；未渲染为 img 的占位符还原为原文。
+  for (const [placeholder, source] of sourceByPlaceholder) {
+    const escapedSource = source
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#x27;");
+    draftHtml = replaceAll(draftHtml, placeholder, escapedSource);
   }
 
   return {
     html: draftHtml,
     imageCount: uploadedByHash.size,
     permanentImagesBySource,
+    coverImage,
   };
 }
 
@@ -3856,12 +3941,15 @@ async function uploadDraftCover(
   publicBaseUrl: string,
   theme: NoteCardThemeId,
   permanentImagesBySource: Map<string, WechatPermanentImage>,
+  coverImage: ImageSource | null,
 ): Promise<string> {
   const firstArticleImage = collectMarkdownImageSources(markdown)[0];
   let cover: WechatImageUpload | null = null;
 
   if (firstArticleImage) {
-    const existingPermanentImage = permanentImagesBySource.get(firstArticleImage);
+    const existingPermanentImage = permanentImagesBySource.get(
+      decodeHtmlImageSource(firstArticleImage),
+    );
 
     if (existingPermanentImage) {
       return existingPermanentImage.mediaId;
@@ -3870,7 +3958,7 @@ async function uploadDraftCover(
 
   if (firstArticleImage) {
     try {
-      const image = await resolveWechatDraftImage(
+      const image = coverImage || await resolveWechatDraftImage(
         firstArticleImage,
         publicBaseUrl,
       );
@@ -4972,6 +5060,15 @@ app.post(
       return;
     }
 
+    const startedAt = performance.now();
+    let stageStartedAt = startedAt;
+    const timings: Record<string, number> = {};
+    const recordStage = (name: string) => {
+      const now = performance.now();
+      timings[name] = Math.round(now - stageStartedAt);
+      stageStartedAt = now;
+    };
+
     try {
       const configuration = await notesDataStore.getWechatConfiguration(user.id);
 
@@ -4986,38 +5083,52 @@ app.post(
       const theme = resolveTheme(body);
       const markdown = await resolveMarkdown(body);
       const publicBaseUrl = getPublicBaseUrl(request);
-      const accessToken = await getWechatAccessToken(configuration);
-      const prepared = await prepareWechatArticle(markdown, {
-        footer: resolveFooterConfig(body),
-        publicBaseUrl,
-        temporaryUploads: false,
+      const prepared = prepareWechatDraftArticle(
+        markdown,
+        resolveFooterConfig(body),
         theme,
-      });
+      );
       assertWechatDraftContentLimits(prepared.html);
+      recordStage("prepare");
+      const accessToken = await getWechatAccessToken(configuration);
+      recordStage("token");
       const content = await replaceDraftContentImages(
         prepared.html,
         accessToken,
         publicBaseUrl,
+        prepared.sourceByPlaceholder,
+        collectMarkdownImageSources(markdown)[0],
       );
       assertWechatDraftContentLimits(content.html);
+      recordStage("images");
       const thumbMediaId = await uploadDraftCover(
-        prepared.markdown,
+        markdown,
         accessToken,
         publicBaseUrl,
-        prepared.theme,
+        theme,
         content.permanentImagesBySource,
+        content.coverImage,
       );
+      recordStage("cover");
       const title = getWechatDraftTitle(markdown);
       const mediaId = await addWechatDraft(accessToken, {
         content: content.html,
         thumbMediaId,
         title,
       });
+      recordStage("save");
+      response.setHeader(
+        "Server-Timing",
+        Object.entries({
+          ...timings,
+          total: Math.round(performance.now() - startedAt),
+        }).map(([name, duration]) => `${name};dur=${duration}`).join(", "),
+      );
 
       response.json({
         imageCount: content.imageCount,
         mediaId,
-        theme: prepared.theme,
+        theme,
         title,
       });
     } catch (error) {
@@ -5038,6 +5149,12 @@ app.post(
         error:
           error instanceof Error ? error.message : "发布公众号草稿失败。",
       });
+    } finally {
+      console.info("Wechat draft timing:", JSON.stringify({
+        status: response.statusCode,
+        ...timings,
+        total: Math.round(performance.now() - startedAt),
+      }));
     }
   },
 );

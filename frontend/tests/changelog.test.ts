@@ -133,7 +133,8 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
   const sections = getChangelogSections(changelog);
   const hasUnreleasedSection = /^## \[未发布\]/m.test(changelog);
   const currentReleaseSectionIndex = hasUnreleasedSection ? 2 : 1;
-  const gifReleaseSectionIndex = currentReleaseSectionIndex + 1;
+  const frameReleaseSectionIndex = currentReleaseSectionIndex + 1;
+  const gifReleaseSectionIndex = frameReleaseSectionIndex + 1;
   const previousReleaseSectionIndex = gifReleaseSectionIndex + 1;
   const latestReleaseSectionIndex = previousReleaseSectionIndex + 4;
 
@@ -142,15 +143,23 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
   if (hasUnreleasedSection) {
     assert.equal(
       sections[1]?.heading,
-      "[未发布](https://github.com/zhaoolee/notes/compare/1.10.2...HEAD)",
+      "[未发布](https://github.com/zhaoolee/notes/compare/1.10.3...HEAD)",
     );
   }
   assert.equal(
     sections[currentReleaseSectionIndex]?.heading,
-    "[1.10.2](https://github.com/zhaoolee/notes/compare/1.10.1...1.10.2) - 2026-09-12",
+    "[1.10.3](https://github.com/zhaoolee/notes/compare/1.10.2...1.10.3) - 2026-09-12",
   );
   assert.match(
     sections[currentReleaseSectionIndex]?.content ?? "",
+    /微信公众号草稿.*直接上传原图.*七牛中转.*复用.*首图.*GIF/s,
+  );
+  assert.equal(
+    sections[frameReleaseSectionIndex]?.heading,
+    "[1.10.2](https://github.com/zhaoolee/notes/compare/1.10.1...1.10.2) - 2026-09-12",
+  );
+  assert.match(
+    sections[frameReleaseSectionIndex]?.content ?? "",
     /锤子明暗主题.*双线纸框.*装饰表格.*虚线.*额外表格边框/s,
   );
   assert.equal(

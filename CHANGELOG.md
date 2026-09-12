@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.10.3] - 2026-09-12
+
+### 修复
+
+- 缩短发布微信公众号草稿时的图片准备等待：直接上传原图到微信，省去七牛中转和回读，并复用正文首图数据生成封面；保留 GIF 动画、自定义署名与主题排版。
+
 ## [1.10.2] - 2026-09-12
 
 ### 新增
@@ -242,6 +248,7 @@
 - PC 版便签操作栏右侧按钮调整为“AI、删除、分享”的顺序，与 APP 版详情操作保持一致。
 - 重置 Hermes 安装链接前会明确提示旧链接立即失效，并要求二次确认，避免误触轮换。
 
+[1.10.3]: https://github.com/zhaoolee/notes/compare/1.10.2...1.10.3
 [1.10.2]: https://github.com/zhaoolee/notes/compare/1.10.1...1.10.2
 [1.10.1]: https://github.com/zhaoolee/notes/compare/1.10.0...1.10.1
 [1.10.0]: https://github.com/zhaoolee/notes/compare/1.9.1...1.10.0
