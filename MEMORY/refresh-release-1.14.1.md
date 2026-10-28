@@ -6,3 +6,15 @@
 - 隔离浏览器针对生产构建通过原地云端拉取、保留选中项、失败重试、读取期间编辑且保存失败、保存恢复、匿名本地刷新；主文档导航次数为 0。使用模拟接口，未写入真实账号数据。
 - 部署前完整备份：`/home/hermes/backups/notes/releases/1.14.1-20261028T-predeploy/storage.tar.gz`，2481270945 字节，SHA-256 `4d7c60fbd780abd7aece4fb09103b84f2f3e5cc2c0c6a338fa46d99e1c2551c7`；归档校验通过，文件权限 600。
 - 账号数据由容器用户持有，备份通过 `docker compose exec -T --user 0 backend tar` 读取原挂载卷；不得改宽账号文件权限。部署前账号文件 SHA-256 为 `6ca3cc69d8370085e511f1e31f5868813f3b2d34ab4165fec390ae3d8d508cac`。
+
+## 生产上线验收
+
+- 生产 `hermes-v2fy:/home/hermes/github/notes` 检出标签 `1.14.1`，精确应用提交为 `dfaa3e1bc41fdf9b5b9e94b1412095362de49b21`。该应用提交与标签已推送 GitHub main 和 `codex/note-refresh-release-1.14.1`。
+- 后端镜像：`sha256:297505e90d2a0bb625c852950b9f3eb2a0101bf922fddfd3ae9791a4fd8d965e`；前端镜像：`sha256:139b74966629cd4de8b323c6ab79765ec6e92cc5010e46b08d9b57efc1cf49d6`。两个容器均 running，自动重启计数 0，Hugo Extended 仍为 0.162.1。
+- GitHub 直接拉取与 Hugo 下载受到服务器 TLS 出口故障影响；通过 SSH 导入已在 GitHub 校验过相同 SHA 的 Git bundle。源码构建阶段已完成锁文件 `npm ci` 与服务端编译，随后复用线上 1.14.0 运行时（包含相同 Hugo），从本次提交重新生成前后端产物。已验证两版依赖锁文件除根版本号外完全相同；仓库 Dockerfile、运行时 Compose 与 `.env` 未修改。构建清单和日志保存在备份目录，包含 `Dockerfile.backend.cached-runtime`、`Dockerfile.frontend.cached-runtime`、`build-cached.log`。
+- 容器切换时有约 10 秒启动期 502。首次启动 AI 上游探测因 TLS 连接失败不可用；只读探测确认上游恢复返回 200 后重启后端，启动日志出现 `AI review is available.`，内部与公网 AI 状态均恢复 `available: true`。未修改全机 DNS、代理或运行时配置。
+- 本机与公网健康检查通过；真实 HTTPS 登录成功，Cookie 含 Secure/HttpOnly。只读获取云工作区成功（该账号 210 条便签）；容器重建及最终验收后账号数据 SHA-256 均与部署前一致，未写入真实便签或账号配置。
+- 公网真实浏览器以隔离模拟接口验证重新拉取、保留当前便签、失败重试、读取期间编辑且保存失败、保存恢复与匿名本地刷新；主文档导航次数为 0。`/changelog` 返回 200，首节为 `1.14.1 - 2026-10-28`，不含未发布区；390×844 手机页面无横向溢出。
+- 图片导入和公网读取、带图匿名 PNG、带图 ZIP、公众号纯文字排版预处理均返回 200。PNG 完整解码为 1980×1404（78190 字节）；ZIP 83981 字节、8 个条目、CRC 全部通过并包含文章图片。仅生成合成验收产物，未发布真实公众号草稿；本轮未重新执行七牛真实上传额度测试。
+- 必要管理员/会话配置存在，SESSION_SECRET 长度检查通过，AI 与七牛配置项存在；未记录配置值。
+- 回滚点为 `1.14.0`（`51d11b51a80362ee0833d6d719685a8f1f68b82e`），镜像标签 `notes-backend:rollback-1.14.0-before-1.14.1` 与 `notes-frontend:rollback-1.14.0-before-1.14.1` 已保留。回滚默认继续使用当前持久化卷，不恢复或清空数据。
