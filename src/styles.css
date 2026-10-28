@@ -464,6 +464,50 @@ body,
   }
 }
 
+.note-refresh-feedback {
+  position: absolute;
+  top: 50px;
+  left: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 320px;
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  background: rgba(38, 32, 28, 0.95);
+  color: #f5eee6;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  text-align: left;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+}
+
+.note-refresh-feedback.is-error {
+  border-color: rgba(226, 154, 137, 0.55);
+}
+
+.note-refresh-retry {
+  flex: 0 0 auto;
+  padding: 2px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.note-refresh-retry:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.note-refresh-retry:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 2px;
+}
+
 .smartisan-toolbar-icon.icon-insert-image {
   background-position: -181px -123px;
 }

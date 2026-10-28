@@ -78,6 +78,13 @@ import {
   shouldMarkCloudSyncComplete,
   type CloudSaveQueue,
 } from "./lib/workspace-save";
+import {
+  decideCloudWorkspaceRefresh,
+  getCloudWorkspaceRefreshFailureMessage,
+  getCloudWorkspaceRefreshNotice,
+  resolveAnonymousWorkspaceRefresh,
+  type CloudWorkspaceRefreshRequest,
+} from "./lib/workspace-refresh";
 import { getWechatConnectionStatus } from "./lib/wechat-config";
 import {
   copyMarkdownForWechat,
@@ -103,11 +110,17 @@ type HermesSkillLinkActionState =
   | "resetting"
   | "reset";
 
+interface NoteRefreshFeedback {
+  tone: "notice" | "error";
+  message: string;
+}
+
 interface NoteRouteNavigation {
   revision: number;
   route: NoteRoute | null;
 }
 
+// 刷新便签只重读当前工作区，不再重载页面；该值现在只保证旋转反馈被看见。
 const NOTE_REFRESH_DELAY_MS = 650;
 const CLOUD_SAVE_DELAY_MS = 650;
 const CLOUD_POLL_INTERVAL_MS = 15_000;
@@ -249,6 +262,8 @@ export default function App() {
   const [workspaceArchiveError, setWorkspaceArchiveError] = useState("");
   const [isImportingImage, setIsImportingImage] = useState(false);
   const [isRefreshingNotes, setIsRefreshingNotes] = useState(false);
+  const [noteRefreshFeedback, setNoteRefreshFeedback] =
+    useState<NoteRefreshFeedback | null>(null);
   const [isNoteSidebarOpen, setIsNoteSidebarOpen] = useState(false);
   const [isCategorySidebarOpen, setIsCategorySidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -300,7 +315,6 @@ export default function App() {
           : parseNoteRouteHash(window.location.hash),
     }));
   const editorPanelRef = useRef<EditorPanelHandle | null>(null);
-  const refreshTimeoutRef = useRef<number | null>(null);
   const settingsContainerRef = useRef<HTMLDivElement | null>(null);
   const desktopSettingsContainerRef = useRef<HTMLButtonElement | null>(null);
   const settingsPanelHostRef = useRef<HTMLDivElement | null>(null);
@@ -313,6 +327,14 @@ export default function App() {
   const cloudRevisionRef = useRef(0);
   const cloudHydratedUserIdRef = useRef<string | null>(null);
   const cloudSaveQueueRef = useRef<CloudSaveQueue | null>(null);
+  const hasFailedLocalSaveRef = useRef(false);
+  // 每次刷新便签都占用一个新的请求号，旧请求在 await 之后自行作废。
+  const refreshRequestRef = useRef(0);
+  const isRefreshingNotesRef = useRef(false);
+  const authUserIdRef = useRef<string | null>(null);
+
+  // 供异步刷新在 await 之后核对当前账号，避免切换/退出后用旧结果覆盖新工作区。
+  authUserIdRef.current = authUser?.id ?? null;
 
   if (cloudSaveQueueRef.current === null) {
     cloudSaveQueueRef.current = createCloudSaveQueue({
@@ -333,9 +355,11 @@ export default function App() {
         }
 
         setCloudSyncError("");
+        hasFailedLocalSaveRef.current = false;
         setCloudSyncState("synced");
       },
       onError: (error) => {
+        hasFailedLocalSaveRef.current = true;
         setCloudSyncError(
           error instanceof Error ? error.message : "云端便签保存失败。",
         );
@@ -618,10 +642,6 @@ export default function App() {
       return;
     }
 
-    const hasPendingLocalSave = () =>
-      cloudSaveTimeoutRef.current !== null ||
-      cloudSaveQueueRef.current?.isSaving() === true;
-
     const intervalId = window.setInterval(() => {
       if (hasPendingLocalSave()) {
         return;
@@ -780,9 +800,8 @@ export default function App() {
 
   useEffect(
     () => () => {
-      if (refreshTimeoutRef.current !== null) {
-        window.clearTimeout(refreshTimeoutRef.current);
-      }
+      // 卸载后到达的刷新结果必须作废，不能在已分离的组件上写入工作区。
+      refreshRequestRef.current += 1;
 
       if (cloudSaveTimeoutRef.current !== null) {
         window.clearTimeout(cloudSaveTimeoutRef.current);
@@ -909,6 +928,24 @@ export default function App() {
       setAiReviewNoteId(null);
     }
   }, [activeNoteId, aiReviewNoteId]);
+
+  useEffect(() => {
+    if (!noteRefreshFeedback || noteRefreshFeedback.tone !== "notice") {
+      return;
+    }
+
+    // 非错误提示只是解释本次没有变化，短暂展示后自动收起；
+    // 失败提示保留到用户重试或发起下一次刷新。
+    const timeoutId = window.setTimeout(() => {
+      setNoteRefreshFeedback((current) =>
+        current && current.tone === "notice" ? null : current,
+      );
+    }, 4_000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [noteRefreshFeedback]);
 
   useEffect(() => {
     if (copyState === "idle") {
@@ -1260,6 +1297,9 @@ export default function App() {
   ]);
 
   async function handleUserAuthenticated(user: AuthUser) {
+    // 上一次匿名/其他账号的刷新结果一律作废。
+    cancelNoteRefresh();
+    hasFailedLocalSaveRef.current = false;
     setCloudSyncState("syncing");
     setCloudSyncError("");
     const anonymousWorkspace = getCurrentWorkspace();
@@ -1294,6 +1334,9 @@ export default function App() {
   }
 
   function resetAuthenticatedClientState() {
+    cancelNoteRefresh();
+    hasFailedLocalSaveRef.current = false;
+
     if (cloudSaveTimeoutRef.current !== null) {
       window.clearTimeout(cloudSaveTimeoutRef.current);
       cloudSaveTimeoutRef.current = null;
@@ -1317,6 +1360,7 @@ export default function App() {
   }
 
   async function handleLogout() {
+    cancelNoteRefresh();
     if (
       canUseCloudWorkspace(authUser) &&
       cloudHydratedUserIdRef.current === authUser.id
@@ -1685,15 +1729,129 @@ export default function App() {
     handleOpenAiReview();
   }
 
-  function handleRefreshNotes() {
-    if (refreshTimeoutRef.current !== null) {
+  function hasPendingLocalSave(): boolean {
+    return (
+      cloudSaveTimeoutRef.current !== null ||
+      cloudSaveQueueRef.current?.isSaving() === true ||
+      hasFailedLocalSaveRef.current
+    );
+  }
+
+  function cancelNoteRefresh() {
+    refreshRequestRef.current += 1;
+    isRefreshingNotesRef.current = false;
+    setIsRefreshingNotes(false);
+    setNoteRefreshFeedback(null);
+  }
+
+  /**
+   * 顶栏刷新按钮只重新读取当前工作区：登录账号读取云端，匿名账号读取浏览器
+   * 本地存储，绝不重载文档。读取期间继续编辑、账号切换、退出登录或组件卸载
+   * 都会让本次结果作废，绝不会用旧快照覆盖用户的最新编辑。
+   */
+  async function handleRefreshNotes() {
+    if (isRefreshingNotesRef.current) {
       return;
     }
 
+    if (authStatus !== "ready") {
+      setNoteRefreshFeedback({
+        tone: "error",
+        message: "登录状态尚未就绪，请稍后重试。",
+      });
+      return;
+    }
+
+    isRefreshingNotesRef.current = true;
+    const requestId = refreshRequestRef.current + 1;
+    refreshRequestRef.current = requestId;
     setIsRefreshingNotes(true);
-    refreshTimeoutRef.current = window.setTimeout(() => {
-      window.location.reload();
-    }, NOTE_REFRESH_DELAY_MS);
+    setNoteRefreshFeedback(null);
+    // 旋转动画只播放 600ms，网络很快返回时也要让用户看到这次操作。
+    const feedbackDeadline = Date.now() + NOTE_REFRESH_DELAY_MS;
+
+    try {
+      if (!canUseCloudWorkspace(authUser)) {
+        const refreshed = resolveAnonymousWorkspaceRefresh({
+          current: getCurrentWorkspace(),
+          persisted: getInitialNoteWorkspace(),
+        });
+
+        // 本地存储比内存更旧时保持内存快照，保护最新未保存编辑。
+        if (refreshed.source === "browser-storage") {
+          replaceWorkspace(refreshed.workspace, { preserveActiveNote: true });
+        }
+
+        return;
+      }
+
+      const request: CloudWorkspaceRefreshRequest = {
+        userId: authUser.id,
+        revision: cloudRevisionRef.current,
+      };
+      const requestedWorkspace = getCurrentWorkspace();
+      const hadPendingLocalSave = hasPendingLocalSave();
+      const cloud = await getCloudWorkspace();
+      const currentWorkspace = getCurrentWorkspace();
+      const decision = decideCloudWorkspaceRefresh({
+        request,
+        currentUserId: authUserIdRef.current,
+        currentRevision: cloudRevisionRef.current,
+        hasPendingLocalSave:
+          hadPendingLocalSave || hasPendingLocalSave(),
+        hasLocalChanges:
+          requestedWorkspace.notes !== currentWorkspace.notes ||
+          requestedWorkspace.folders !== currentWorkspace.folders,
+        isCancelled: refreshRequestRef.current !== requestId,
+        fetchedUpdatedAt: cloud.updatedAt,
+      });
+
+      if (decision.action === "discard") {
+        const notice = getCloudWorkspaceRefreshNotice(decision.reason);
+
+        if (notice && refreshRequestRef.current === requestId) {
+          setNoteRefreshFeedback({ tone: "notice", message: notice });
+        }
+
+        return;
+      }
+
+      if (!cloud.workspace) {
+        return;
+      }
+
+      // 与云端轮询保持一致：记录新版本并跳过随后的自动保存，
+      // 避免把刚读到的云端快照再 PUT 回去；未水合时自动保存本身不会触发。
+      cloudRevisionRef.current = cloud.updatedAt ?? cloudRevisionRef.current;
+
+      if (cloudHydratedUserIdRef.current === authUser.id) {
+        skipNextCloudSaveRef.current = true;
+      }
+
+      replaceWorkspace(cloud.workspace, { preserveActiveNote: true });
+      setCloudSyncError("");
+      setCloudSyncState("synced");
+    } catch (error) {
+      if (refreshRequestRef.current === requestId) {
+        setNoteRefreshFeedback({
+          tone: "error",
+          message: getCloudWorkspaceRefreshFailureMessage(error),
+        });
+      }
+    } finally {
+      const remainingFeedbackMs = feedbackDeadline - Date.now();
+
+      if (remainingFeedbackMs > 0) {
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, remainingFeedbackMs);
+        });
+      }
+
+      if (refreshRequestRef.current === requestId) {
+        isRefreshingNotesRef.current = false;
+        setIsRefreshingNotes(false);
+      }
+    }
   }
 
   function handleSelectNote(noteId: string) {
@@ -2133,7 +2291,8 @@ export default function App() {
                 aria-label="刷新便签"
                 aria-busy={isRefreshingNotes}
                 title="刷新便签"
-                onClick={handleRefreshNotes}
+                disabled={isRefreshingNotes}
+                onClick={() => void handleRefreshNotes()}
               >
                 <span className="smartisan-toolbar-icon icon-refresh" aria-hidden="true" />
               </button>
@@ -2155,6 +2314,24 @@ export default function App() {
               >
                 <span className="smartisan-toolbar-icon icon-create" aria-hidden="true" />
               </button>
+
+              {noteRefreshFeedback ? (
+                <div
+                  className={`note-refresh-feedback is-${noteRefreshFeedback.tone}`}
+                  role={noteRefreshFeedback.tone === "error" ? "alert" : "status"}
+                >
+                  <span>{noteRefreshFeedback.message}</span>
+                  {noteRefreshFeedback.tone === "error" ? (
+                    <button
+                      type="button"
+                      className="note-refresh-retry"
+                      onClick={() => void handleRefreshNotes()}
+                    >
+                      重试
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
 
             <div className="app-topbar-actions">

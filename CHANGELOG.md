@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.14.1] - 2026-10-28
+
+### 修复
+
+- 修复桌面顶栏“刷新便签”会刷新整个页面的问题：现在只重新读取便签与文件夹，保留当前选中便签、搜索、分类及编辑/预览模式。刷新期间保护未保存的编辑和账号切换，失败时保留内容并支持重试。
+
 ## [1.14.0] - 2026-10-23
 
 ### 新增
@@ -378,3 +384,5 @@
 
 [1.13.0]: https://github.com/zhaoolee/notes/compare/1.12.0...1.13.0
 [1.14.0]: https://github.com/zhaoolee/notes/compare/1.13.0...1.14.0
+
+[1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1

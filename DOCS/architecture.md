@@ -560,3 +560,5 @@ DeepSeek 当前默认选择 `deepseek-v4-flash` 并关闭 thinking。AI 消耗�
 单个后端写入实例；若要水平扩容，应先迁移到支持事务和唯一约束的数据库。
 
 具体发布流程见 `PROMPTS/deploy-to-production.md`。
+
+桌面顶栏“刷新便签”只重读当前工作区，不重载页面。登录账号读取云端、匿名读取本地；读取期间产生的编辑及账号变化会使旧结果作废，详见 `DOCS/auth-and-sync.md`。

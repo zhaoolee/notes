@@ -1027,9 +1027,13 @@ test("桌面工作区使用锤子便签网页版的纸面、细线和栏宽比�
     /className=\{`desktop-toolbar-button desktop-refresh-note\$\{[\s\S]*isRefreshingNotes \? " is-refreshing" : ""/,
   );
   assert.match(appSource, /aria-busy=\{isRefreshingNotes\}/);
+  assert.match(appSource, /disabled=\{isRefreshingNotes\}/);
+  // 顶栏刷新只重读当前工作区，不再重载整个页面。
+  assert.doesNotMatch(appSource, /window\.location\.reload\(\)/);
+  assert.match(appSource, /async function handleRefreshNotes\(\)/);
   assert.match(
     appSource,
-    /function handleRefreshNotes\(\)[\s\S]*setIsRefreshingNotes\(true\);[\s\S]*window\.location\.reload\(\);[\s\S]*NOTE_REFRESH_DELAY_MS/s,
+    /async function handleRefreshNotes\(\)[\s\S]*?NOTE_REFRESH_DELAY_MS;[\s\S]*?const cloud = await getCloudWorkspace\(\);[\s\S]*?decideCloudWorkspaceRefresh\(\{[\s\S]*?replaceWorkspace\(cloud\.workspace, \{ preserveActiveNote: true \}\);/s,
   );
   assert.match(
     styles,
