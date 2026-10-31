@@ -2343,8 +2343,7 @@ export default function App() {
                 <button
                   type="button"
                   className="mobile-detail-action mobile-insert-image"
-                  aria-label={isImportingImage ? "正在导入图片" : "插入图片"}
-                  disabled={isImportingImage}
+                  aria-label={isImportingImage ? "继续插入图片" : "插入图片"}
                   onClick={handleInsertImage}
                 >
                   <span

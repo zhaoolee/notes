@@ -3189,6 +3189,11 @@ body,
   color: #b54a3f;
 }
 
+.editor-panel > .image-import-status {
+  margin: 0;
+  padding: 6px 24px;
+}
+
 .markdown-editor-frame {
   --editor-gutter-width: 25px;
   --editor-paper-scroll-y: 0px;
@@ -3370,6 +3375,58 @@ body,
     transform 140ms ease;
   user-select: none;
   -webkit-user-drag: none;
+}
+
+.editor-image-upload-preview {
+  position: relative;
+  min-height: 120px;
+  overflow: hidden;
+  background: var(--note-image-frame);
+}
+
+.editor-image-upload-preview > img {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0.45;
+}
+
+.editor-image-upload-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  overflow-y: auto;
+  padding: 12px;
+  background: color-mix(in srgb, var(--note-image-mat) 75%, transparent);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.editor-image-upload-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-image-upload-overlay progress { width: min(220px, 80%); accent-color: var(--accent-strong); }
+.editor-image-upload-error { overflow-wrap: anywhere; }
+.editor-image-upload-buttons { display: flex; gap: 8px; }
+.editor-image-upload-buttons button {
+  min-height: 32px;
+  padding: 3px 14px;
+  border: 1px solid var(--note-image-frame);
+  border-radius: 4px;
+  background: var(--note-image-mat);
+  color: inherit;
+  cursor: pointer;
 }
 
 .editor-image-block.is-active .editor-image-main {

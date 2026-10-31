@@ -16,6 +16,12 @@ import {
 import { createPortal } from "react-dom";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ImageCropDialog } from "./ImageCropDialog";
+import { EditorImageUploadPlaceholder } from "./EditorImageUploadPlaceholder";
+import {
+  EditorImageUploadSession,
+  splitEditorContentWithUploads,
+  type EditorImageUpload,
+} from "../lib/editor-image-uploads";
 import { importImageFile, importImageUrl } from "../lib/images";
 import {
   isLikelyImageUrl,
@@ -81,14 +87,8 @@ function findImageUrlFromHtml(html: string): string | null {
   return src;
 }
 
-function extractImageFile(files: FileList | File[]): File | null {
-  for (const file of Array.from(files)) {
-    if (file.type.startsWith("image/")) {
-      return file;
-    }
-  }
-
-  return null;
+function extractImageFiles(files: FileList | File[]): File[] {
+  return Array.from(files).filter((file) => file.type.startsWith("image/"));
 }
 
 function getEditorImageKey(image: EditorImageBlock): string {
@@ -147,7 +147,7 @@ function collectVisualLineOffsets(
 export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(function EditorPanel(
   {
     markdown,
-    onMarkdownChange,
+    onMarkdownChange: onDocumentChange,
     onImageImportingChange,
   },
   ref,
@@ -170,6 +170,28 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     end: markdown.length,
   });
   const [isImportingImage, setIsImportingImage] = useState(false);
+  const [imageUploads, setImageUploads] = useState<EditorImageUpload[]>([]);
+  const uploadSessionRef = useRef<EditorImageUploadSession | null>(null);
+  if (!uploadSessionRef.current) {
+    uploadSessionRef.current = new EditorImageUploadSession(markdown, onDocumentChange, setImageUploads);
+  }
+  const uploadSession = uploadSessionRef.current;
+  uploadSession.updateHandlers(onDocumentChange);
+  const onMarkdownChange = (next: string, editedBlock?: EditorTextBlock): void => {
+    const active = getActiveTextBlock();
+    const keepBeforeIds = new Set(editorContent.slice(0, active?.blockIndex ?? 0)
+      .flatMap((block) => block.kind === "upload" ? [block.upload.id] : []));
+    uploadSession.editMarkdown(next, keepBeforeIds, editedBlock);
+  };
+  const pendingUploads = imageUploads.filter((item) => item.status !== "failed");
+  useLayoutEffect(() => { uploadSession.syncMarkdown(markdown); }, [markdown, uploadSession]);
+  useEffect(() => {
+    onImageImportingChange(isImportingImage || pendingUploads.length > 0);
+  }, [isImportingImage, pendingUploads.length, onImageImportingChange]);
+  useEffect(() => () => {
+    uploadSession.dispose();
+    onImageImportingChange(false);
+  }, [uploadSession, onImageImportingChange]);
   const [imageImportError, setImageImportError] = useState("");
   const [isDropTargetActive, setIsDropTargetActive] = useState(false);
   const [isQuickInputVisible, setIsQuickInputVisible] = useState(false);
@@ -192,9 +214,11 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     imageKey: string;
     source: string;
   } | null>(null);
+  const imageUploadLayout = imageUploads.map((item) => `${item.id}:${item.offset}`).join(",");
+  const uploadsById = new Map(imageUploads.map((item) => [item.id, item]));
   const editorContent = useMemo(
-    () => splitEditorContent(markdown),
-    [markdown],
+    () => imageUploads.length ? splitEditorContentWithUploads(markdown, imageUploads) : splitEditorContent(markdown),
+    [markdown, imageUploadLayout],
   );
 
   useEffect(() => {
@@ -624,7 +648,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     selectionStart: number,
     selectionEnd = selectionStart,
   ): void {
-    const nextContent = splitEditorContent(nextMarkdown);
+    const nextContent = splitEditorContentWithUploads(nextMarkdown, uploadSession.getUploads());
     let targetBlockIndex = nextContent.findIndex(
       (block) =>
         block.kind === "text" &&
@@ -826,7 +850,6 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     try {
       setActiveImageKey(null);
       setIsImportingImage(true);
-      onImageImportingChange(true);
       setImageImportError("");
       const imageUrl = new URL(image.source, window.location.href);
       let cropSource = imageUrl.href;
@@ -853,7 +876,6 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
       );
     } finally {
       setIsImportingImage(false);
-      onImageImportingChange(false);
     }
   }
 
@@ -870,7 +892,6 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
 
     try {
       setIsImportingImage(true);
-      onImageImportingChange(true);
       setImageImportError("");
       const imported = await importImageFile(file);
       const nextMarkdown = replaceEditorImageSource(
@@ -891,7 +912,6 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
       throw new Error(message);
     } finally {
       setIsImportingImage(false);
-      onImageImportingChange(false);
     }
   }
 
@@ -1084,47 +1104,10 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     commitMarkdownEdit(edit);
   }
 
-  function insertImageMarkdown(imageUrl: string): void {
+  function enqueueImages(sources: Array<File | string>): void {
     syncSelection();
-    const selectionStart = selectionRef.current.start;
-    const selectionEnd = selectionRef.current.end;
-    const before = markdown.slice(0, selectionStart);
-    const after = markdown.slice(selectionEnd);
-    const imageMarkdown = `![](${imageUrl})`;
-    const leadingBreak = before && !before.endsWith("\n") ? "\n" : "";
-    const trailingBreak = after && !after.startsWith("\n") ? "\n" : "";
-    const inserted = `${leadingBreak}${imageMarkdown}${trailingBreak}`;
-    const nextMarkdown = `${before}${inserted}${after}`;
-    const nextCursorPosition = before.length + inserted.length;
-
-    onMarkdownChange(nextMarkdown);
     setImageImportError("");
-    selectionRef.current = {
-      start: nextCursorPosition,
-      end: nextCursorPosition,
-    };
-    focusGlobalSelection(nextMarkdown, nextCursorPosition);
-  }
-
-  async function handleImportedSource(source: File | string): Promise<void> {
-    try {
-      setIsImportingImage(true);
-      onImageImportingChange(true);
-      setImageImportError("");
-      const result =
-        typeof source === "string"
-          ? await importImageUrl(source)
-          : await importImageFile(source);
-      insertImageMarkdown(result.path || result.url);
-    } catch (error) {
-      console.error("Image import failed", error);
-      setImageImportError(
-        error instanceof Error ? error.message : "图片导入失败，请稍后重试。",
-      );
-    } finally {
-      setIsImportingImage(false);
-      onImageImportingChange(false);
-    }
+    uploadSession.enqueue(sources, selectionRef.current.start);
   }
 
   function pickUrlFromTransfer(html: string, text: string): string | null {
@@ -1142,11 +1125,11 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     const fileFromItems = Array.from(event.clipboardData.items)
       .filter((item) => item.kind === "file")
       .map((item) => item.getAsFile())
-      .find((file): file is File => Boolean(file?.type.startsWith("image/")));
+      .filter((file): file is File => Boolean(file?.type.startsWith("image/")));
 
-    if (fileFromItems) {
+    if (fileFromItems.length) {
       event.preventDefault();
-      await handleImportedSource(fileFromItems);
+      enqueueImages(fileFromItems);
       return;
     }
 
@@ -1160,7 +1143,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     }
 
     event.preventDefault();
-    await handleImportedSource(clipboardUrl);
+    enqueueImages([clipboardUrl]);
   }
 
   function handleTextBlockChange(
@@ -1182,15 +1165,15 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
       end: selectionEnd,
       start: selectionStart,
     };
-    onMarkdownChange(nextMarkdown);
+    onMarkdownChange(nextMarkdown, block);
     scheduleMobileCaretSync();
   }
 
   async function importFromDrop(event: DragEvent<HTMLElement>): Promise<void> {
-    const imageFile = extractImageFile(event.dataTransfer.files);
+    const imageFiles = extractImageFiles(event.dataTransfer.files);
 
-    if (imageFile) {
-      await handleImportedSource(imageFile);
+    if (imageFiles.length) {
+      enqueueImages(imageFiles);
       return;
     }
 
@@ -1201,19 +1184,19 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     );
 
     if (droppedUrl) {
-      await handleImportedSource(droppedUrl);
+      enqueueImages([droppedUrl]);
     }
   }
 
   async function handleImageInputChange(event: ChangeEvent<HTMLInputElement>): Promise<void> {
-    const file = event.target.files?.[0];
+    const files = extractImageFiles(event.target.files ?? []);
     event.target.value = "";
 
-    if (!file) {
+    if (!files.length) {
       return;
     }
 
-    await handleImportedSource(file);
+    enqueueImages(files);
   }
 
   function handleDragEnter(event: DragEvent<HTMLElement>): void {
@@ -1241,7 +1224,11 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     <>
       <aside className="editor-panel">
       {imageImportError ? <p className="image-import-status error">{imageImportError}</p> : null}
-      {isImportingImage ? <p className="image-import-status">正在导入图片...</p> : null}
+      {isImportingImage || pendingUploads.length ? (
+        <p className="image-import-status" role="status">
+          {imageUploads.length ? `上传中 ${imageUploads.filter((item) => item.status === "uploading").length} 张，排队 ${imageUploads.filter((item) => item.status === "queued").length} 张，失败 ${imageUploads.filter((item) => item.status === "failed").length} 张` : "正在处理图片…"}
+        </p>
+      ) : null}
       <div
         ref={editorFrameRef}
         className={`markdown-editor-frame${
@@ -1263,6 +1250,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
           ref={imageInputRef}
           type="file"
           accept="image/*"
+          multiple
           hidden
           onChange={(event) => {
             void handleImageInputChange(event);
@@ -1352,6 +1340,10 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
                 }}
                 spellCheck={false}
               />
+            ) : block.kind === "upload" ? (
+              <EditorImageUploadPlaceholder key={`upload-${block.upload.id}`} upload={uploadsById.get(block.upload.id)!}
+                onRetry={() => uploadSession.retry(block.upload.id)}
+                onCancel={() => uploadSession.cancel(block.upload.id)} />
             ) : (
               <figure
                 key={`image-${block.markerStart}-${block.source}`}

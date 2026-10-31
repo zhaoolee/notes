@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.15.0] - 2026-10-31
+
+### 新增
+
+- 编辑器支持拖拽、选择或粘贴多张图片，按原顺序保留图片占位并显示排队状态和单张上传进度；最多同时上传 5 张，其余自动排队，可继续追加图片。单张失败可重试或移除，不影响其他图片；切换便签时取消当前未完成上传。
+
 ## [1.14.1] - 2026-10-28
 
 ### 修复
@@ -386,3 +392,5 @@
 [1.14.0]: https://github.com/zhaoolee/notes/compare/1.13.0...1.14.0
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
+
+[1.15.0]: https://github.com/zhaoolee/notes/compare/1.14.1...1.15.0

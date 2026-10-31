@@ -38,6 +38,17 @@ node scripts/verify-site-publishing.mjs
 
 该命令自建临时账号、便签与图片，验证账号菜单入口、部署子路径 basePath、自建分类、真实 ZIP 下载及生成网站的资源和搜索。截图与报告保存到输出的临时目录；不会操作日常工作区或 iOS 模拟器。Docker 后端镜像已包含固定版本 Hugo。
 
+## 编辑器图片上传队列验收
+
+```bash
+npm run build
+node scripts/verify-editor-image-uploads.mjs
+```
+
+使用隔离的 Chromium、临时 HTTP 服务和合成图片验证拖入 100 张、追加多选图片、
+最多 5 张并发、真实上传进度、乱序完成、失败重试、上传期间编辑、手机布局和
+取消/切换便签。截图输出到临时目录，不访问真实账号、图片服务或 iOS 模拟器。
+
 ## 正文输入延迟 Benchmark
 
 运行真实 Chromium，在便签正文编辑器中逐字符输入，统计每次 `keydown` 到浏览器

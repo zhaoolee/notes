@@ -172,7 +172,7 @@ test("编辑器以内联图片块复刻锤子便签，并保留原生 textarea �
   assert.match(editorSource, /replaceEditorImageAlt\(/);
   assert.match(editorSource, /replaceEditorImageSource\(/);
   assert.match(editorSource, /moveEditorImage\(/);
-  assert.match(editorSource, /const imageMarkdown = `!\[\]\(\$\{imageUrl\}\)`/);
+  assert.match(readFileSync("src/lib/editor-image-uploads.ts", "utf8"), /const imageMarkdown = `!\[\]\(\$\{imageUrl\}\)`/);
   assert.match(editorSource, /aria-label="图片操作"/);
   assert.match(editorSource, /aria-label="编辑图片标注"/);
   assert.match(editorSource, /aria-label="下载这张图片"/);
