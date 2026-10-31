@@ -21,6 +21,8 @@ function printHelp() {
   --warmup <n>        预热字符数（默认：20）
   --interval <ms>     两次按键之间的间隔（默认：10）
   --seed-length <n>   测试前填入的正文长度（默认：2000）
+  --images <n>        在正文后插入指定数量的图片（默认：0）
+  --assert-incremental-layout  验证输入不重建图片或全量测量正文
   --max-p95 <ms>      p95 超过阈值时以非零状态退出
   --mobile             使用 390 × 844 的移动端视口
   --no-start           默认网址不可用时也不自动启动前端
@@ -48,6 +50,8 @@ function parseArgs(argv) {
     warmup: 20,
     interval: 10,
     seedLength: 2_000,
+    images: 0,
+    assertIncrementalLayout: false,
     maxP95: null,
     mobile: false,
     autoStart: true,
@@ -82,6 +86,12 @@ function parseArgs(argv) {
         break;
       case "--seed-length":
         options.seedLength = readNumber(nextValue(), argument, { integer: true });
+        break;
+      case "--images":
+        options.images = readNumber(nextValue(), argument, { integer: true });
+        break;
+      case "--assert-incremental-layout":
+        options.assertIncrementalLayout = true;
         break;
       case "--max-p95":
         options.maxP95 = readNumber(nextValue(), argument);
@@ -223,9 +233,26 @@ async function installBrowserProbe(page) {
       nextId: 1,
       pending: [],
       samples: [],
+      images: [...document.querySelectorAll(".editor-image-main")],
+      textareaHeightReads: 0,
+      imageLayoutReads: 0,
     };
 
     window.__notesInputLatencyBenchmark = state;
+
+    const scrollHeight = Object.getOwnPropertyDescriptor(Element.prototype, "scrollHeight");
+    Object.defineProperty(Element.prototype, "scrollHeight", {
+      ...scrollHeight,
+      get() {
+        if (this.matches("textarea.markdown-editor")) state.textareaHeightReads++;
+        return scrollHeight.get.call(this);
+      },
+    });
+    const getRect = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function () {
+      if (this.matches(".editor-image-block")) state.imageLayoutReads++;
+      return getRect.call(this);
+    };
 
     document.addEventListener(
       "keydown",
@@ -270,12 +297,12 @@ async function installBrowserProbe(page) {
         }
 
         const inputAt = performance.now();
-        requestAnimationFrame((paintAt) => {
+        requestAnimationFrame(() => {
           state.samples.push({
             id: pending.id,
             key: pending.key,
             keydownToInputMs: inputAt - pending.keydownAt,
-            keydownToPaintMs: Math.max(0, paintAt - pending.keydownAt),
+            keydownToPaintMs: performance.now() - pending.keydownAt,
             renderedValueLength: target.value.length,
           });
         });
@@ -290,6 +317,9 @@ async function resetBrowserProbe(page) {
     const state = window.__notesInputLatencyBenchmark;
     state.pending.length = 0;
     state.samples.length = 0;
+    state.images = [...document.querySelectorAll(".editor-image-main")];
+    state.textareaHeightReads = 0;
+    state.imageLayoutReads = 0;
   });
 }
 
@@ -310,6 +340,14 @@ async function runBenchmark(options) {
 
   try {
     const context = await browser.newContext({ viewport });
+    // Synthetic assets and session responses keep the workload offline and isolated.
+    await context.route("**/api/**", (route) => route.fulfill({
+      json: { user: null, requireLogin: false, available: false },
+    }));
+    await context.route("**/images/input-benchmark-*.svg", (route) => route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300"><rect width="600" height="300" fill="#d7b58b"/></svg>',
+    }));
     const page = await context.newPage();
     await page.goto(options.url, { waitUntil: "networkidle" });
 
@@ -320,9 +358,17 @@ async function runBenchmark(options) {
       await firstNote.click();
     }
     await editor.waitFor({ state: "visible" });
-    await editor.fill(makeSeedText(options.seedLength));
+    const imageMarkdown = Array.from({ length: options.images }, (_, index) =>
+      `\n![图片 ${index}](/images/input-benchmark-${index}.svg)\n图片之间的正文\n`,
+    ).join("");
+    await editor.fill(makeSeedText(options.seedLength) + imageMarkdown);
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(250);
     await editor.focus();
-    await editor.press("End");
+    await editor.evaluate((element) => {
+      element.setSelectionRange(element.value.length, element.value.length);
+      element.dispatchEvent(new Event("select", { bubbles: true }));
+    });
 
     await installBrowserProbe(page);
 
@@ -342,6 +388,14 @@ async function runBenchmark(options) {
       () => window.__notesInputLatencyBenchmark.samples,
     );
     const editorValue = await editor.inputValue();
+    const editorWork = await page.evaluate(() => {
+      const state = window.__notesInputLatencyBenchmark;
+      return {
+        imageRemounts: state.images.filter((image) => !image.isConnected).length,
+        textareaHeightReads: state.textareaHeightReads,
+        imageLayoutReads: state.imageLayoutReads,
+      };
+    });
 
     if (samples.length !== inputText.length) {
       throw new Error(`预期 ${inputText.length} 个样本，实际得到 ${samples.length} 个`);
@@ -349,6 +403,13 @@ async function runBenchmark(options) {
 
     if (!editorValue.endsWith(inputText)) {
       throw new Error("benchmark 输入后正文内容不完整，结果无效");
+    }
+
+    if (options.assertIncrementalLayout && (
+      editorWork.imageRemounts > 0 || editorWork.imageLayoutReads > 0 ||
+      editorWork.textareaHeightReads > options.characters * 6
+    )) {
+      throw new Error(`输入触发了图片重建或全量布局：${JSON.stringify(editorWork)}`);
     }
 
     const paint = summarize(samples.map((sample) => sample.keydownToPaintMs));
@@ -365,10 +426,12 @@ async function runBenchmark(options) {
         warmupCharacters: options.warmup,
         intervalMs: options.interval,
         initialNoteLength: options.seedLength,
+        images: options.images,
       },
       metrics: {
         keydownToNextPaintMs: paint,
         keydownToInputEventMs: input,
+        editorWork,
       },
       threshold: options.maxP95 === null
         ? null
@@ -403,6 +466,7 @@ function printHumanResult(result) {
   console.log(
     `  p50 ${input.p50}ms  p95 ${input.p95}ms  p99 ${input.p99}ms  max ${input.max}ms  mean ${input.mean}ms`,
   );
+  console.log(`图片 ${result.workload.images} 张；布局工作量：${JSON.stringify(result.metrics.editorWork)}`);
 
   if (result.threshold) {
     console.log("");

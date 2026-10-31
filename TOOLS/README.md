@@ -148,3 +148,19 @@ skills/notes-export-api/scripts/export_note.sh \
 ```
 
 详细参数见 `skills/notes-export-api/SKILL.md`。
+
+## 多图输入性能回归
+
+多图输入性能基准（使用隔离浏览器与合成图片，不需要后端）：
+
+```bash
+npm run benchmark:input -- --images 100 --assert-incremental-layout
+npm run benchmark:input -- --images 100 --mobile --assert-incremental-layout
+```
+
+输出按键到下一次绘制机会的延迟，以及图片节点重建、文本高度读取与图片尺寸读取
+次数。断言检查输入期间复用图片，文本高度读取不随图片数量线性增长。
+参数 `--max-p95 <毫秒>` 可用于同一环境的延迟门槛；不要跨机器直接比较绝对耗时。
+
+构建后的浏览器功能回归：`node scripts/verify-editor-input-layout.mjs`，检查重复图片
+复用、段落高度伸缩、中间与末尾中文输入、滚动保持、本地保存、响应式预览和导出预览。

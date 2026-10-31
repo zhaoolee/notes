@@ -144,6 +144,37 @@ function collectVisualLineOffsets(
   return Array.from(new Set(offsets));
 }
 
+function snapImageBlocksToLineGrid(imageBlocks: Iterable<HTMLElement>): void {
+  // Read the whole batch before writing margins. Subtract the previous spacer
+  // instead of clearing it, which would force a layout for every single image.
+  const spacers = Array.from(imageBlocks, (imageBlock) => {
+    const style = getComputedStyle(imageBlock);
+    const previousSpacer = Number.parseFloat(
+      style.getPropertyValue("--editor-image-grid-spacer"),
+    ) || 0;
+    const lineHeight = Number.parseFloat(
+      style.getPropertyValue("--editor-line-height"),
+    ) || 42;
+    const occupiedHeight = imageBlock.getBoundingClientRect().height +
+      Number.parseFloat(style.marginTop) + Number.parseFloat(style.marginBottom) -
+      previousSpacer;
+    const remainder = occupiedHeight % lineHeight;
+    const spacer = remainder < 0.25 || lineHeight - remainder < 0.25
+      ? 0 : lineHeight - remainder;
+    return { imageBlock, spacer, previousSpacer };
+  });
+
+  for (const { imageBlock, spacer, previousSpacer } of spacers) {
+    if (Math.abs(spacer - previousSpacer) > 0.01) {
+      imageBlock.style.setProperty("--editor-image-grid-spacer", `${spacer}px`);
+    }
+  }
+}
+
+function snapImageBlockToLineGrid(imageBlock: HTMLElement | null): void {
+  if (imageBlock) snapImageBlocksToLineGrid([imageBlock]);
+}
+
 export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(function EditorPanel(
   {
     markdown,
@@ -155,6 +186,11 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
   const editorFrameRef = useRef<HTMLDivElement | null>(null);
   const editorScrollRef = useRef<HTMLDivElement | null>(null);
   const textareaRefs = useRef(new Map<number, HTMLTextAreaElement>());
+  const textareaSizesRef = useRef(new WeakMap<HTMLTextAreaElement, {
+    value: string;
+    width: number;
+    isLast: boolean;
+  }>());
   const captionInputRefs = useRef(new Map<string, HTMLInputElement>());
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const caretMirrorRef = useRef<HTMLDivElement | null>(null);
@@ -220,6 +256,11 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     () => imageUploads.length ? splitEditorContentWithUploads(markdown, imageUploads) : splitEditorContent(markdown),
     [markdown, imageUploadLayout],
   );
+  // Text offsets change on every keystroke; image geometry does not.
+  const imageGridLayout = JSON.stringify(editorContent.flatMap((block, index) =>
+    block.kind === "image" ? [[index, block.source]]
+      : block.kind === "upload" ? [[index, block.upload.id]] : [],
+  ));
 
   useEffect(() => {
     const imageKeys = new Set(
@@ -473,40 +514,43 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     }
 
     const scrollTop = scroller.scrollTop;
+    const width = scroller.clientWidth;
     const textareas: HTMLTextAreaElement[] = [];
 
-    for (const [blockIndex, textarea] of textareaRefs.current) {
-      const block = editorContent[blockIndex];
+    for (const textarea of textareaRefs.current.values()) {
+      const previous = textareaSizesRef.current.get(textarea);
+      const isLast = textarea.classList.contains("is-last-text-segment");
 
-      if (!block || block.kind !== "text") {
+      if (previous?.value === textarea.value && previous.width === width &&
+        previous.isLast === isLast) {
         continue;
       }
 
+      textareaSizesRef.current.set(textarea, { value: textarea.value, width, isLast });
       textarea.style.height = "0px";
       textareas.push(textarea);
     }
 
-    for (const textarea of textareas) {
-      textarea.style.height = `${Math.max(
+    const heights = textareas.map((textarea) =>
+      Math.max(
         textarea.scrollHeight,
         Number.parseFloat(
           getComputedStyle(textarea).getPropertyValue("--editor-line-height"),
         ) || 42,
-      )}px`;
+      ),
+    );
+    for (const [index, textarea] of textareas.entries()) {
+      textarea.style.height = `${heights[index]}px`;
     }
 
     // A tall textarea can make the flow scrollbar appear and narrow the text
     // after the first measurement. Settle that second wrapping pass as well.
-    for (const textarea of textareas) {
-      if (textarea.scrollHeight > textarea.clientHeight) {
-        textarea.style.height = `${textarea.scrollHeight}px`;
-      }
-    }
-
-    for (const imageBlock of scroller.querySelectorAll<HTMLElement>(
-      ".editor-image-block",
-    )) {
-      snapImageBlockToLineGrid(imageBlock);
+    const overflowHeights = textareas.map((textarea) =>
+      textarea.scrollHeight > textarea.clientHeight ? textarea.scrollHeight : null,
+    );
+    for (const [index, textarea] of textareas.entries()) {
+      const height = overflowHeights[index];
+      if (height !== null) textarea.style.height = `${height}px`;
     }
 
     scroller.scrollTop = scrollTop;
@@ -514,7 +558,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
       "--editor-paper-scroll-y",
       `${-scroller.scrollTop}px`,
     );
-  }, [editorContent]);
+  }, []);
 
   useLayoutEffect(() => {
     resizeEditorContent();
@@ -523,7 +567,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
     return () => {
       window.cancelAnimationFrame(animationFrame);
     };
-  }, [resizeEditorContent]);
+  }, [editorContent, resizeEditorContent]);
 
   useEffect(() => {
     const scroller = editorScrollRef.current;
@@ -538,59 +582,43 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
       window.cancelAnimationFrame(animationFrame);
       animationFrame = window.requestAnimationFrame(resizeEditorContent);
     });
+    const invalidateTextSizes = (): void => {
+      textareaSizesRef.current = new WeakMap();
+      resizeEditorContent();
+    };
 
     resizeObserver.observe(scroller);
-    window.addEventListener("resize", resizeEditorContent);
+    window.addEventListener("resize", invalidateTextSizes);
+    document.fonts.addEventListener("loadingdone", invalidateTextSizes);
 
     return () => {
       resizeObserver.disconnect();
       window.cancelAnimationFrame(animationFrame);
-      window.removeEventListener("resize", resizeEditorContent);
+      window.removeEventListener("resize", invalidateTextSizes);
+      document.fonts.removeEventListener("loadingdone", invalidateTextSizes);
     };
   }, [resizeEditorContent]);
 
   useEffect(() => {
+    const imageBlocks = editorScrollRef.current?.querySelectorAll<HTMLElement>(
+      ".editor-image-block",
+    ) ?? [];
     const syncImageGrid = (): void => {
-      for (const imageBlock of editorScrollRef.current?.querySelectorAll<HTMLElement>(
-        ".editor-image-block",
-      ) ?? []) {
-        snapImageBlockToLineGrid(imageBlock);
-      }
+      snapImageBlocksToLineGrid(imageBlocks);
     };
+    const imageObserver = new ResizeObserver((entries) => {
+      snapImageBlocksToLineGrid(entries.map((entry) => entry.target as HTMLElement));
+    });
+    for (const imageBlock of imageBlocks) imageObserver.observe(imageBlock);
 
+    syncImageGrid();
     window.addEventListener("resize", syncImageGrid);
 
     return () => {
+      imageObserver.disconnect();
       window.removeEventListener("resize", syncImageGrid);
     };
-  }, [editorContent]);
-
-  function snapImageBlockToLineGrid(imageBlock: HTMLElement | null): void {
-    if (!imageBlock) {
-      return;
-    }
-
-    imageBlock.style.setProperty("--editor-image-grid-spacer", "0px");
-    const computedStyle = getComputedStyle(imageBlock);
-    const lineHeight =
-      Number.parseFloat(
-        computedStyle.getPropertyValue("--editor-line-height"),
-      ) || 42;
-    const occupiedHeight =
-      imageBlock.getBoundingClientRect().height +
-      Number.parseFloat(computedStyle.marginTop) +
-      Number.parseFloat(computedStyle.marginBottom);
-    const remainder = occupiedHeight % lineHeight;
-    const spacer =
-      remainder < 0.25 || lineHeight - remainder < 0.25
-        ? 0
-        : lineHeight - remainder;
-
-    imageBlock.style.setProperty(
-      "--editor-image-grid-spacer",
-      `${spacer}px`,
-    );
-  }
+  }, [imageGridLayout]);
 
   function getActiveTextBlock(): {
     block: EditorTextBlock;
@@ -1346,7 +1374,7 @@ export const EditorPanel = forwardRef<EditorPanelHandle, EditorPanelProps>(funct
                 onCancel={() => uploadSession.cancel(block.upload.id)} />
             ) : (
               <figure
-                key={`image-${block.markerStart}-${block.source}`}
+                key={`image-${blockIndex}-${block.source}`}
                 className={`editor-image-block${
                   activeImageKey === getEditorImageKey(block) ? " is-active" : ""
                 }${

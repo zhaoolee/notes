@@ -161,7 +161,7 @@ test("直达手机编辑页时会在隐藏面板恢复可见后重算正文高�
 
   assert.match(
     editorSource,
-    /const resizeEditorContent = useCallback\(\(\): void => \{[\s\S]*if \(!scroller \|\| scroller\.clientWidth === 0\) \{[\s\S]*textarea\.style\.height = "0px";[\s\S]*textarea\.scrollHeight > textarea\.clientHeight[\s\S]*textarea\.style\.height = `\$\{textarea\.scrollHeight\}px`;/s,
+    /const resizeEditorContent = useCallback\(\(\): void => \{[\s\S]*if \(!scroller \|\| scroller\.clientWidth === 0\) \{[\s\S]*textarea\.style\.height = "0px";[\s\S]*textarea\.scrollHeight > textarea\.clientHeight[\s\S]*textarea\.style\.height = `\$\{height\}px`;/s,
   );
   assert.match(
     editorSource,

@@ -306,6 +306,16 @@ export default function App() {
     useState<MobileWorkspaceView>("notes");
   const [desktopWorkspaceView, setDesktopWorkspaceView] =
     useState<DesktopWorkspaceView>("editor");
+  const [isMobileLayout, setIsMobileLayout] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches,
+  );
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 640px)");
+    const syncLayout = (): void => setIsMobileLayout(query.matches);
+    syncLayout();
+    query.addEventListener("change", syncLayout);
+    return () => query.removeEventListener("change", syncLayout);
+  }, []);
   const [noteRouteNavigation, setNoteRouteNavigation] =
     useState<NoteRouteNavigation>(() => ({
       revision: 0,
@@ -415,7 +425,14 @@ export default function App() {
     (note) => note.id === activeNoteId,
   );
   const hasActiveCategoryNote = Boolean(activeCategoryNote);
-  const notes = splitSections(markdown);
+  const isPreviewVisible = isPlaywrightRender || (hasActiveCategoryNote && (
+    isMobileLayout ? mobileWorkspaceView === "preview"
+      : isDesktopSharePreview || desktopWorkspaceView === "preview"
+  ));
+  const notes = useMemo(
+    () => isPreviewVisible ? splitSections(markdown) : [],
+    [isPreviewVisible, markdown],
+  );
   const activeNote = noteDocuments.find((note) => note.id === activeNoteId);
   const mobileNoteCharacterCount = activeCategoryNote
     ? markdown.replace(/\s/g, "").length
@@ -2752,17 +2769,19 @@ export default function App() {
             onMarkdownChange={setMarkdown}
           />
 
-          <PreviewPanel
-            notes={notes}
-            exportError={exportError}
-            footerBrand={footerBrand}
-            footerLogoUrl={footerLogoUrl}
-            footerVia={footerVia}
-            noteCardTheme={noteCardTheme}
-            onFooterBrandChange={setFooterBrand}
-            onFooterViaChange={setFooterVia}
-            onNoteCardThemeChange={setNoteCardThemeOverride}
-          />
+          {isPreviewVisible ? (
+            <PreviewPanel
+              notes={notes}
+              exportError={exportError}
+              footerBrand={footerBrand}
+              footerLogoUrl={footerLogoUrl}
+              footerVia={footerVia}
+              noteCardTheme={noteCardTheme}
+              onFooterBrandChange={setFooterBrand}
+              onFooterViaChange={setFooterVia}
+              onNoteCardThemeChange={setNoteCardThemeOverride}
+            />
+          ) : null}
 
           <div className="category-empty-workspace" role="status">
             <p>{activeCategoryId === "trash" ? "回收站为空" : "这个分类还没有便签"}</p>

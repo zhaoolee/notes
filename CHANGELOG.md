@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.15.1] - 2026-10-31
+
+### 修复
+
+- 修复便签图片较多时打字卡顿的问题：输入时复用已有图片，只调整发生变化的文本段高度；隐藏的预览区在打开时再渲染，保留图片排版、上传进度与自动保存。
+
 ## [1.15.0] - 2026-10-31
 
 ### 新增
@@ -393,4 +399,5 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.15.1]: https://github.com/zhaoolee/notes/compare/1.15.0...1.15.1
 [1.15.0]: https://github.com/zhaoolee/notes/compare/1.14.1...1.15.0

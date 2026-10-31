@@ -153,6 +153,11 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
     content: RegExp[];
   }> = [
     {
+      version: "1.15.1",
+      heading: "[1.15.1](https://github.com/zhaoolee/notes/compare/1.15.0...1.15.1) - 2026-10-31",
+      content: [/图片较多时打字卡顿/, /复用已有图片.*文本段高度/s, /隐藏的预览区.*打开时再渲染/s],
+    },
+    {
       version: "1.15.0",
       heading: "[1.15.0](https://github.com/zhaoolee/notes/compare/1.14.1...1.15.0) - 2026-10-31",
       content: [/图片占位.*单张上传进度/s, /同时上传 5 张.*自动排队/s, /单张失败可重试.*切换便签/s],
