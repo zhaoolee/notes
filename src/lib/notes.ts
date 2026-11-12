@@ -42,6 +42,36 @@ function getMeaningfulLines(markdown: string): string[] {
     .filter(Boolean);
 }
 
+function findFirstMeaningfulLine(
+  markdown: string,
+  transformLine: (line: string) => string,
+): string {
+  let lineStart = 0;
+
+  while (lineStart <= markdown.length) {
+    const newlineIndex = markdown.indexOf("\n", lineStart);
+    const lineEnd = newlineIndex === -1 ? markdown.length : newlineIndex;
+    const rawLine = markdown.slice(lineStart, lineEnd);
+    const line = transformLine(
+      newlineIndex !== -1 && rawLine.endsWith("\r")
+        ? rawLine.slice(0, -1)
+        : rawLine,
+    );
+
+    if (line) {
+      return line;
+    }
+
+    if (newlineIndex === -1) {
+      break;
+    }
+
+    lineStart = newlineIndex + 1;
+  }
+
+  return "";
+}
+
 function createNoteId(now: number): string {
   if (typeof globalThis.crypto?.randomUUID === "function") {
     return globalThis.crypto.randomUUID();
@@ -403,18 +433,17 @@ export function reorderNormalNoteDocuments(
 }
 
 export function getNoteTitle(markdown: string): string {
-  const [firstLine] = getMeaningfulLines(markdown);
+  const firstLine = findFirstMeaningfulLine(markdown, stripMarkdownDecorators);
   return truncate(firstLine || "新便签", NOTE_TITLE_MAX_LENGTH);
 }
 
 export function getNoteListTitle(markdown: string): string {
-  const firstLine = markdown
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find(
-      (line) =>
-        Boolean(line) && !/^!\[[^\]]*\]\([^)]*\)$/.test(line),
-    );
+  const firstLine = findFirstMeaningfulLine(markdown, (line) => {
+    const trimmedLine = line.trim();
+    return trimmedLine && !/^!\[[^\]]*\]\([^)]*\)$/.test(trimmedLine)
+      ? trimmedLine
+      : "";
+  });
 
   return firstLine || "新便签";
 }

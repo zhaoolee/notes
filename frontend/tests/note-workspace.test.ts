@@ -65,6 +65,73 @@ test("便签标题与摘要从 Markdown 内容自动提取", () => {
   assert.equal(getNotePreview(""), "点击开始记录");
 });
 
+test("便签标题提取在首个有效行提前结束并保持既有语义", () => {
+  const crlfMarkdown = [
+    "# **CRLF 标题**",
+    "",
+    "- 正文第一行",
+    "- 正文第二行",
+  ].join("\r\n");
+
+  assert.equal(getNoteTitle(crlfMarkdown), "CRLF 标题");
+  assert.equal(getNoteListTitle(crlfMarkdown), "# **CRLF 标题**");
+
+  const decoratedOnlyLeadingLines = [
+    "**",
+    ">",
+    "- ",
+    "# 真正的标题",
+    "正文",
+  ].join("\n");
+
+  assert.equal(getNoteTitle(decoratedOnlyLeadingLines), "真正的标题");
+  assert.equal(getNoteListTitle(decoratedOnlyLeadingLines), "**");
+
+  const imageOnlyLeadingLines = [
+    "![](https://example.com/one.jpg)",
+    "![](https://example.com/two.jpg)",
+    "",
+    "**图片便签标题**",
+  ].join("\r\n");
+
+  assert.equal(getNoteTitle(imageOnlyLeadingLines), "图片便签标题");
+  assert.equal(getNoteListTitle(imageOnlyLeadingLines), "**图片便签标题**");
+  assert.equal(
+    getNoteListTitle(
+      "![封面](https://example.com/one.jpg)\r\n\r\n![](https://example.com/two.jpg)",
+    ),
+    "新便签",
+  );
+
+  const longTitle = "很长的标题".repeat(12);
+  const longTitleMarkdown = `${longTitle}\n\n正文`;
+
+  assert.equal(getNoteTitle(longTitleMarkdown), `${longTitle.slice(0, 37)}…`);
+  assert.equal(getNoteTitle(longTitleMarkdown).length, 38);
+  assert.equal(getNoteListTitle(longTitleMarkdown), longTitle);
+  assert.equal(getNoteTitle(""), "新便签");
+  assert.equal(getNoteTitle("\r\n\r\n"), "新便签");
+  assert.equal(getNoteListTitle(""), "新便签");
+
+  assert.equal(getNoteTitle("#\r\n# Next"), "#");
+  assert.equal(getNoteListTitle("#\r\n# Next"), "#");
+  assert.equal(getNoteTitle("-\r\nNext"), "-");
+  assert.equal(getNoteTitle("#\r"), "新便签");
+  assert.equal(getNoteTitle("标题\r"), "标题");
+  assert.equal(getNoteListTitle("#\r"), "#");
+});
+
+test("便签标题只扫描首个有效行，超长正文不影响结果", () => {
+  const title = "大工作区标题";
+  const body = Array.from(
+    { length: 2_000 },
+    (_, index) => `- 第 ${index} 行正文内容`,
+  ).join("\n");
+
+  assert.equal(getNoteTitle(`${title}\n\n${body}`), title);
+  assert.equal(getNoteListTitle(`${title}\n\n${body}`), title);
+});
+
 test("持久化工作区校验便签集合并修复失效的当前 ID", () => {
   const firstNote = createNoteDocument("第一张", 1_000);
   const secondNote = createNoteDocument("第二张", 2_000);

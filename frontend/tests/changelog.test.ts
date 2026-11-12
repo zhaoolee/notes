@@ -65,6 +65,10 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
   );
   assert.match(
     changelog,
+    /^\[1\.16\.3\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.16\.2\.\.\.1\.16\.3$/m,
+  );
+  assert.match(
+    changelog,
     /^\[1\.16\.2\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.16\.1\.\.\.1\.16\.2$/m,
   );
   assert.match(
@@ -156,6 +160,16 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
     heading: string;
     content: RegExp[];
   }> = [
+    {
+      version: "1.16.3",
+      heading:
+        "[1.16.3](https://github.com/zhaoolee/notes/compare/1.16.2...1.16.3) - 2026-11-12",
+      content: [
+        /便签很多、正文很长时打字卡顿/,
+        /只扫描首个有效行.*遍历整篇正文/s,
+        /标题显示保持不变/,
+      ],
+    },
     {
       version: "1.16.2",
       heading:

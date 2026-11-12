@@ -162,5 +162,17 @@ npm run benchmark:input -- --images 100 --mobile --assert-incremental-layout
 次数。断言检查输入期间复用图片，文本高度读取不随图片数量线性增长。
 参数 `--max-p95 <毫秒>` 可用于同一环境的延迟门槛；不要跨机器直接比较绝对耗时。
 
+大工作区输入基准使用模拟登录账号和云工作区，所有 API 在隔离浏览器内拦截，
+不会读取或保存真实账号、便签。当前便签保持短正文，其他便签使用合成的长正文，
+用于检查编辑延迟是否随无关便签正文增长：
+
+```bash
+npm run benchmark:input -- --workspace-notes 228 --background-note-length 12000 \
+  --seed-length 260 --characters 30 --warmup 5 --json
+```
+
+可对同一构建分别设置不同 `--background-note-length`，或在同一台机器上用
+`--url` 指向修复前后构建，比较相同工作负载；`--mobile` 可复用该场景。
+
 构建后的浏览器功能回归：`node scripts/verify-editor-input-layout.mjs`，检查重复图片
 复用、段落高度伸缩、中间与末尾中文输入、滚动保持、本地保存、响应式预览和导出预览。

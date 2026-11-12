@@ -22,6 +22,8 @@ function printHelp() {
   --interval <ms>     两次按键之间的间隔（默认：10）
   --seed-length <n>   测试前填入的正文长度（默认：2000）
   --images <n>        在正文后插入指定数量的图片（默认：0）
+  --workspace-notes <n>  使用指定便签数的隔离合成云工作区（包含当前便签）
+  --background-note-length <n>  合成后台便签正文长度（默认：12000）
   --assert-incremental-layout  验证输入不重建图片或全量测量正文
   --max-p95 <ms>      p95 超过阈值时以非零状态退出
   --mobile             使用 390 × 844 的移动端视口
@@ -51,6 +53,8 @@ function parseArgs(argv) {
     interval: 10,
     seedLength: 2_000,
     images: 0,
+    workspaceNotes: null,
+    backgroundNoteLength: 12_000,
     assertIncrementalLayout: false,
     maxP95: null,
     mobile: false,
@@ -89,6 +93,12 @@ function parseArgs(argv) {
         break;
       case "--images":
         options.images = readNumber(nextValue(), argument, { integer: true });
+        break;
+      case "--workspace-notes":
+        options.workspaceNotes = readNumber(nextValue(), argument, { integer: true, min: 1 });
+        break;
+      case "--background-note-length":
+        options.backgroundNoteLength = readNumber(nextValue(), argument, { integer: true });
         break;
       case "--assert-incremental-layout":
         options.assertIncrementalLayout = true;
@@ -340,16 +350,64 @@ async function runBenchmark(options) {
 
   try {
     const context = await browser.newContext({ viewport });
+    const targetUrl = new URL(options.url);
+    const now = Date.now();
+    let syntheticWorkspace = options.workspaceNotes === null ? null : {
+      version: 1,
+      activeNoteId: "input-benchmark-0",
+      folders: [],
+      notes: Array.from({ length: options.workspaceNotes }, (_, index) => ({
+        id: `input-benchmark-${index}`,
+        markdown: index === 0 ? makeSeedText(options.seedLength)
+          : `合成后台便签 ${index}\n\n${"Synthetic background paragraph.\n".repeat(
+            Math.ceil(options.backgroundNoteLength / 32),
+          ).slice(0, options.backgroundNoteLength)}`,
+        createdAt: now - 4 * 86_400_000,
+        updatedAt: index < 4 ? now : now - 4 * 86_400_000,
+        normalOrder: index,
+        pinnedAt: null,
+        folderId: null,
+        isStarred: false,
+        deletedAt: null,
+      })),
+    };
+    if (syntheticWorkspace) {
+      // Exercise authenticated hydration/saving without any real account or storage.
+      targetUrl.searchParams.delete("testData");
+      targetUrl.searchParams.delete("resetTestData");
+      targetUrl.hash = "note=input-benchmark-0&view=editor";
+    }
     // Synthetic assets and session responses keep the workload offline and isolated.
-    await context.route("**/api/**", (route) => route.fulfill({
-      json: { user: null, requireLogin: false, available: false },
-    }));
+    await context.route("**/api/**", (route) => {
+      const pathname = new URL(route.request().url()).pathname;
+      if (syntheticWorkspace && pathname === "/api/auth/session") {
+        return route.fulfill({ json: {
+          user: { id: "input-benchmark-user", username: "input-benchmark", role: "user" },
+          requireLogin: true,
+        } });
+      }
+      if (syntheticWorkspace && pathname === "/api/workspace") {
+        if (route.request().method() === "PUT") {
+          syntheticWorkspace = route.request().postDataJSON().workspace;
+        }
+        return route.fulfill({ json: { workspace: syntheticWorkspace, updatedAt: now } });
+      }
+      return route.fulfill({
+        json: { user: null, requireLogin: false, available: false },
+      });
+    });
     await context.route("**/images/input-benchmark-*.svg", (route) => route.fulfill({
       contentType: "image/svg+xml",
       body: '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300"><rect width="600" height="300" fill="#d7b58b"/></svg>',
     }));
     const page = await context.newPage();
-    await page.goto(options.url, { waitUntil: "networkidle" });
+    await page.goto(targetUrl.href, { waitUntil: "networkidle" });
+    if (syntheticWorkspace) {
+      await page.waitForFunction(
+        (count) => document.querySelectorAll(".note-list-item").length === count,
+        options.workspaceNotes,
+      );
+    }
 
     const editor = page.locator("textarea.markdown-editor").first();
     if (options.mobile && !(await editor.isVisible())) {
@@ -427,6 +485,8 @@ async function runBenchmark(options) {
         intervalMs: options.interval,
         initialNoteLength: options.seedLength,
         images: options.images,
+        workspaceNotes: options.workspaceNotes,
+        backgroundNoteLength: options.workspaceNotes === null ? null : options.backgroundNoteLength,
       },
       metrics: {
         keydownToNextPaintMs: paint,
