@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://zhaoolee.com/notes/sitemap.xml
