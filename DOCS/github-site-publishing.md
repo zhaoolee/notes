@@ -2,7 +2,7 @@
 
 ## 用户流程
 
-在“发布为网站”面板选择便签，点击“授权 GitHub 仓库”，在 GitHub 安装本部署的 GitHub App，并选择允许访问的仓库。回到 Notes 后选择发布仓库，点击面板固定底部的“发布到 GitHub Pages”（位于“生成网站 ZIP”之前）。授权、仓库选择与发布进度仍显示在 GitHub Pages 卡片；普通用户无需申请、复制或粘贴 GitHub Token。
+在“发布为网站”面板选择便签，点击“授权 GitHub 仓库”，在 GitHub 安装本部署的 GitHub App，并选择允许访问的仓库。回到 Notes 后选择发布仓库，点击面板固定底部的“发布到 GitHub Pages”（位于“生成网站 ZIP”之前）。授权、仓库选择与发布进度仍显示在默认折叠的 GitHub Pages 卡片（展开后可查看和操作）；普通用户无需申请、复制或粘贴 GitHub Token。
 
 Notes 服务器使用已有的 Hugo 构建器和模板，把所选便签、Logo、图片、字体和搜索索引构建成完整网站，仅提交构建后的 `public/` 文件。原有“生成网站 ZIP”继续可用，与发布按钮同处面板固定底部。发布设置和便签选择仍按 Notes 账号保存。每次使用点击发布时的便签快照，发布过程中继续编辑的内容需要下一次发布才会更新。
 
@@ -89,6 +89,6 @@ node --import tsx --test backend/tests/github-site-publishing.test.ts backend/te
 SITE_PUBLISH_GITHUB_UI=1 node scripts/verify-site-publishing.mjs # 浏览器界面使用隔离模拟 GitHub，非真实上线
 ```
 
-反馈测试使用隔离账号、临时数据目录、内存 GitHub API，并通过真实 Hugo 验证静态构建、首次提交、无变化更新和便签删除；不会写入真实仓库。真实安装授权和 Pages 上线仍需要部署者配置真实 GitHub App 后联调，不能用模拟响应冒充验收。
+反馈测试使用隔离账号、临时数据目录、内存 GitHub API，并通过真实 Hugo 验证静态构建、首次提交、无变化更新和便签删除；浏览器 UI 验证还会检查 GitHub Pages 卡片默认折叠、键盘展开与收起、已连接时折叠卡片不影响页脚发布按钮，以及从折叠状态发布后展开可见进度；不会写入真实仓库。真实安装授权和 Pages 上线仍需要部署者配置真实 GitHub App 后联调，不能用模拟响应冒充验收。
 
 GitHub 官方契约：[Git Trees](https://docs.github.com/en/rest/git/trees)、[Git Refs 与空仓库限制](https://docs.github.com/en/rest/git/refs)、[GitHub App 用户授权与 PKCE](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app)、[安装 Token 限权](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app)、[Pages 配置及构建](https://docs.github.com/en/rest/pages/pages)。

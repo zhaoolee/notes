@@ -440,9 +440,25 @@ try {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(baseURL);
     await openPublishingPanel();
+    const githubDetails = panel.locator("details.site-publish-github");
+    const githubSummary = githubDetails.locator("summary");
     await panel.locator('[data-site-publish-github="connected"]').waitFor();
+    check(await githubDetails.evaluate((element) => element.open) === false, `${prefix}: GitHub Pages card starts collapsed`);
+    check(await panel.getByText("已连接 GitHub：@ui-feedback", { exact: true }).isVisible() === false, `${prefix}: connected GitHub settings stay hidden while collapsed`);
+    check(await githubSummary.isVisible(), `${prefix}: collapsed GitHub Pages summary stays visible`);
+    const footer = panel.locator(".site-publish-footer");
+    const publishButton = footer.getByRole("button", { name: "发布到 GitHub Pages" });
+    const zipButton = footer.getByRole("button", { name: "生成网站 ZIP" });
+    check(await publishButton.isVisible(), `${prefix}: footer publish action stays visible while the GitHub card is collapsed`);
+    check(await publishButton.isDisabled(), `${prefix}: footer publish action waits for a repository`);
+    await githubDetails.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(temporary, "github-collapsed-desktop.png") });
+    screenshots.push("github-collapsed-desktop.png");
+
+    await githubSummary.click();
+    check(await githubDetails.evaluate((element) => element.open) === true, `${prefix}: GitHub Pages card expands on demand`);
     check(await panel.getByText("已连接 GitHub：@ui-feedback", { exact: true }).isVisible(), `${prefix}: connected feedback account is visibly simulated`);
-    const repositorySelect = panel.getByRole("combobox", { name: "发布仓库", exact: true });
+    const repositorySelect = panel.locator(".site-publish-github select");
     await repositorySelect.waitFor();
     await panel.locator('select option[value="42"]').waitFor({ state: "attached" });
     check(await repositorySelect.inputValue() === "", `${prefix}: no repository is bound initially`);
@@ -452,9 +468,13 @@ try {
     check(JSON.stringify(simulated.repositoryBodies[0]) === JSON.stringify({ repositoryId: 42, installationId: 77 }), `${prefix}: binding uses the verified repository and installation ids`);
     check(await repositorySelect.inputValue() === "42", `${prefix}: selected repository stays bound in the dropdown`);
 
-    const footer = panel.locator(".site-publish-footer");
-    const publishButton = footer.getByRole("button", { name: "发布到 GitHub Pages" });
-    const zipButton = footer.getByRole("button", { name: "生成网站 ZIP" });
+    await githubSummary.press("Enter");
+    check(await githubDetails.evaluate((element) => element.open) === false, `${prefix}: keyboard collapses the GitHub Pages card`);
+    check(await repositorySelect.evaluate((element) => element.value) === "42", `${prefix}: collapsed card keeps the selected repository`);
+    await githubSummary.press("Space");
+    check(await githubDetails.evaluate((element) => element.open) === true, `${prefix}: keyboard expands the GitHub Pages card`);
+    check(await repositorySelect.inputValue() === "42", `${prefix}: expanded card keeps the selected repository`);
+
     check(await publishButton.count() === 1, `${prefix}: footer renders exactly one publish action`);
     check(await panel.locator(".site-publish-github").getByRole("button", { name: "发布到 GitHub Pages" }).count() === 0, `${prefix}: repository card no longer holds the publish action`);
     const footerOrder = await footer.evaluate((element) => {
@@ -497,14 +517,25 @@ try {
     check(!mobileFooter.overflows && mobilePanelFits, `${prefix}: mobile footer has no horizontal overflow`);
     await page.screenshot({ path: path.join(temporary, "footer-mobile.png") });
     screenshots.push("footer-mobile.png");
+    await githubSummary.click();
+    check(await githubDetails.evaluate((element) => element.open) === false, `${prefix}: GitHub Pages card collapses after mobile footer checks`);
+    await githubDetails.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(temporary, "github-collapsed-mobile.png") });
+    screenshots.push("github-collapsed-mobile.png");
     await page.setViewportSize({ width: 1440, height: 1000 });
+    check(await githubDetails.evaluate((element) => element.open) === false, `${prefix}: GitHub Pages card stays collapsed before publishing`);
     await publishButton.click();
     const queuedJob = panel.locator('[data-github-publish-phase="queued"]');
-    await queuedJob.waitFor({ timeout: 15_000 });
+    await queuedJob.waitFor({ state: "attached", timeout: 15_000 });
     check(simulated.calls.publish === 1, `${prefix}: first publish sends exactly one POST`);
     check(simulated.publishTargets[0] === "42", `${prefix}: publish confirms the repository shown in the panel`);
     checkSimulatedSelection(simulated.publishBodies[0], "first publish");
     check(await footer.getByRole("button", { name: "正在发布…" }).isDisabled(), `${prefix}: active job disables the footer publish action`);
+    await githubSummary.click();
+    check(await githubDetails.evaluate((element) => element.open) === true, `${prefix}: expanding the collapsed card shows the publish result`);
+    await queuedJob.waitFor({ state: "visible", timeout: 15_000 });
+    await page.screenshot({ path: path.join(temporary, "github-expanded.png") });
+    screenshots.push("github-expanded.png");
 
     // 远程状态显式切换，只等待 4 秒轮询把新 phase 拉回界面。
     simulated.job = simulatedJob("deploying", { message: "网站已提交，正在等待 GitHub Pages 发布…", commitSha: "abc1234", commitUrl: "https://github.com/octo/notes-site/commit/abc1234", siteUrl: "https://octo.github.io/notes-site/" });
@@ -518,10 +549,15 @@ try {
     await panel.getByRole("button", { name: "关闭网站发布面板" }).click();
     await panel.waitFor({ state: "detached" });
     await openPublishingPanel();
+    await panel.locator('[data-site-publish-github="connected"]').waitFor();
+    check(await githubDetails.evaluate((element) => element.open) === false, `${prefix}: reopened panel starts with the GitHub Pages card collapsed`);
+    check(await panel.getByText("已连接 GitHub：@ui-feedback", { exact: true }).isVisible() === false, `${prefix}: reopened panel hides GitHub settings until expanded`);
     const reopenedDeploying = panel.locator('[data-github-publish-phase="deploying"]');
+    await reopenedDeploying.waitFor({ state: "attached" });
+    check(await repositorySelect.evaluate((element) => element.value) === "42", `${prefix}: reopened panel restores the bound repository`);
+    await githubSummary.click();
     await reopenedDeploying.waitFor();
     check(await reopenedDeploying.getAttribute("data-github-publish-live") === "false", `${prefix}: reopened panel restores the deploying job without claiming success`);
-    check(await repositorySelect.inputValue() === "42", `${prefix}: reopened panel restores the bound repository`);
 
     simulated.job = simulatedJob("published", { message: "网站已发布。", commitSha: "abc1234", commitUrl: "https://github.com/octo/notes-site/commit/abc1234", siteUrl: "https://octo.github.io/notes-site/" });
     const publishedJob = panel.locator('[data-github-publish-phase="published"]');

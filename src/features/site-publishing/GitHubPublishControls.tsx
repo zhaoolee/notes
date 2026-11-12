@@ -766,7 +766,7 @@ export function GitHubPublishControls({
         : null;
 
   return (
-    <section
+    <details
       className="site-publish-card site-publish-github"
       aria-labelledby={headingId}
       data-site-publish-github={
@@ -781,9 +781,10 @@ export function GitHubPublishControls({
                 : "disconnected"
       }
     >
-      <header className="site-publish-card-head">
-        <h3 id={headingId}>GitHub Pages</h3>
-      </header>
+      <summary>
+        <span id={headingId}>GitHub Pages</span>
+      </summary>
+      <div className="site-publish-github-body">
 
       {loading ? (
         <p className="site-publish-github-hint" role="status">
@@ -950,7 +951,8 @@ export function GitHubPublishControls({
           {notice}
         </p>
       ) : null}
+      </div>
       {portalPublishButton}
-    </section>
+    </details>
   );
 }

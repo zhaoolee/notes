@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.16.2] - 2026-11-12
+
+### 变更
+
+- 网站发布面板的 GitHub Pages 设置与发布进度默认折叠，外观和操作与相邻的“高级设置”一致；展开后可授权、选择仓库并查看进度，已连接时固定底部的“发布到 GitHub Pages”不受折叠影响，选好仓库后无需展开即可发布。
+
 ## [1.16.1] - 2026-11-12
 
 ### 变更
@@ -421,6 +427,7 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.16.2]: https://github.com/zhaoolee/notes/compare/1.16.1...1.16.2
 [1.16.1]: https://github.com/zhaoolee/notes/compare/1.16.0...1.16.1
 [1.16.0]: https://github.com/zhaoolee/notes/compare/1.15.1...1.16.0
 [1.15.1]: https://github.com/zhaoolee/notes/compare/1.15.0...1.15.1

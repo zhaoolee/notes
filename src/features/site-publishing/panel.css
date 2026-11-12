@@ -208,7 +208,8 @@
   background: color-mix(in srgb, var(--paper) 55%, transparent);
 }
 
-.site-publish-advanced > summary {
+.site-publish-advanced > summary,
+.site-publish-github > summary {
   min-width: 0;
   padding: 12px 15px;
   display: flex;
@@ -222,26 +223,31 @@
   list-style: none;
 }
 
-.site-publish-advanced > summary::-webkit-details-marker {
+.site-publish-advanced > summary::-webkit-details-marker,
+.site-publish-github > summary::-webkit-details-marker {
   display: none;
 }
 
-.site-publish-advanced > summary::before {
+.site-publish-advanced > summary::before,
+.site-publish-github > summary::before {
   content: "▸";
   color: var(--muted);
   font-size: 0.75rem;
   transition: transform 0.15s ease;
 }
 
-.site-publish-advanced[open] > summary {
+.site-publish-advanced[open] > summary,
+.site-publish-github[open] > summary {
   border-bottom: 1px solid var(--panel-border);
 }
 
-.site-publish-advanced[open] > summary::before {
+.site-publish-advanced[open] > summary::before,
+.site-publish-github[open] > summary::before {
   transform: rotate(90deg);
 }
 
-.site-publish-advanced > summary:focus-visible {
+.site-publish-advanced > summary:focus-visible,
+.site-publish-github > summary:focus-visible {
   outline: 2px solid var(--accent-strong);
   outline-offset: -2px;
 }
@@ -259,6 +265,13 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
   align-items: start;
+}
+
+.site-publish-github-body {
+  min-width: 0;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
 }
 
 .site-publish-fields-root {
@@ -916,6 +929,10 @@
     padding: 13px;
   }
 
+  .site-publish-github-body {
+    padding: 13px;
+  }
+
   .site-publish-footer {
     padding: 12px 16px;
   }
@@ -967,6 +984,8 @@
 .site-publish-github {
   container-type: inline-size;
   margin-top: 16px;
+  padding: 0;
+  display: block;
 }
 
 .site-publish-github-hint {

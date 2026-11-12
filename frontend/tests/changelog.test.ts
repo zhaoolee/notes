@@ -65,6 +65,10 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
   );
   assert.match(
     changelog,
+    /^\[1\.16\.2\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.16\.1\.\.\.1\.16\.2$/m,
+  );
+  assert.match(
+    changelog,
     /^\[1\.11\.0\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.10\.7\.\.\.1\.11\.0$/m,
   );
   assert.match(
@@ -152,6 +156,15 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
     heading: string;
     content: RegExp[];
   }> = [
+    {
+      version: "1.16.2",
+      heading:
+        "[1.16.2](https://github.com/zhaoolee/notes/compare/1.16.1...1.16.2) - 2026-11-12",
+      content: [
+        /GitHub Pages 设置与发布进度默认折叠.*“高级设置”一致/s,
+        /已连接时固定底部.*发布到 GitHub Pages.*不受折叠影响/s,
+      ],
+    },
     {
       version: "1.16.1",
       heading:
