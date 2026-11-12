@@ -84,6 +84,8 @@ import {
 } from "./wechat-import/route.js";
 import { previewWechatArticle } from "./wechat-import/service.js";
 import { createSiteExportHandler } from "./site-publishing/route.js";
+import { loadGitHubAppConfig } from "./site-publishing/github-api.js";
+import { createGitHubPublishingRouter } from "./site-publishing/github-service.js";
 import { createSitePublishingConfigHandlers } from "./site-publishing/config-route.js";
 import {
   addWechatDraft,
@@ -4936,6 +4938,24 @@ app.post("/api/site-publishing/export", createSiteExportHandler({
   isSameOrigin: isSameOriginRequest,
   createZip,
 }));
+
+let githubAppConfig = null;
+try { githubAppConfig = await loadGitHubAppConfig(); }
+catch { console.warn("GitHub App 发布配置不可用；网站 ZIP 导出仍可使用。"); }
+try {
+  app.use("/api/site-publishing/github", await createGitHubPublishingRouter({
+    dataDirectory, rootDirectory: rootDir, imagesDirectory: imagesDir, publicDirectory: publicDir,
+    getUser: requireNoteServiceUser, isSameOrigin: isSameOriginRequest, publicOrigin: getPublicBaseUrl,
+    config: githubAppConfig,
+  }));
+} catch {
+  console.warn("GitHub 发布存储不可用；其他便签功能继续运行。");
+  app.use("/api/site-publishing/github", async (request: Request, response: Response) => {
+    response.setHeader("Cache-Control", "no-store");
+    if (!await requireNoteServiceUser(request, response)) return;
+    response.status(503).json({ error: "GitHub 发布存储不可用，请联系管理员检查数据目录。" });
+  });
+}
 
 const sitePublishingConfigHandlers = createSitePublishingConfigHandlers({
   getUser: requireNoteServiceUser,

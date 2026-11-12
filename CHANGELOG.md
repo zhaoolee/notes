@@ -2,6 +2,22 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.16.0] - 2026-11-12
+
+### 新增
+
+- “发布为网站”支持授权 GitHub App 后直接发布到 GitHub Pages：在面板中安装本服务的 GitHub App 并选择允许访问的仓库，回到 Notes 选择发布仓库即可发布，无需申请、复制或粘贴 GitHub Token。
+- 发布时把选中的便签显式构建成 Hugo 静态网站，只提交构建后的页面、图片、字体和搜索索引到 `gh-pages` 分支，并自动启用 GitHub Pages；首次发布会建立独立的站点历史，发布设置与便签选择仍按 Notes 账号保存。
+- 新增、修改或取消发布的便签会以增量提交同步到 `gh-pages`：未变化的文件不上传，未变化时不制造空 commit，并保留仓库中的无关文件；`force: false` 更新引用，并发冲突自动重新读取合并。
+- 面板显示排队、构建、上传、提交、等待 Pages 和已发布等进度，只有 Pages 构建的 SHA 与本次提交一致才显示已上线；网络异常或部署超时可刷新状态并重试，不会重复上传或误报成功。
+- 原有“生成网站 ZIP”继续可用，一键发布与 ZIP 导出共用同一套 Hugo 构建结果。
+
+### 安全
+
+- `gh-pages` 根目录的发布清单带 HMAC 签名并绑定 Notes 账号，只清理上一次清单中记录的文件；已有未受管的同名页面或资源即使内容完全相同也会停止发布，避免被清单接管后在后续更新中被误删，防止其他文件被接管或删除。
+- 选择仓库和每次发布都重新校验当前用户与 GitHub App 的权限交集，不接受客户端提供的仓库 owner/name 或任意安装 ID；更新引用不使用 force push，仓库主分支始终只读。
+- 回调要求当前 Notes 会话、单次 state 与同源 Cookie，OAuth 使用 S256 PKCE；GitHub 用户 Token 加密存储并按账号绑定，浏览器、状态接口与日志都不返回 Token、App 私钥或 Client Secret。
+
 ## [1.15.1] - 2026-10-31
 
 ### 修复
@@ -399,5 +415,6 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.16.0]: https://github.com/zhaoolee/notes/compare/1.15.1...1.16.0
 [1.15.1]: https://github.com/zhaoolee/notes/compare/1.15.0...1.15.1
 [1.15.0]: https://github.com/zhaoolee/notes/compare/1.14.1...1.15.0

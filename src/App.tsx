@@ -16,6 +16,11 @@ import { MoveNoteDialog } from "./components/MoveNoteDialog";
 import { NoteSidebar } from "./components/NoteSidebar";
 import { WechatImportDialog } from "./components/WechatImportDialog";
 import { SitePublishPanel } from "./features/site-publishing/SitePublishPanel";
+import {
+  getUrlAfterConsumingGitHubPublishRedirect,
+  readGitHubPublishRedirectFromUrl,
+  type GitHubPublishRedirect,
+} from "./features/site-publishing/github-client";
 import { PreviewPanel } from "./components/PreviewPanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { SharePanel } from "./components/SharePanel";
@@ -272,6 +277,9 @@ export default function App() {
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
   const [isWechatImportOpen, setIsWechatImportOpen] = useState(false);
   const [isSitePublishOpen, setIsSitePublishOpen] = useState(false);
+  // GitHub App OAuth 回调只在打开面板时消费一次，不能影响编辑器 hash 路由。
+  const [githubPublishRedirect, setGithubPublishRedirect] =
+    useState<GitHubPublishRedirect | null>(null);
   const [isDesktopCategoryCollapsed, setIsDesktopCategoryCollapsed] =
     useState(false);
   const [isDesktopFocusMode, setIsDesktopFocusMode] = useState(false);
@@ -554,6 +562,54 @@ export default function App() {
       cancelled = true;
     };
   }, [isTestDataMode, replaceWorkspace]);
+
+  // 先消费查询参数再等待登录状态，避免登录加载期间被编辑器路由覆盖。
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const href = window.location.href;
+    const redirect = readGitHubPublishRedirectFromUrl(href);
+
+    if (!redirect) {
+      return;
+    }
+
+    window.history.replaceState(
+      window.history.state,
+      "",
+      getUrlAfterConsumingGitHubPublishRedirect(href),
+    );
+    setGithubPublishRedirect(redirect);
+  }, []);
+
+  // 授权回跳后自动打开网站发布面板；仅由该查询参数触发一次。
+  useEffect(() => {
+    if (!githubPublishRedirect) {
+      return;
+    }
+
+    if (authStatus !== "ready") {
+      return;
+    }
+
+    if (!authUser) {
+      setGithubPublishRedirect(null);
+      return;
+    }
+
+    // 等当前账号工作区恢复完成，避免空的临时便签集合清理掉账号中的发布选择。
+    if (cloudHydratedUserIdRef.current !== authUser.id) {
+      return;
+    }
+
+    setIsAccountMenuOpen(false);
+    setIsSettingsOpen(false);
+    setIsShareOpen(false);
+    setIsCategorySidebarOpen(false);
+    setIsSitePublishOpen(true);
+  }, [githubPublishRedirect, authStatus, authUser, cloudSyncState]);
 
   useEffect(() => {
     if (
@@ -1365,6 +1421,7 @@ export default function App() {
     setAiReviewNoteId(null);
     setIsWechatImportOpen(false);
     setIsSitePublishOpen(false);
+    setGithubPublishRedirect(null);
     setCloudSyncError("");
     setCloudSyncState("local");
     setIsAccountMenuOpen(false);
@@ -2848,7 +2905,11 @@ export default function App() {
           key={authUser.id}
           notes={noteDocuments}
           storageScope={authUser.id}
-          onClose={() => setIsSitePublishOpen(false)}
+          githubPublishRedirect={githubPublishRedirect}
+          onClose={() => {
+            setIsSitePublishOpen(false);
+            setGithubPublishRedirect(null);
+          }}
         />
       ) : null}
 

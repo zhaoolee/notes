@@ -9,6 +9,8 @@ import {
 import { importImageFile } from "../../lib/images.js";
 import type { NoteDocument } from "../../types/app.js";
 import { SitePublishingAccountSync, type AccountSyncState } from "./account-sync.js";
+import { GitHubPublishControls } from "./GitHubPublishControls.js";
+import type { GitHubPublishRedirect } from "./github-client.js";
 import { SitePublishContent } from "./SitePublishContent.js";
 import {
   downloadSiteExport,
@@ -42,6 +44,7 @@ import {
 interface SitePublishPanelProps {
   notes: NoteDocument[];
   storageScope: string;
+  githubPublishRedirect?: GitHubPublishRedirect | null;
   onClose: () => void;
 }
 
@@ -158,6 +161,7 @@ function focusableElements(root: HTMLElement | null): HTMLElement[] {
 export function SitePublishPanel({
   notes,
   storageScope,
+  githubPublishRedirect = null,
   onClose,
 }: SitePublishPanelProps) {
   const titleId = useId();
@@ -198,6 +202,7 @@ export function SitePublishPanel({
   const [newCategorySlug, setNewCategorySlug] = useState("");
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoPreviewError, setLogoPreviewError] = useState(false);
+  const [githubConfigured, setGithubConfigured] = useState(false);
 
   const addressPreview = getSiteAddressPreview(draft.settings);
   const basePathError = getBasePathError(draft.settings.basePath);
@@ -683,6 +688,20 @@ export function SitePublishPanel({
             onRemoveNote={removeSelection}
           />
 
+          <GitHubPublishControls
+            draft={draft}
+            notes={notes}
+            storageScope={storageScope}
+            disabled={
+              busy ||
+              logoUploading ||
+              closing ||
+              accountState.status === "loading"
+            }
+            redirectNotice={githubPublishRedirect}
+            onConfiguredChange={setGithubConfigured}
+          />
+
           <details className="site-publish-advanced">
             <summary>
               <span>高级设置</span>
@@ -954,7 +973,7 @@ export function SitePublishPanel({
           <div className="site-publish-actions">
             <button
               type="button"
-              className="site-publish-primary"
+              className={githubConfigured ? "site-publish-secondary" : "site-publish-primary"}
               disabled={!canExport}
               onClick={() => void handleExport()}
             >

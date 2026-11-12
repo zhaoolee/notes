@@ -957,3 +957,134 @@
     width: auto;
   }
 }
+
+/* GitHub Pages 发布卡片：仍只作用于 .site-publish-*，不覆盖全局控件。 */
+.site-publish-github {
+  container-type: inline-size;
+  margin-top: 16px;
+}
+
+.site-publish-github-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.site-publish-github-account {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.site-publish-github-repository {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.site-publish-github .site-publish-field select {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--ui-font);
+  font-size: 0.78rem;
+}
+
+.site-publish-github .site-publish-field select:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.site-publish-github-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.site-publish-github-actions > button {
+  flex: 0 1 auto;
+}
+
+.site-publish-github-job {
+  min-width: 0;
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--paper) 55%, transparent);
+  font-size: 0.78rem;
+}
+
+.site-publish-github-job > strong {
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.site-publish-github-job p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.site-publish-github-counts {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.site-publish-github-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.site-publish-github-links a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.site-publish-github-links a:hover {
+  text-decoration: underline;
+}
+
+.site-publish-github-live {
+  color: #2f7a4d;
+  font-weight: 600;
+}
+
+:root[data-theme="smartisan-dark"] .site-publish-github-live {
+  color: #7fc79d;
+}
+
+@container (max-width: 380px) {
+  .site-publish-github-repository {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .site-publish-github-repository > button {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 520px) {
+  .site-publish-github-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .site-publish-github-actions > button {
+    width: 100%;
+  }
+}

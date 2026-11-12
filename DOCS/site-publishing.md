@@ -106,3 +106,7 @@ SITE_PUBLISH_NO_ORIGIN=1 node scripts/verify-site-publishing.mjs
 浏览器脚本默认验证打开面板时“高级设置”折叠、五个分类分组直接可见且没有预选便签；展开后才上传/恢复 AVIF Logo、填写网站标题、域名与 basePath，折叠再展开确认不丢值；随后按组添加、移动、移除便签，新增分类并在高级设置中验证有便签的分类不可删除。关闭重开与刷新后高级设置重新折叠、分组选择仍在；用没有本机缓存的第二个浏览器上下文验证跨浏览器恢复和版本冲突；最后下载 ZIP，检查 `public/logo.png` 与 `static/logo.png` 为同一份 256×256 透明 PNG，页面品牌和 favicon 指向 basePath 下的该文件，且导出文件不含 notes 的 `/images/` 依赖。两种域名模式都会执行这些检查。
 
 最后两条命令需要本机 Chromium 与 Hugo，使用临时账号、工作区及图片目录启动独立后端，验证实际账号菜单、分类、ZIP 下载和生成站点。默认运行填写静态域名模式，`SITE_PUBLISH_NO_ORIGIN=1` 会清空域名并按当前静态 host 解析搜索索引中的相对链接。测试截图及报告保存在命令返回的临时路径，不修改日常工作区，不启动 iOS 模拟器。
+
+## 一键发布到 GitHub Pages
+
+在网站发布面板的 GitHub Pages 卡片授权并选择仓库，可直接发布所选便签。ZIP 导出继续可用。管理员配置、目录保护和故障恢复详见 [GitHub 一键发布](github-site-publishing.md)。

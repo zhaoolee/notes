@@ -13,6 +13,7 @@ import sharp from "sharp";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const noOrigin = process.env.SITE_PUBLISH_NO_ORIGIN === "1";
+const githubUi = process.env.SITE_PUBLISH_GITHUB_UI === "1";
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "notes-site-browser-"));
 const execFileAsync = promisify(execFile);
 let browser;
@@ -366,8 +367,176 @@ try {
   await page.screenshot({ path: path.join(temporary, "website-mobile.png") });
   check(missingResources.length === 0, `all generated browser resources load: ${missingResources.join(", ")}`);
   check(consoleErrors.length === 0, `no browser errors: ${consoleErrors.join(", ")}`);
-  await fs.writeFile(path.join(temporary, "report.json"), JSON.stringify({ success: true, noOrigin, assertions, screenshots: ["menu.png", "panel-desktop.png", "panel-mobile.png", "website-desktop.png", "website-mobile.png"] }, null, 2));
-  console.log(JSON.stringify({ success: true, noOrigin, assertions: assertions.length, artifacts: temporary }, null, 2));
+  const screenshots = ["menu.png", "panel-desktop.png", "panel-mobile.png", "website-desktop.png", "website-mobile.png"];
+  let simulatedProviderReport = null;
+  if (githubUi) {
+    // 这一段只验证前端 UI 状态机。所有 GitHub 发布接口都在第一个浏览器上下文里
+    // 由内存响应拦截，第二个上下文保持未配置；不会创建真实安装、仓库或提交。
+    simulatedProviderReport = { provider: "in-memory Playwright route", liveGitHub: false, mode: "simulated" };
+    const prefix = "simulated GitHub provider (not live github.com)";
+    const consoleErrorsBeforeGithubUi = consoleErrors.length;
+    const simulatedRepository = { id: 42, installationId: 77, owner: "octo", name: "notes-site", fullName: "octo/notes-site", defaultBranch: "main" };
+    const simulated = {
+      repository: null,
+      job: null,
+      nextPublishPhase: "queued",
+      nextPublishMessage: "",
+      calls: { status: 0, repositories: 0, repository: 0, publish: 0, unhandled: 0 },
+      repositoryBodies: [],
+      publishBodies: [],
+      publishTargets: [],
+    };
+    const simulatedJob = (phase, overrides = {}) => ({ id: "ui-feedback-job", phase, message: "", startedAt: now, updatedAt: Date.now(), ...overrides });
+    const simulatedStatus = () => ({ enabled: true, connected: true, githubLogin: "ui-feedback", repository: simulated.repository, job: simulated.job });
+    const realGitHubRequests = [];
+    page.on("request", (request) => {
+      const hostname = new URL(request.url()).hostname;
+      if (hostname === "github.com" || hostname.endsWith(".github.com")) realGitHubRequests.push(request.url());
+    });
+    await context.route("**/api/site-publishing/github/**", async (route) => {
+      const request = route.request();
+      const pathname = new URL(request.url()).pathname;
+      const method = request.method();
+      const respond = (status, payload) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(payload) });
+      const readBody = () => { try { return JSON.parse(request.postData() ?? "{}"); } catch { return null; } };
+      if (method === "GET" && pathname.endsWith("/api/site-publishing/github/status")) { simulated.calls.status += 1; return respond(200, simulatedStatus()); }
+      if (method === "GET" && pathname.endsWith("/api/site-publishing/github/repositories")) { simulated.calls.repositories += 1; return respond(200, { repositories: [simulatedRepository] }); }
+      if (method === "PUT" && pathname.endsWith("/api/site-publishing/github/repository")) {
+        simulated.calls.repository += 1;
+        const body = readBody();
+        simulated.repositoryBodies.push(body);
+        if (!body || body.repositoryId !== simulatedRepository.id || body.installationId !== simulatedRepository.installationId) return respond(400, { error: "simulated provider rejected an unverified repository" });
+        simulated.repository = simulatedRepository;
+        return respond(200, simulatedStatus());
+      }
+      if (method === "POST" && pathname.endsWith("/api/site-publishing/github/publish")) {
+        simulated.calls.publish += 1;
+        const body = readBody();
+        simulated.publishBodies.push(body);
+        simulated.publishTargets.push(request.headers()["x-notes-github-repository-id"]);
+        const phase = simulated.nextPublishPhase;
+        simulated.nextPublishPhase = "queued";
+        simulated.job = simulatedJob(phase, phase === "failed" ? { message: simulated.nextPublishMessage } : {});
+        return respond(202, { job: simulated.job });
+      }
+      // 授权/回调/断开等接口一律拒绝，避免流程落到真实 GitHub。
+      simulated.calls.unhandled += 1;
+      return respond(501, { error: `simulated provider has no handler for ${method} ${pathname}` });
+    });
+    const checkSimulatedSelection = (body, label) => {
+      check(Boolean(body) && typeof body === "object", `${prefix}: ${label} sends a JSON export request`);
+      check(Array.isArray(body?.notes) && body.notes.length === 1 && body.notes[0]?.id === "selected", `${prefix}: ${label} contains exactly the selected note`);
+      check(Array.isArray(body?.notes) && body.notes.every((note) => !/PRIVATEONLYMARKER|TRASHONLYMARKER/.test(note.markdown)), `${prefix}: ${label} excludes unselected note bodies`);
+      check(body?.settings?.basePath === "/nested/blog/", `${prefix}: ${label} keeps the saved deployment basePath`);
+      check(Array.isArray(body?.categories) && body.categories.some((category) => category.slug === "life"), `${prefix}: ${label} keeps the custom category`);
+    };
+    const openPublishingPanel = async () => {
+      await page.getByRole("button", { name: "账号：hugo-feedback" }).click();
+      await page.getByRole("menuitem", { name: "发布为网站" }).click();
+      await panel.waitFor();
+      await panel.getByText("已保存到账号", { exact: true }).waitFor();
+    };
+
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(baseURL);
+    await openPublishingPanel();
+    await panel.locator('[data-site-publish-github="connected"]').waitFor();
+    check(await panel.getByText("已连接 GitHub：@ui-feedback", { exact: true }).isVisible(), `${prefix}: connected feedback account is visibly simulated`);
+    const repositorySelect = panel.getByRole("combobox", { name: "发布仓库", exact: true });
+    await repositorySelect.waitFor();
+    await panel.locator('select option[value="42"]').waitFor({ state: "attached" });
+    check(await repositorySelect.inputValue() === "", `${prefix}: no repository is bound initially`);
+    await repositorySelect.selectOption({ label: "octo/notes-site" });
+    await panel.getByText("已选择发布仓库：octo/notes-site", { exact: true }).waitFor();
+    check(simulated.calls.repository === 1, `${prefix}: binding repository sends one PUT`);
+    check(JSON.stringify(simulated.repositoryBodies[0]) === JSON.stringify({ repositoryId: 42, installationId: 77 }), `${prefix}: binding uses the verified repository and installation ids`);
+    check(await repositorySelect.inputValue() === "42", `${prefix}: selected repository stays bound in the dropdown`);
+
+    const publishButton = panel.getByRole("button", { name: "发布到 GitHub Pages" });
+    check(await publishButton.isEnabled(), `${prefix}: publish action enabled after repository selection`);
+    await publishButton.click();
+    const queuedJob = panel.locator('[data-github-publish-phase="queued"]');
+    await queuedJob.waitFor({ timeout: 15_000 });
+    check(simulated.calls.publish === 1, `${prefix}: first publish sends exactly one POST`);
+    check(simulated.publishTargets[0] === "42", `${prefix}: publish confirms the repository shown in the panel`);
+    checkSimulatedSelection(simulated.publishBodies[0], "first publish");
+    check(await panel.getByRole("button", { name: "正在发布…" }).isDisabled(), `${prefix}: queued job disables the publish button`);
+
+    // 远程状态显式切换，只等待 4 秒轮询把新 phase 拉回界面。
+    simulated.job = simulatedJob("deploying", { message: "网站已提交，正在等待 GitHub Pages 发布…", commitSha: "abc1234", commitUrl: "https://github.com/octo/notes-site/commit/abc1234", siteUrl: "https://octo.github.io/notes-site/" });
+    const deployingJob = panel.locator('[data-github-publish-phase="deploying"]');
+    await deployingJob.waitFor({ timeout: 15_000 });
+    check(await deployingJob.getAttribute("data-github-publish-live") === "false", `${prefix}: deploying phase never reports live before Pages succeeds`);
+    check((await deployingJob.innerText()).includes("已提交成功，等待 GitHub Pages 部署"), `${prefix}: deploying phase shows the waiting label`);
+    check(await panel.getByText("已发布，站点已上线", { exact: true }).count() === 0, `${prefix}: no premature success message while deploying`);
+    check(await panel.locator('.site-publish-github-links a[href="https://octo.github.io/notes-site/"]').isVisible(), `${prefix}: deploying phase exposes the commit and site links`);
+
+    await panel.getByRole("button", { name: "关闭网站发布面板" }).click();
+    await panel.waitFor({ state: "detached" });
+    await openPublishingPanel();
+    const reopenedDeploying = panel.locator('[data-github-publish-phase="deploying"]');
+    await reopenedDeploying.waitFor();
+    check(await reopenedDeploying.getAttribute("data-github-publish-live") === "false", `${prefix}: reopened panel restores the deploying job without claiming success`);
+    check(await repositorySelect.inputValue() === "42", `${prefix}: reopened panel restores the bound repository`);
+
+    simulated.job = simulatedJob("published", { message: "网站已发布。", commitSha: "abc1234", commitUrl: "https://github.com/octo/notes-site/commit/abc1234", siteUrl: "https://octo.github.io/notes-site/" });
+    const publishedJob = panel.locator('[data-github-publish-phase="published"]');
+    await publishedJob.waitFor({ timeout: 15_000 });
+    check(await publishedJob.getAttribute("data-github-publish-live") === "true", `${prefix}: published phase is the only live state`);
+    await publishedJob.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(temporary, "github-publishing-ui.png") });
+    screenshots.push("github-publishing-ui.png");
+
+    simulated.nextPublishPhase = "failed";
+    simulated.nextPublishMessage = "模拟的部署失败：GitHub Pages 构建未通过。";
+    const retryButton = panel.getByRole("button", { name: "发布到 GitHub Pages" });
+    check(await retryButton.isEnabled(), `${prefix}: published job re-enables the publish action`);
+    await retryButton.click();
+    const failedJob = panel.locator('[data-github-publish-phase="failed"]');
+    await failedJob.waitFor({ timeout: 15_000 });
+    check((await failedJob.innerText()).includes("模拟的部署失败"), `${prefix}: failed publish shows the provider message`);
+    check(await failedJob.getAttribute("data-github-publish-live") === "false", `${prefix}: failed publish is not live`);
+    check(simulated.calls.publish === 2, `${prefix}: second publish sends exactly one additional POST`);
+    checkSimulatedSelection(simulated.publishBodies[1], "second publish");
+    check(await panel.getByRole("button", { name: "发布到 GitHub Pages" }).isEnabled(), `${prefix}: failed publish re-enables the retry button`);
+    check(realGitHubRequests.length === 0, `${prefix}: no request reached github.com`);
+    check(new URL(page.url()).origin === baseURL, `${prefix}: no navigation left the Notes app`);
+    check(simulated.calls.unhandled === 0, `${prefix}: no real GitHub endpoint was attempted`);
+    check(consoleErrors.length === consoleErrorsBeforeGithubUi, `${prefix}: no new browser errors during the simulated flow`);
+    // OAuth 返回的新浏览器没有本机缓存，必须等账号工作区恢复后再清理发布选择。
+    const beforeCallback = await (await context.request.get(`${baseURL}/api/site-publishing/config`)).json();
+    const callbackContext = await browser.newContext({ storageState: { cookies: await context.cookies(), origins: [] } });
+    let releaseWorkspace;
+    let enteredWorkspace;
+    const workspaceGate = new Promise((resolve) => { releaseWorkspace = resolve; });
+    const workspaceEntered = new Promise((resolve) => { enteredWorkspace = resolve; });
+    let earlyConfigurationReads = 0;
+    try {
+      await callbackContext.route("**/api/workspace", async (route) => {
+        if (route.request().method() === "GET") { enteredWorkspace(); await workspaceGate; }
+        await route.continue();
+      });
+      const callbackPage = await callbackContext.newPage();
+      callbackPage.on("request", (request) => { if (request.url().endsWith("/api/site-publishing/config")) earlyConfigurationReads++; });
+      await callbackPage.goto(`${baseURL}/?keep=1&githubPublish=connected#note=selected&view=preview`);
+      await workspaceEntered;
+      check(await callbackPage.getByRole("dialog", { name: "生成网站" }).count() === 0, `${prefix}: OAuth return waits for the account workspace`);
+      check(earlyConfigurationReads === 0, `${prefix}: slow workspace does not load or prune saved publication selections early`);
+      releaseWorkspace();
+      const callbackPanel = callbackPage.getByRole("dialog", { name: "生成网站" });
+      await callbackPanel.waitFor();
+      await callbackPanel.getByText("已保存到账号", { exact: true }).waitFor();
+      check(new URL(callbackPage.url()).searchParams.get("keep") === "1" && !new URL(callbackPage.url()).searchParams.has("githubPublish"), `${prefix}: OAuth consumes only its return parameter`);
+      const afterCallback = await (await callbackContext.request.get(`${baseURL}/api/site-publishing/config`)).json();
+      check(JSON.stringify(afterCallback.draft.selections) === JSON.stringify(beforeCallback.draft.selections), `${prefix}: OAuth return restores selections without empty-workspace data loss`);
+    } finally { releaseWorkspace(); await callbackContext.close(); }
+    simulatedProviderReport = { provider: "in-memory Playwright route", liveGitHub: false, mode: "simulated", calls: simulated.calls, assertions: assertions.filter((name) => name.startsWith(prefix)).length };
+  }
+
+  const report = { success: true, noOrigin, assertions, screenshots };
+  if (simulatedProviderReport) report.githubUi = simulatedProviderReport;
+  await fs.writeFile(path.join(temporary, "report.json"), JSON.stringify(report, null, 2));
+  console.log(JSON.stringify({ success: true, noOrigin, githubUi, assertions: assertions.length, artifacts: temporary }, null, 2));
 } catch (error) {
   const failedPage = browser?.contexts()[0]?.pages()[0];
   if (failedPage) {

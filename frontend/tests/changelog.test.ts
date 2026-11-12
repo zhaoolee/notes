@@ -34,7 +34,7 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
   assert.match(changelog, /^# 更新日志\n/);
   assert.equal(
     secondLevelHeadings[latestReleaseIndex],
-    `[${packageVersion.version}] - 2026-10-31`,
+    `[${packageVersion.version}] - 2026-11-12`,
   );
   assert.ok(categoryHeadings.length > 0);
 
@@ -152,6 +152,20 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
     heading: string;
     content: RegExp[];
   }> = [
+    {
+      version: "1.16.0",
+      heading:
+        "[1.16.0](https://github.com/zhaoolee/notes/compare/1.15.1...1.16.0) - 2026-11-12",
+      content: [
+        /GitHub App.*选择允许访问的仓库/s,
+        /Hugo 静态网站.*gh-pages/s,
+        /增量提交.*未变化的文件不上传.*force: false.*并发冲突/s,
+        /排队、构建、上传、提交、等待 Pages 和已发布/s,
+        /网络异常或部署超时可刷新状态并重试/s,
+        /生成网站 ZIP.*继续可用/s,
+        /HMAC 签名.*绑定 Notes 账号.*停止发布.*防止其他文件被接管或删除/s,
+      ],
+    },
     {
       version: "1.15.1",
       heading: "[1.15.1](https://github.com/zhaoolee/notes/compare/1.15.0...1.15.1) - 2026-10-31",

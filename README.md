@@ -194,3 +194,5 @@ docker run -d \
 
 第三方依赖及图片、字体、图标等第三方资源不因本项目的代码许可证而被重新授权，
 其权利与使用条件以各自权利方的许可为准。本项目的代码许可证不授予第三方商标权。
+
+Hugo 网站也支持通过 GitHub App 一键发布到 GitHub Pages，配置见 [发布文档](DOCS/github-site-publishing.md)。

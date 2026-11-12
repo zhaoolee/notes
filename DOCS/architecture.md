@@ -578,3 +578,5 @@ DeepSeek 当前默认选择 `deepseek-v4-flash` 并关闭 thinking。AI 消耗�
 ResizeObserver 与加载事件按需对齐横线，批量读取尺寸后再写间距，不能在每次按键
 时清空全部高度或逐图交错读写布局。预览仅在当前断点的预览态、桌面分享态或
 Playwright 导出态挂载，切换时立即使用最新正文；编辑器保持挂载以保留选区和上传队列。
+
+GitHub Pages 发布复用网站构建器，代码位于 `server/site-publishing/github-*.ts` 与 `src/features/site-publishing/`。用户授权凭据加密保存在独立 `github-site-publishing.json`，只在签名清单管理的路径内增量更新 gh-pages 分支；ZIP 与 GitHub 发布共享构建并发预算。配置与安全边界见 `DOCS/github-site-publishing.md`。
