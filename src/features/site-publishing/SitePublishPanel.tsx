@@ -203,6 +203,8 @@ export function SitePublishPanel({
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoPreviewError, setLogoPreviewError] = useState(false);
   const [githubConfigured, setGithubConfigured] = useState(false);
+  // 页脚动作挂载点由 ref 回调写入；null 表示目标尚未挂载，发布按钮此时不渲染副本。
+  const [footerActionsTarget, setFooterActionsTarget] = useState<HTMLElement | null>(null);
 
   const addressPreview = getSiteAddressPreview(draft.settings);
   const basePathError = getBasePathError(draft.settings.basePath);
@@ -700,6 +702,7 @@ export function SitePublishPanel({
             }
             redirectNotice={githubPublishRedirect}
             onConfiguredChange={setGithubConfigured}
+            actionTarget={footerActionsTarget}
           />
 
           <details className="site-publish-advanced">
@@ -971,6 +974,11 @@ export function SitePublishPanel({
             </div> : null}
           </div>
           <div className="site-publish-actions">
+            <div
+              ref={setFooterActionsTarget}
+              className="site-publish-footer-github"
+              data-site-publish-footer-github
+            />
             <button
               type="button"
               className={githubConfigured ? "site-publish-secondary" : "site-publish-primary"}

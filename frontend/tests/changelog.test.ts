@@ -153,6 +153,15 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
     content: RegExp[];
   }> = [
     {
+      version: "1.16.1",
+      heading:
+        "[1.16.1](https://github.com/zhaoolee/notes/compare/1.16.0...1.16.1) - 2026-11-12",
+      content: [
+        /发布到 GitHub Pages.*固定底部.*生成网站 ZIP/s,
+        /授权、仓库选择与发布进度.*GitHub Pages 卡片/s,
+      ],
+    },
+    {
       version: "1.16.0",
       heading:
         "[1.16.0](https://github.com/zhaoolee/notes/compare/1.15.1...1.16.0) - 2026-11-12",

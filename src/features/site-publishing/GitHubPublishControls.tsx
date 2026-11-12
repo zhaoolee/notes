@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type ChangeEvent } from "react";
+import { createPortal } from "react-dom";
 import type { NoteDocument } from "../../types/app.js";
 import {
   activeGitHubPublishPhases,
@@ -176,6 +177,11 @@ export interface GitHubPublishControlsProps {
   storageScope: string;
   redirectNotice?: GitHubPublishRedirect | null;
   onConfiguredChange?: (configured: boolean) => void;
+  /**
+   * 可选的面板页脚动作挂载点。传入目标（含尚未挂载时的 null）时，
+   * 唯一发布按钮通过 portal 渲染到页脚；不传则保持组件内联的独立用法。
+   */
+  actionTarget?: HTMLElement | null;
 }
 
 export function GitHubPublishControls({
@@ -185,6 +191,7 @@ export function GitHubPublishControls({
   storageScope,
   redirectNotice = null,
   onConfiguredChange,
+  actionTarget,
 }: GitHubPublishControlsProps) {
   const headingId = useId();
   const repositorySelectId = useId();
@@ -735,6 +742,29 @@ export function GitHubPublishControls({
     }
   }
 
+  // 同一个按钮节点只在页脚或卡片出现一次；页脚目标尚未挂载时不渲染临时副本。
+  const publishButton = (
+    <button
+      type="button"
+      className="site-publish-primary"
+      disabled={!availability.canPublish}
+      title={availability.canPublish ? undefined : availability.reason}
+      onClick={() => void handlePublish()}
+    >
+      {activeJob
+        ? "正在发布…"
+        : publishing
+          ? "正在提交…"
+          : "发布到 GitHub Pages"}
+    </button>
+  );
+  const portalPublishButton =
+    actionTarget === undefined
+      ? null
+      : actionTarget && status?.enabled && status.connected
+        ? createPortal(publishButton, actionTarget)
+        : null;
+
   return (
     <section
       className="site-publish-card site-publish-github"
@@ -847,19 +877,7 @@ export function GitHubPublishControls({
           ) : null}
 
           <div className="site-publish-github-actions">
-            <button
-              type="button"
-              className="site-publish-primary"
-              disabled={!availability.canPublish}
-              title={availability.canPublish ? undefined : availability.reason}
-              onClick={() => void handlePublish()}
-            >
-              {activeJob
-                ? "正在发布…"
-                : publishing
-                  ? "正在提交…"
-                  : "发布到 GitHub Pages"}
-            </button>
+            {actionTarget === undefined ? publishButton : null}
             <button
               type="button"
               className="site-publish-secondary"
@@ -932,6 +950,7 @@ export function GitHubPublishControls({
           {notice}
         </p>
       ) : null}
+      {portalPublishButton}
     </section>
   );
 }

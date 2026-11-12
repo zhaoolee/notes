@@ -812,6 +812,11 @@
   gap: 8px;
 }
 
+/* 发布按钮的 portal 宿主不生成盒子，让按钮直接参与页脚 flex 布局。 */
+.site-publish-footer-github {
+  display: contents;
+}
+
 .site-publish-status,
 .site-publish-error,
 .site-publish-notice {

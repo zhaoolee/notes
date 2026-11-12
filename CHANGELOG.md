@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.16.1] - 2026-11-12
+
+### 变更
+
+- 网站发布面板的“发布到 GitHub Pages”按钮移到固定底部操作区、“生成网站 ZIP”之前；授权、仓库选择与发布进度仍留在 GitHub Pages 卡片。
+
 ## [1.16.0] - 2026-11-12
 
 ### 新增
@@ -415,6 +421,7 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.16.1]: https://github.com/zhaoolee/notes/compare/1.16.0...1.16.1
 [1.16.0]: https://github.com/zhaoolee/notes/compare/1.15.1...1.16.0
 [1.15.1]: https://github.com/zhaoolee/notes/compare/1.15.0...1.15.1
 [1.15.0]: https://github.com/zhaoolee/notes/compare/1.14.1...1.15.0

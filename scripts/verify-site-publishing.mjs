@@ -452,15 +452,59 @@ try {
     check(JSON.stringify(simulated.repositoryBodies[0]) === JSON.stringify({ repositoryId: 42, installationId: 77 }), `${prefix}: binding uses the verified repository and installation ids`);
     check(await repositorySelect.inputValue() === "42", `${prefix}: selected repository stays bound in the dropdown`);
 
-    const publishButton = panel.getByRole("button", { name: "发布到 GitHub Pages" });
+    const footer = panel.locator(".site-publish-footer");
+    const publishButton = footer.getByRole("button", { name: "发布到 GitHub Pages" });
+    const zipButton = footer.getByRole("button", { name: "生成网站 ZIP" });
+    check(await publishButton.count() === 1, `${prefix}: footer renders exactly one publish action`);
+    check(await panel.locator(".site-publish-github").getByRole("button", { name: "发布到 GitHub Pages" }).count() === 0, `${prefix}: repository card no longer holds the publish action`);
+    const footerOrder = await footer.evaluate((element) => {
+      const buttons = Array.from(element.querySelectorAll("button"));
+      const publish = buttons.find((button) => button.textContent?.trim() === "发布到 GitHub Pages");
+      const zip = buttons.find((button) => button.textContent?.trim() === "生成网站 ZIP");
+      return Boolean(publish && zip && (publish.compareDocumentPosition(zip) & Node.DOCUMENT_POSITION_FOLLOWING));
+    });
+    check(footerOrder, `${prefix}: publish action is ordered before ZIP in the footer`);
     check(await publishButton.isEnabled(), `${prefix}: publish action enabled after repository selection`);
+    check(await zipButton.isVisible(), `${prefix}: ZIP action stays beside the publish action`);
+    await panel.locator("details.site-publish-advanced summary").click();
+    const bodyScrolled = await panel.locator(".site-publish-body").evaluate((element) => { element.scrollTop = element.scrollHeight; return element.scrollTop; });
+    check(bodyScrolled > 0, `${prefix}: panel body scrolls independently of the footer`);
+    const desktopFooter = await footer.evaluate((element) => {
+      const box = (button) => { const rect = button.getBoundingClientRect(); return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }; };
+      const buttons = Array.from(element.querySelectorAll("button"));
+      const publish = buttons.find((button) => button.textContent?.trim() === "发布到 GitHub Pages");
+      const zip = buttons.find((button) => button.textContent?.trim() === "生成网站 ZIP");
+      return { publish: box(publish), zip: box(zip), viewport: { width: window.innerWidth, height: window.innerHeight }, overflows: element.scrollWidth > element.clientWidth + 1 };
+    });
+    const desktopSameRow = Math.abs((desktopFooter.publish.top + desktopFooter.publish.bottom) / 2 - (desktopFooter.zip.top + desktopFooter.zip.bottom) / 2) <= 2;
+    check(desktopFooter.publish.right <= desktopFooter.zip.left && desktopSameRow, `${prefix}: desktop footer keeps publish beside ZIP`);
+    check(desktopFooter.publish.top >= 0 && desktopFooter.publish.left >= 0 && desktopFooter.zip.bottom <= desktopFooter.viewport.height && desktopFooter.zip.right <= desktopFooter.viewport.width, `${prefix}: desktop footer actions stay visible after scrolling the body`);
+    check(!desktopFooter.overflows, `${prefix}: desktop footer actions fit without horizontal overflow`);
+    await page.screenshot({ path: path.join(temporary, "footer-desktop.png") });
+    screenshots.push("footer-desktop.png");
+    await page.setViewportSize({ width: 390, height: 844 });
+    const mobileFooter = await footer.evaluate((element) => {
+      const box = (button) => { const rect = button.getBoundingClientRect(); return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, visible: rect.width > 0 && rect.height > 0 }; };
+      const buttons = Array.from(element.querySelectorAll("button"));
+      const publish = buttons.find((button) => button.textContent?.trim() === "发布到 GitHub Pages");
+      const zip = buttons.find((button) => button.textContent?.trim() === "生成网站 ZIP");
+      return { publish: box(publish), zip: box(zip), viewport: { width: window.innerWidth, height: window.innerHeight }, overflows: element.scrollWidth > element.clientWidth + 1 };
+    });
+    const mobilePanelFits = await panel.evaluate((element) => element.scrollWidth <= element.clientWidth + 1);
+    check(mobileFooter.publish.visible && mobileFooter.zip.visible, `${prefix}: mobile footer keeps both actions visible`);
+    check(mobileFooter.publish.top >= 0 && mobileFooter.publish.bottom <= mobileFooter.viewport.height && mobileFooter.zip.top >= 0 && mobileFooter.zip.bottom <= mobileFooter.viewport.height, `${prefix}: mobile footer actions stay within the viewport height`);
+    check(mobileFooter.publish.left >= 0 && mobileFooter.publish.right <= mobileFooter.viewport.width && mobileFooter.zip.left >= 0 && mobileFooter.zip.right <= mobileFooter.viewport.width, `${prefix}: mobile footer actions fit the viewport width`);
+    check(!mobileFooter.overflows && mobilePanelFits, `${prefix}: mobile footer has no horizontal overflow`);
+    await page.screenshot({ path: path.join(temporary, "footer-mobile.png") });
+    screenshots.push("footer-mobile.png");
+    await page.setViewportSize({ width: 1440, height: 1000 });
     await publishButton.click();
     const queuedJob = panel.locator('[data-github-publish-phase="queued"]');
     await queuedJob.waitFor({ timeout: 15_000 });
     check(simulated.calls.publish === 1, `${prefix}: first publish sends exactly one POST`);
     check(simulated.publishTargets[0] === "42", `${prefix}: publish confirms the repository shown in the panel`);
     checkSimulatedSelection(simulated.publishBodies[0], "first publish");
-    check(await panel.getByRole("button", { name: "正在发布…" }).isDisabled(), `${prefix}: queued job disables the publish button`);
+    check(await footer.getByRole("button", { name: "正在发布…" }).isDisabled(), `${prefix}: active job disables the footer publish action`);
 
     // 远程状态显式切换，只等待 4 秒轮询把新 phase 拉回界面。
     simulated.job = simulatedJob("deploying", { message: "网站已提交，正在等待 GitHub Pages 发布…", commitSha: "abc1234", commitUrl: "https://github.com/octo/notes-site/commit/abc1234", siteUrl: "https://octo.github.io/notes-site/" });
