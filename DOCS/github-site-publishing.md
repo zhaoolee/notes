@@ -32,6 +32,13 @@ GITHUB_PUBLISH_TOKEN_KEY=持久的32字节Base64密钥
 NOTES_PUBLIC_BASE_URL=https://你的notes域名
 ```
 
+需要启用管理员专属的本站镜像时，再追加以下非密钥配置；默认关闭，只有指定账号会看到本站说明和进度。
+
+```dotenv
+SITE_PUBLISH_LOCAL_ENABLED=false
+SITE_PUBLISH_LOCAL_OWNER_ID=superadmin
+```
+
 用 `openssl rand -base64 32` 在服务器生成独立的 `GITHUB_PUBLISH_TOKEN_KEY`。RSA 私钥推荐用只读文件挂载；也支持 `GITHUB_APP_PRIVATE_KEY` PEM 环境变量（实际换行或 `\n`）。Compose 已传递这些变量，但私钥文件需要部署者自行只读挂载，容器内路径与 `GITHUB_APP_PRIVATE_KEY_PATH` 一致。单容器镜像也使用同一组环境变量。
 
 App 配置缺失或非法时，服务显示“GitHub 发布未配置”，其他功能及 ZIP 导出继续可用。本机回调可使用 `http://127.0.0.1:<port>/api/site-publishing/github/callback`，其他环境必须 HTTPS。生产反向代理需要保留协议/Host，使 Notes 的同源校验与公开地址一致。
@@ -67,6 +74,20 @@ GitHub 发布的域名以目标仓库当前 Pages 配置为准，未启用时使
 当前与账号数据存储架构一致，采用单个服务进程作为写入者；不提供跨多个后端副本的分布式队列。每账号和每目标仓库最多一个发布任务，全局最多两个发布任务；ZIP 与 GitHub 发布共享 Hugo 构建并发预算（最多两个构建）。任务最长十分钟，Hugo 最长六十秒，GitHub 单次请求最长三十秒；原有正文、图片、文件数量与构建大小限制继续有效。
 
 授权失效、限流、保护分支、空仓库、文件冲突、构建异常及 Pages 失败均返回可操作状态。GitHub 提交成功后才进入 `deploying`，Pages 成功前不报已上线；部署超时或失败保留 commit SHA 和链接，可再次发布继续确认，无变化时不会重复上传或创建 commit。Notes 进程重启后将未完成任务标为 `interrupted`，明确提示重试；不把上次状态当作成功，也不在没有正文快照时擅自重跑。
+
+## 本站镜像（可选）
+
+管理员可在 Notes 本机额外开启一份只属于指定 Notes 账号的本站镜像：设置 `SITE_PUBLISH_LOCAL_ENABLED=true`，并用 `SITE_PUBLISH_LOCAL_OWNER_ID` 指定允许的账号（默认 `superadmin`）。这两个字段都是非密钥配置。只有该账号的发布状态会带 `localSiteEnabled: true`；其他账号、未启用部署和旧服务保持原有 GitHub-only 行为，不显示本站说明或链接。
+
+开启后，用户点击“发布到 GitHub Pages”时仍先完成 GitHub Pages 发布；只有 GitHub Pages 成功后，服务端才以同一份便签快照构建本站镜像，固定发布到当前 Notes 站点的 `/notes/`，使用本站自己的 origin 和路径，不沿用 GitHub 仓库域名、Pages 自定义域名或发布面板里的 basePath。本站构建不会新增第二个发布按钮，也不会在打开面板、轮询或授权回调时自动发布。
+
+发布任务继续使用原有 GitHub 阶段；最终 `phase: "published"` 只表示 GitHub Pages 成功，本站结果单独放在可选 `job.localSite` 中，可能为 `pending`、`building`、`published` 或 `failed`。面板分别显示本站进度和独立链接“访问本站网站”，只有 `localSite.phase === "published"` 才给出该链接。本站构建或写入失败时显示“已有站点不会被替换；如已发布过，上一版本仍可访问”，不影响 GitHub Pages 已发布结果，重新发布即可重试；不会把旧本站版本说成本次成功，也不会因本站失败把 GitHub 结果标成失败。
+
+静态文件位于 `DATA_STORAGE_DIR/published-site`，沿用现有 `storage/data` 数据目录绑定，不需要新增 volume。备份整个数据目录时应包含该子目录；恢复旧备份会同时恢复当时公开的本站版本。
+
+本站托管默认关闭：只有显式设置 `SITE_PUBLISH_LOCAL_ENABLED=true`，且当前发布账号为配置的 owner 时，才会生成或更新本站版本；未启用时不会创建新的本站版本，尚未发布的 `/notes/` 返回 404，已有版本仍可访问。`/notes` 使用相对地址的 308 跳转到 `/notes/` 并保留查询参数（Nginx `absolute_redirect off`），HTTPS 终止后不会改写成对内 http 地址；`/notes/` 由后端直接提供静态页面，缺失的页面或资源返回 404，不回退到 Notes 编辑器。已发布的本站页面保持公开，匿名访客可直接阅读，不依赖编辑器或 API 的登录会话；`REQUIRE_LOGIN=true` 只保护编辑器和 API，不会隐藏已有本站页面。发布指针绑定首次发布账号；如果磁盘上的本站版本属于另一个账号，即使 owner 配置或当前发布账号变化，服务也会拒绝覆盖，旧页面保持不变。
+
+截至本版本，这只是可配置的源码能力，尚未在正式生产环境部署或验证；真实 GitHub Pages 与本站上线仍需部署者配置后联调，不能用模拟 UI 验证代替。
 
 ## API 与验证
 

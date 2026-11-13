@@ -73,7 +73,10 @@ export class GitHubPublishingStore {
     const operation = this.queue.then(async () => {
       const database = await this.read(); let changed = false;
       for (const account of Object.values(database.accounts)) if (account.job && activeGitHubPublishPhases.includes(account.job.phase)) {
-        account.job = { ...account.job, phase: "interrupted", updatedAt: Date.now(), message: account.job.commitSha ? "服务重启，网站已提交到 GitHub；请重新发布以继续确认 Pages 状态。" : "服务重启导致发布中断，请重新发布。" };
+        const localSite = account.job.localSite;
+        account.job = { ...account.job, phase: "interrupted", updatedAt: Date.now(), message: account.job.commitSha ? "服务重启，网站已提交到 GitHub；请重新发布以继续确认 Pages 状态。" : "服务重启导致发布中断，请重新发布。",
+          ...(localSite && ["pending", "building"].includes(localSite.phase) ? { localSite: { ...localSite, phase: "failed" as const, message: "服务重启，本站更新中断；可重新发布重试。" } } : {}),
+        };
         changed = true;
       }
       if (changed) await this.write(database);

@@ -2,6 +2,16 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.17.0] - 2026-11-13
+
+### 新增
+
+- “发布为网站”在管理员配置的 Notes 账号上增加本站镜像：GitHub Pages 发布成功后，继续把相同便签构建到本站固定 `/notes/` 页面；其他账号保持原有 GitHub-only 行为，本站页面匿名可读，Notes 编辑器与 API 仍要求登录。访问 `/notes` 时使用相对 `308` 跳转到 `/notes/` 并保留查询参数，HTTPS 终止后不会改写成对内地址。
+
+### 变更
+
+- 发布进度分别显示 GitHub Pages 与本站镜像状态。本站更新失败会明确提示已有站点不会被替换，如已发布过则保留上一版本，不影响 GitHub Pages 已发布结果；只有本站成功后才显示“访问本站网站”。
+
 ## [1.16.4] - 2026-11-13
 
 ### 变更
@@ -439,6 +449,7 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.17.0]: https://github.com/zhaoolee/notes/compare/1.16.4...1.17.0
 [1.16.4]: https://github.com/zhaoolee/notes/compare/1.16.3...1.16.4
 [1.16.3]: https://github.com/zhaoolee/notes/compare/1.16.2...1.16.3
 [1.16.2]: https://github.com/zhaoolee/notes/compare/1.16.1...1.16.2

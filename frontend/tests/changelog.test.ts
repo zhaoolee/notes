@@ -65,6 +65,10 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
   );
   assert.match(
     changelog,
+    /^\[1\.17\.0\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.16\.4\.\.\.1\.17\.0$/m,
+  );
+  assert.match(
+    changelog,
     /^\[1\.16\.4\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.16\.3\.\.\.1\.16\.4$/m,
   );
   assert.match(
@@ -164,6 +168,19 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
     heading: string;
     content: RegExp[];
   }> = [
+    {
+      version: "1.17.0",
+      heading:
+        "[1.17.0](https://github.com/zhaoolee/notes/compare/1.16.4...1.17.0) - 2026-11-13",
+      content: [
+        /GitHub Pages 发布成功后.*本站固定 `\/notes\/` 页面/s,
+        /其他账号保持原有 GitHub-only 行为/,
+        /本站页面匿名可读.*编辑器与 API.*要求登录/s,
+        /分别显示 GitHub Pages 与本站镜像状态/,
+        /本站更新失败.*已有站点不会被替换.*如已发布过则保留上一版本.*不影响 GitHub Pages/s,
+        /只有本站成功后才显示“访问本站网站”/,
+      ],
+    },
     {
       version: "1.16.4",
       heading:

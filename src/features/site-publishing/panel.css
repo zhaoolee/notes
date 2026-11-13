@@ -1067,6 +1067,29 @@
   font-variant-numeric: tabular-nums;
 }
 
+.site-publish-local-site {
+  display: grid;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.site-publish-local-site-label {
+  color: var(--ink);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.site-publish-local-site .site-publish-local-site-failed {
+  color: #b55345;
+}
+
+:root[data-theme="smartisan-dark"]
+  .site-publish-local-site
+  .site-publish-local-site-failed {
+  color: #e58a7f;
+}
+
 .site-publish-github-links {
   display: flex;
   flex-wrap: wrap;

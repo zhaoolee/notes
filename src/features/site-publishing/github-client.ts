@@ -1,6 +1,8 @@
 import type { NoteDocument } from "../../types/app.js";
 import {
   activeGitHubPublishPhases,
+  type GitHubLocalSitePhase,
+  type GitHubLocalSiteStatus,
   type GitHubPublishCounts,
   type GitHubPublishJob,
   type GitHubPublishPhase,
@@ -33,6 +35,12 @@ const TERMINAL_PUBLISH_PHASES = new Set<GitHubPublishPhase>([
   "published",
   "failed",
   "interrupted",
+]);
+const LOCAL_SITE_PHASES = new Set<GitHubLocalSitePhase>([
+  "pending",
+  "building",
+  "published",
+  "failed",
 ]);
 
 export class GitHubPublishError extends Error {
@@ -122,6 +130,37 @@ function parseCounts(value: unknown): GitHubPublishCounts | undefined {
   return { added, modified, deleted, unchanged, uploaded };
 }
 
+/**
+ * 本站镜像状态是可选字段：旧任务/旧服务没有它时继续按 GitHub-only 展示。
+ * 非法阶段或非安全 HTTPS 地址会被丢弃，避免把坏链接当成可访问结果。
+ */
+function parseLocalSite(value: unknown): GitHubLocalSiteStatus | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const phase = readString(value.phase) as GitHubLocalSitePhase;
+
+  if (!LOCAL_SITE_PHASES.has(phase)) {
+    return undefined;
+  }
+
+  const rawUrl = readString(value.url);
+  const url = rawUrl ? sanitizeLocalSiteUrl(rawUrl) : "";
+
+  // published 没有安全地址时宁可隐藏本站成功状态，也不展示坏链接；
+  // failed/pending/building 仍保留状态和安全文案，避免把本站失败伪装成成功。
+  if (phase === "published" && !url) {
+    return undefined;
+  }
+
+  return {
+    phase,
+    url: url ?? "",
+    message: typeof value.message === "string" ? value.message : "",
+  };
+}
+
 function parseJob(value: unknown): GitHubPublishJob | null {
   if (value === null || value === undefined) {
     return null;
@@ -155,11 +194,13 @@ function parseJob(value: unknown): GitHubPublishJob | null {
   const commitUrl = readString(value.commitUrl);
   const siteUrl = readString(value.siteUrl);
   const counts = parseCounts(value.counts);
+  const localSite = parseLocalSite(value.localSite);
 
   if (commitSha) job.commitSha = commitSha;
   if (commitUrl) job.commitUrl = commitUrl;
   if (siteUrl) job.siteUrl = siteUrl;
   if (counts) job.counts = counts;
+  if (localSite) job.localSite = localSite;
 
   return job;
 }
@@ -185,6 +226,11 @@ export function parseGitHubPublishingStatus(
 
   if (githubLogin) {
     status.githubLogin = githubLogin;
+  }
+
+  // false、字符串或旧服务缺省都按未启用处理，只有明确 true 才展示本站镜像。
+  if (payload.localSiteEnabled === true) {
+    status.localSiteEnabled = true;
   }
 
   return status;
@@ -250,6 +296,48 @@ export function sanitizeGitHubHostUrl(value: unknown): string | null {
 
 export function sanitizeGitHubSiteUrl(value: unknown): string | null {
   return sanitizeHttpsUrl(value);
+}
+
+function isLocalSiteLoopbackHostname(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return host === "localhost" || host === "127.0.0.1" || host === "[::1]";
+}
+
+/**
+ * 本站镜像通常在同源 HTTPS 上使用；开发/测试后端可能给出 HTTP 回环地址。
+ * 只放宽 localhost、127.0.0.1 与 [::1] 的 HTTP，其他 HTTP 主机仍被拒绝。
+ */
+export function sanitizeLocalSiteUrl(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed || trimmed.length > 2048) {
+    return null;
+  }
+
+  try {
+    const url = new URL(trimmed);
+
+    if (
+      (url.protocol !== "https:" && url.protocol !== "http:") ||
+      !url.hostname ||
+      url.username ||
+      url.password
+    ) {
+      return null;
+    }
+
+    if (url.protocol === "http:" && !isLocalSiteLoopbackHostname(url.hostname)) {
+      return null;
+    }
+
+    return url.href;
+  } catch {
+    return null;
+  }
 }
 
 export function sanitizeGitHubCommitUrl(value: unknown): string | null {

@@ -400,7 +400,7 @@ try {
       publishTargets: [],
     };
     const simulatedJob = (phase, overrides = {}) => ({ id: "ui-feedback-job", phase, message: "", startedAt: now, updatedAt: Date.now(), ...overrides });
-    const simulatedStatus = () => ({ enabled: true, connected: true, githubLogin: "ui-feedback", repository: simulated.repository, job: simulated.job });
+    const simulatedStatus = () => ({ enabled: true, connected: true, localSiteEnabled: true, githubLogin: "ui-feedback", repository: simulated.repository, job: simulated.job });
     const realGitHubRequests = [];
     page.on("request", (request) => {
       const hostname = new URL(request.url()).hostname;
@@ -471,6 +471,7 @@ try {
     await githubSummary.click();
     check(await githubDetails.evaluate((element) => element.open) === true, `${prefix}: GitHub Pages card expands on demand`);
     check(await panel.getByText("已连接 GitHub：@ui-feedback", { exact: true }).isVisible(), `${prefix}: connected feedback account is visibly simulated`);
+    check(await panel.locator('[data-local-site-enabled="true"]').isVisible(), `${prefix}: configured account explains the simulated local /notes/ mirror`);
     const repositorySelect = panel.locator(".site-publish-github select");
     await repositorySelect.waitFor();
     await panel.locator('select option[value="42"]').waitFor({ state: "attached" });
@@ -551,11 +552,13 @@ try {
     screenshots.push("github-expanded.png");
 
     // 远程状态显式切换，只等待 4 秒轮询把新 phase 拉回界面。
-    simulated.job = simulatedJob("deploying", { message: "网站已提交，正在等待 GitHub Pages 发布…", commitSha: "abc1234", commitUrl: "https://github.com/octo/notes-site/commit/abc1234", siteUrl: "https://octo.github.io/notes-site/" });
+    simulated.job = simulatedJob("deploying", { message: "网站已提交，正在等待 GitHub Pages 发布…", commitSha: "abc1234", commitUrl: "https://github.com/octo/notes-site/commit/abc1234", siteUrl: "https://octo.github.io/notes-site/", localSite: { phase: "building", url: "https://notes-ui.example.test/notes/", message: "GitHub Pages 已成功，正在构建模拟的本站镜像。" } });
     const deployingJob = panel.locator('[data-github-publish-phase="deploying"]');
     await deployingJob.waitFor({ timeout: 15_000 });
     check(await deployingJob.getAttribute("data-github-publish-live") === "false", `${prefix}: deploying phase never reports live before Pages succeeds`);
-    check((await deployingJob.innerText()).includes("已提交成功，等待 GitHub Pages 部署"), `${prefix}: deploying phase shows the waiting label`);
+    check((await deployingJob.innerText()).includes("GitHub Pages 已上线，正在更新本站"), `${prefix}: local building after Pages success no longer claims Pages is still deploying`);
+    check(await deployingJob.locator('[data-local-site-phase="building"]').isVisible(), `${prefix}: local mirror building is shown separately`);
+    check(await deployingJob.getByRole("link", { name: "访问本站网站" }).count() === 0, `${prefix}: local mirror has no link before it succeeds`);
     check(await panel.getByText("已发布，站点已上线", { exact: true }).count() === 0, `${prefix}: no premature success message while deploying`);
     check(await panel.locator('.site-publish-github-links a[href="https://octo.github.io/notes-site/"]').isVisible(), `${prefix}: deploying phase exposes the commit and site links`);
 
@@ -572,13 +575,36 @@ try {
     await reopenedDeploying.waitFor();
     check(await reopenedDeploying.getAttribute("data-github-publish-live") === "false", `${prefix}: reopened panel restores the deploying job without claiming success`);
 
-    simulated.job = simulatedJob("published", { message: "网站已发布。", commitSha: "abc1234", commitUrl: "https://github.com/octo/notes-site/commit/abc1234", siteUrl: "https://octo.github.io/notes-site/" });
+    simulated.job = simulatedJob("published", { message: "网站已发布。", commitSha: "abc1234", commitUrl: "https://github.com/octo/notes-site/commit/abc1234", siteUrl: "https://octo.github.io/notes-site/", localSite: { phase: "published", url: "https://notes-ui.example.test/notes/", message: "模拟的本站 /notes/ 镜像已更新。" } });
     const publishedJob = panel.locator('[data-github-publish-phase="published"]');
     await publishedJob.waitFor({ timeout: 15_000 });
     check(await publishedJob.getAttribute("data-github-publish-live") === "true", `${prefix}: published phase is the only live state`);
+    const publishedLocal = publishedJob.locator('[data-local-site-phase="published"]');
+    await publishedLocal.waitFor();
+    check(await publishedLocal.getAttribute("data-local-site-live") === "true", `${prefix}: simulated local mirror reports its own success`);
+    check(await publishedLocal.getByRole("link", { name: "访问本站网站" }).isVisible(), `${prefix}: local success exposes the separately labelled local link`);
     await publishedJob.scrollIntoViewIfNeeded();
     await page.screenshot({ path: path.join(temporary, "github-publishing-ui.png") });
     screenshots.push("github-publishing-ui.png");
+
+    // GitHub 已发布但本站失败：必须分别展示，不能把本站失败伪装成成功或影响 GitHub 结果。
+    simulated.job = simulatedJob("published", { message: "GitHub Pages 已发布；模拟的本站镜像更新失败。", commitSha: "abc1234", commitUrl: "https://github.com/octo/notes-site/commit/abc1234", siteUrl: "https://octo.github.io/notes-site/", localSite: { phase: "failed", url: "https://notes-ui.example.test/notes/", message: "模拟的本站构建失败，已有站点不会被替换。" } });
+    // 终态任务不会继续轮询；关闭并重新打开面板，显式刷新已发布任务的最终本站状态。
+    const statusCallsBeforeLocalFailureRefresh = simulated.calls.status;
+    await panel.getByRole("button", { name: "关闭网站发布面板" }).click();
+    await panel.waitFor({ state: "detached" });
+    await openPublishingPanel();
+    await panel.locator('[data-site-publish-github="connected"]').waitFor();
+    check(await githubDetails.evaluate((element) => element.open) === false, `${prefix}: reopened panel starts collapsed before refreshing a terminal local failure`);
+    await githubSummary.click();
+    check(simulated.calls.status > statusCallsBeforeLocalFailureRefresh, `${prefix}: reopening explicitly refreshes the terminal job without polling`);
+    check(await githubDetails.evaluate((element) => element.open) === true, `${prefix}: expanding the refreshed terminal job shows its final local failure`);
+    const localFailed = panel.locator('[data-github-publish-phase="published"] [data-local-site-phase="failed"]');
+    await localFailed.waitFor();
+    check(await localFailed.getAttribute("data-local-site-live") === "false", `${prefix}: local failure is not marked live`);
+    check((await localFailed.innerText()).includes("已有站点不会被替换"), `${prefix}: local failure says the existing site is not replaced`);
+    check(await localFailed.getByRole("link", { name: "访问本站网站" }).count() === 0, `${prefix}: local failure hides the local success link`);
+    check(await panel.locator('.site-publish-github-links a[href="https://octo.github.io/notes-site/"]').isVisible(), `${prefix}: local failure keeps the separate GitHub Pages link`);
 
     simulated.nextPublishPhase = "failed";
     simulated.nextPublishMessage = "模拟的部署失败：GitHub Pages 构建未通过。";

@@ -12,6 +12,8 @@ import { GitHubPublishingStore } from "../../server/site-publishing/github-store
 import { createSitePublishDraft, buildSiteExportRequest } from "../../src/features/site-publishing/model.js";
 import type { GitHubPublishingStatus } from "../../src/features/site-publishing/github-model.js";
 import { createFakeGitHub, siteEntries } from "./fixtures/github-publishing.js";
+import { LocalSitePublisher } from "../../server/site-publishing/local-site.js";
+import { load } from "cheerio";
 
 async function fixture(overrides: Partial<GitHubPublishingOptions> = {}) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "notes-github-routes-"));
@@ -26,6 +28,7 @@ async function fixture(overrides: Partial<GitHubPublishingOptions> = {}) {
   const base = origin + "/api/site-publishing/github";
   const config = { ...github.config, callbackUrl: base + "/callback" };
   const api = new GitHubApi(config, github.fake.fetchImpl);
+  if (overrides.localSitePublisher) app.use("/notes", overrides.localSitePublisher.router());
   app.use("/api/site-publishing/github", await createGitHubPublishingRouter({
     dataDirectory: directory, rootDirectory: process.cwd(), imagesDirectory: directory, publicDirectory: path.join(process.cwd(), "public"),
     getUser: async (request, response) => { const id = request.get("x-test-user"); if (id) return { id }; response.status(401).json({ error: "login required" }); return null; },
@@ -67,6 +70,87 @@ function payload(id = "note-a", body = "# 发布内容\n\n正文") {
   return buildSiteExportRequest(draft, [{ id, markdown: body, createdAt: 1, updatedAt: 1, normalOrder: 0, folderId: null, pinnedAt: null, isStarred: false, deletedAt: null }]);
 }
 function cookie(response: Response) { return response.headers.getSetCookie().at(-1)!.split(";")[0]; }
+
+test("GitHub succeeds before a separately rebased Hugo site is published anonymously on this deployment", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "notes-local-hugo-"));
+  const publisher = new LocalSitePublisher(directory, "alice");
+  const f = await fixture({ localSitePublisher: publisher, build: undefined });
+  try {
+    await f.seed();
+    const before = await (await f.request("/status")).json() as GitHubPublishingStatus;
+    assert.equal(before.localSiteEnabled, true);
+    assert.equal((await fetch(f.origin + "/notes/")).status, 404);
+    const started = await f.request("/publish", { method: "POST", data: payload("note-a", "# Dual site\n\nPUBLIC_LOCAL_MARKER") });
+    assert.equal(started.status, 202);
+    const initial = (await started.json()).job;
+    assert.equal(initial.localSite.phase, "pending");
+    assert.equal(initial.localSite.url, f.origin + "/notes/");
+    const job = await f.waitJob();
+    assert.equal(job.phase, "published"); assert.equal(job.localSite?.phase, "published");
+    assert.match(job.siteUrl!, /github\.io\/notes-site\/$/);
+    const response = await fetch(f.origin + "/notes/");
+    assert.equal(response.status, 200);
+    const home = load(await response.text());
+    assert.equal(home("link[rel=canonical]").attr("href"), f.origin + "/notes/");
+    assert.equal(home(".site-brand").attr("href"), "/notes/");
+    assert.equal((await fetch(f.origin + "/notes/logo.png")).status, 200);
+    const search = await (await fetch(f.origin + "/notes/index.json")).json() as { pages: Array<{ permalink: string }> };
+    assert.equal(search.pages.length, 1); assert.ok(search.pages[0].permalink.startsWith("/notes/"));
+    const article = await fetch(new URL(search.pages[0].permalink, f.origin));
+    assert.equal(article.status, 200); assert.match(await article.text(), /PUBLIC_LOCAL_MARKER/);
+    assert.equal((await fetch(f.origin + "/notes/missing.js")).status, 404);
+    // A different Notes account follows the normal GitHub ownership checks,
+    // without receiving local hosting privileges or replacing this website.
+    await f.seed("bob");
+    assert.equal((await (await f.request("/status", { actor: "bob" })).json()).localSiteEnabled, undefined);
+    const localPointer = await fs.readFile(path.join(directory, "current.json"), "utf8");
+    assert.equal((await f.request("/publish", { actor: "bob", method: "POST", data: payload("bob-note", "OTHER_ACCOUNT_MARKER") })).status, 202);
+    assert.equal((await f.waitJob("bob")).localSite, undefined);
+    assert.equal(await fs.readFile(path.join(directory, "current.json"), "utf8"), localPointer);
+  } finally { await f.close(); await fs.rm(directory, { recursive: true, force: true }); }
+});
+
+test("local failure preserves GitHub success and previous files, and unchanged GitHub content can retry the local update", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "notes-local-retry-"));
+  const publisher = new LocalSitePublisher(directory, "alice");
+  await publisher.publish("alice", siteEntries({ "index.html": "PREVIOUS_LOCAL_VERSION" }), new AbortController().signal);
+  let failLocal = true;
+  const settingsSeen: string[] = [];
+  const f = await fixture({ localSitePublisher: publisher, build: async (request) => {
+    settingsSeen.push(request.settings.basePath);
+    if (request.settings.basePath === "/notes/" && failLocal) throw new Error("synthetic local build failure");
+    return siteEntries({ "index.html": "UPDATED_SITE" });
+  } });
+  try {
+    await f.seed();
+    assert.equal((await f.request("/publish", { method: "POST", data: payload() })).status, 202);
+    const failedLocal = await f.waitJob();
+    assert.equal(failedLocal.phase, "published"); assert.equal(failedLocal.localSite?.phase, "failed");
+    assert.ok(failedLocal.commitSha); assert.match(failedLocal.message, /GitHub Pages 已发布/);
+    assert.equal(await (await fetch(f.origin + "/notes/")).text(), "PREVIOUS_LOCAL_VERSION");
+    failLocal = false;
+    assert.equal((await f.request("/publish", { method: "POST", data: payload() })).status, 202);
+    const retried = await f.waitJob();
+    assert.equal(retried.phase, "published"); assert.equal(retried.localSite?.phase, "published");
+    assert.equal(retried.commitSha, failedLocal.commitSha);
+    assert.equal(await (await fetch(f.origin + "/notes/")).text(), "UPDATED_SITE");
+    assert.deepEqual(settingsSeen, ["/notes-site/", "/notes/", "/notes-site/", "/notes/"]);
+  } finally { await f.close(); await fs.rm(directory, { recursive: true, force: true }); }
+});
+
+test("failed GitHub publication never activates a local version", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "notes-local-github-failed-"));
+  const publisher = new LocalSitePublisher(directory, "alice");
+  await publisher.publish("alice", siteEntries({ "index.html": "PREVIOUS" }), new AbortController().signal);
+  const f = await fixture({ localSitePublisher: publisher, build: async () => { throw new Error("synthetic GitHub build failure"); } });
+  try {
+    await f.seed();
+    assert.equal((await f.request("/publish", { method: "POST", data: payload() })).status, 202);
+    const job = await f.waitJob();
+    assert.equal(job.phase, "failed"); assert.equal(job.localSite?.phase, "failed");
+    assert.equal(await (await fetch(f.origin + "/notes/")).text(), "PREVIOUS");
+  } finally { await f.close(); await fs.rm(directory, { recursive: true, force: true }); }
+});
 
 test("GitHub 发布 API 只接受当前网页登录账号、拒绝跨站，未配置时仍能读取状态", async () => {
   const f = await fixture({ config: null, api: undefined });

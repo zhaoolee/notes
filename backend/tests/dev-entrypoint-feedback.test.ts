@@ -41,7 +41,7 @@ test("生产反向代理保留外层 HTTPS 协议", async () => {
     nginxConfig.match(
       /proxy_set_header X-Forwarded-Proto \$notes_forwarded_proto;/g,
     )?.length,
-    2,
+    3,
   );
   assert.doesNotMatch(
     nginxConfig,

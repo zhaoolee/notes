@@ -110,3 +110,13 @@ SITE_PUBLISH_NO_ORIGIN=1 node scripts/verify-site-publishing.mjs
 ## 一键发布到 GitHub Pages
 
 在网站发布面板的 GitHub Pages 卡片授权并选择仓库，可从固定底部操作区点击“发布到 GitHub Pages”直接发布所选便签；该按钮位于“生成网站 ZIP”之前，授权、仓库选择与发布进度仍留在默认折叠的卡片，展开后可查看和操作；已连接时固定底部的发布按钮不受折叠影响。ZIP 导出继续可用。管理员配置、目录保护和故障恢复详见 [GitHub 一键发布](github-site-publishing.md)。
+
+## 本站镜像（可选）
+
+管理员可为指定 Notes 账号开启本站镜像。服务端设置 `SITE_PUBLISH_LOCAL_ENABLED=true` 和 `SITE_PUBLISH_LOCAL_OWNER_ID`（默认 `superadmin`）后，只有该账号的 GitHub Pages 卡片会说明：发布成功后还会更新本站的 `/notes/` 页面。其他账号、未启用部署和旧服务仍只显示原有的 GitHub Pages 行为。
+
+发布顺序固定为 GitHub Pages 成功后再构建本站镜像。本站镜像使用 Notes 自己的 origin 和固定 `/notes/` 路径，不沿用 GitHub 仓库域名、Pages 自定义域名或发布面板里的 basePath。面板仍只有一个发布按钮；打开面板、轮询状态、授权回调都不会自动触发发布，只有用户明确点击后才发布。
+
+GitHub Pages 与本站镜像分别显示结果。GitHub 任务最终为 `published` 只表示 GitHub Pages 成功；本站结果单独显示等待、构建、已更新或失败。“访问站点”仍指向 GitHub Pages，“访问本站网站”只在本次本站镜像成功时出现。本站更新失败会明确提示已有站点不会被替换；如已发布过，上一版本仍可访问，不影响 GitHub 已发布结果，可再次发布重试，不会把旧版本说成本次成功。
+
+本站静态文件保存在现有数据目录的 `published-site` 子目录，备份 `storage/data` 时会一并包含，不需要新增 volume。本站托管默认关闭：只有显式设置 `SITE_PUBLISH_LOCAL_ENABLED=true`，且当前发布账号为配置的 owner 时，才会生成或更新本站版本；未启用时不会创建新的本站版本，尚未发布的 `/notes/` 返回 404，已有版本仍可访问。`/notes` 使用相对地址的 308 跳转到 `/notes/` 并保留查询参数（Nginx `absolute_redirect off`），HTTPS 终止后不会改写成对内 http 地址；`/notes/` 直接提供静态页面，缺失资源返回 404，不回退到编辑器。已发布的站点页面保持公开，匿名访客可直接阅读，不依赖编辑器或 API 的登录会话；`REQUIRE_LOGIN=true` 只保护编辑器和 API，不会隐藏已有本站页面。发布指针绑定首次发布账号；如果磁盘上的本站版本属于另一个账号，即使 owner 配置或当前发布账号变化，服务也会拒绝覆盖，旧页面保持不变。该能力当前只在源码中实现，尚未声明已在正式生产部署或验证。

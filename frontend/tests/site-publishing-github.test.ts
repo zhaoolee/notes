@@ -4,7 +4,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   GITHUB_PUBLISH_POLL_INTERVAL_MS,
+  GitHubLocalSiteHint,
   GitHubPublishControls,
+  GitHubPublishJobResult,
+  describeGitHubLocalSite,
   describeGitHubPublishJob,
   formatGitHubPublishCounts,
   getGitHubPublishAvailability,
@@ -23,10 +26,12 @@ import {
   fetchGitHubPublishingStatus,
   fetchGitHubRepositories,
   getUrlAfterConsumingGitHubPublishRedirect,
+  parseGitHubPublishingStatus,
   publishSiteToGitHub,
   readGitHubPublishRedirectFromUrl,
   sanitizeGitHubCommitUrl,
   sanitizeGitHubSiteUrl,
+  sanitizeLocalSiteUrl,
   selectGitHubRepository,
 } from "../../src/features/site-publishing/github-client.js";
 import type {
@@ -102,6 +107,17 @@ function makeStatus(
     connected: true,
     repository: REPOSITORY,
     job: null,
+    ...overrides,
+  };
+}
+
+function makeJob(overrides: Partial<GitHubPublishJob> = {}): GitHubPublishJob {
+  return {
+    id: "job-1",
+    phase: "published",
+    message: "网站已发布。",
+    startedAt: 1,
+    updatedAt: 2,
     ...overrides,
   };
 }
@@ -241,6 +257,243 @@ test("选择仓库只提交 repositoryId 与 installationId，断开连接返回
   assert.equal(remove.calls[0].url, GITHUB_PUBLISHING_CONNECTION_ENDPOINT);
   assert.equal(remove.calls[0].init.method, "DELETE");
   assert.equal(disconnected.connected, false);
+});
+
+test("可选本站状态兼容旧任务，并解析 pending、published 与 failed", () => {
+  const oldStatus = parseGitHubPublishingStatus({
+    enabled: true,
+    connected: true,
+    repository: REPOSITORY,
+    job: makeJob(),
+  });
+  assert.equal("localSiteEnabled" in oldStatus, false);
+  assert.equal(oldStatus.job?.localSite, undefined);
+  assert.equal(describeGitHubLocalSite(oldStatus.job?.localSite), null);
+
+  const disabledStatus = parseGitHubPublishingStatus({
+    enabled: true,
+    connected: true,
+    localSiteEnabled: false,
+    job: makeJob(),
+  });
+  assert.equal("localSiteEnabled" in disabledStatus, false);
+
+  for (const phase of ["pending", "building", "published", "failed"] as const) {
+    const url =
+      phase === "published"
+        ? "https://notes-ui.example.test/notes/"
+        : "";
+    const status = parseGitHubPublishingStatus({
+      enabled: true,
+      connected: true,
+      localSiteEnabled: true,
+      job: makeJob({
+        localSite: { phase, url, message: `本站状态：${phase}` },
+      }),
+    });
+
+    assert.equal(status.localSiteEnabled, true);
+    assert.deepEqual(status.job?.localSite, {
+      phase,
+      url,
+      message: `本站状态：${phase}`,
+    });
+  }
+});
+
+test("本站可选地址拒绝非法协议、凭据与缺失状态，不会破坏其他 GitHub 字段", () => {
+  for (const unsafe of [
+    "http://notes-ui.example.test/notes/",
+    "javascript:alert(1)",
+    "https://user:pass@notes-ui.example.test/notes/",
+    "not a url",
+  ]) {
+    const status = parseGitHubPublishingStatus({
+      enabled: true,
+      connected: true,
+      localSiteEnabled: true,
+      job: makeJob({
+        commitSha: "abc123",
+        siteUrl: "https://octo.example.test/notes-site/",
+        localSite: { phase: "published", url: unsafe, message: "不应展示" },
+      }),
+    });
+
+    assert.equal(status.job?.localSite, undefined);
+    assert.equal(status.job?.commitSha, "abc123");
+    assert.equal(status.job?.siteUrl, "https://octo.example.test/notes-site/");
+  }
+
+  const malformed = parseGitHubPublishingStatus({
+    enabled: true,
+    connected: true,
+    localSiteEnabled: true,
+    job: {
+      id: "job-1",
+      phase: "published",
+      message: "",
+      startedAt: 1,
+      updatedAt: 2,
+      localSite: {
+        phase: "publishing",
+        url: "https://notes-ui.example.test/notes/",
+      },
+    },
+  });
+  assert.equal(malformed.job?.localSite, undefined);
+
+  const missingPublishedUrl = parseGitHubPublishingStatus({
+    enabled: true,
+    connected: true,
+    localSiteEnabled: true,
+    job: makeJob({ localSite: { phase: "published", url: "", message: "" } }),
+  });
+  assert.equal(missingPublishedUrl.job?.localSite, undefined);
+
+  const failedUnsafeUrl = parseGitHubPublishingStatus({
+    enabled: true,
+    connected: true,
+    localSiteEnabled: true,
+    job: makeJob({
+      localSite: {
+        phase: "failed",
+        url: "http://notes-ui.example.test/notes/",
+        message: "本站更新失败，已有站点不会被替换。",
+      },
+    }),
+  });
+  assert.deepEqual(failedUnsafeUrl.job?.localSite, {
+    phase: "failed",
+    url: "",
+    message: "本站更新失败，已有站点不会被替换。",
+  });
+  const failedHtml = renderToStaticMarkup(
+    createElement(GitHubPublishJobResult, { job: failedUnsafeUrl.job! }),
+  );
+  assert.match(failedHtml, /data-local-site-phase="failed"/);
+  assert.match(failedHtml, /已有站点不会被替换/);
+  assert.doesNotMatch(failedHtml, /访问本站网站/);
+});
+
+test("本站地址允许 HTTP 回环，仍拒绝外部 HTTP 与不安全协议", () => {
+  for (const url of [
+    "http://localhost:3001/notes/",
+    "http://127.0.0.1:3001/notes/",
+    "http://[::1]:3001/notes/",
+    "https://notes-ui.example.test/notes/",
+  ]) {
+    assert.equal(sanitizeLocalSiteUrl(url), new URL(url).href);
+  }
+
+  for (const unsafe of [
+    "http://notes-ui.example.test/notes/",
+    "http://localhost.evil.example/notes/",
+    "http://127.0.0.1.evil.example/notes/",
+    "http://user:pass@localhost:3001/notes/",
+    "ftp://localhost/notes/",
+    "javascript:alert(1)",
+  ]) {
+    assert.equal(sanitizeLocalSiteUrl(unsafe), null);
+  }
+
+  const status = parseGitHubPublishingStatus({
+    enabled: true,
+    connected: true,
+    localSiteEnabled: true,
+    job: makeJob({
+      localSite: {
+        phase: "published",
+        url: "http://127.0.0.1:3001/notes/",
+        message: "本地回环站点已更新。",
+      },
+    }),
+  });
+  assert.equal(
+    status.job?.localSite?.url,
+    "http://127.0.0.1:3001/notes/",
+  );
+
+  const html = renderToStaticMarkup(
+    createElement(GitHubPublishJobResult, { job: status.job! }),
+  );
+  assert.match(
+    html,
+    /href="http:\/\/127\.0\.0\.1:3001\/notes\/"/,
+  );
+  assert.match(html, />访问本站网站</);
+});
+
+test("本站状态渲染为独立结果，只有 published 才显示“访问本站网站”", () => {
+  const pendingHtml = renderToStaticMarkup(
+    createElement(GitHubPublishJobResult, {
+      job: makeJob({
+        localSite: {
+          phase: "pending",
+          url: "https://notes-ui.example.test/notes/",
+          message: "本站镜像已排队。",
+        },
+      }),
+    }),
+  );
+  assert.match(pendingHtml, /data-local-site-phase="pending"/);
+  assert.match(pendingHtml, /本站镜像：等待更新本站镜像/);
+  assert.match(pendingHtml, /本站镜像已排队/);
+  assert.doesNotMatch(pendingHtml, /访问本站网站/);
+
+  const publishedHtml = renderToStaticMarkup(
+    createElement(GitHubPublishJobResult, {
+      job: makeJob({
+        commitSha: "abc123",
+        commitUrl: "https://github.com/octo/notes-site/commit/abc123",
+        siteUrl: "https://octo.example.test/notes-site/",
+        localSite: {
+          phase: "published",
+          url: "https://notes-ui.example.test/notes/",
+          message: "本站 /notes/ 已更新。",
+        },
+      }),
+    }),
+  );
+  assert.match(publishedHtml, /data-local-site-phase="published"/);
+  assert.match(publishedHtml, /data-local-site-live="true"/);
+  assert.match(publishedHtml, /本站镜像：已更新/);
+  assert.doesNotMatch(publishedHtml, /本站镜像：本站镜像/);
+  assert.match(publishedHtml, /href="https:\/\/notes-ui\.example\.test\/notes\/"/);
+  assert.match(publishedHtml, />访问本站网站</);
+  assert.match(publishedHtml, />访问站点</);
+
+  const failedHtml = renderToStaticMarkup(
+    createElement(GitHubPublishJobResult, {
+      job: makeJob({
+        commitSha: "abc123",
+        commitUrl: "https://github.com/octo/notes-site/commit/abc123",
+        siteUrl: "https://octo.example.test/notes-site/",
+        localSite: {
+          phase: "failed",
+          url: "https://notes-ui.example.test/notes/",
+          message: "本站构建失败。",
+        },
+      }),
+    }),
+  );
+  assert.match(failedHtml, /data-github-publish-live="true"/);
+  assert.match(failedHtml, /data-local-site-phase="failed"/);
+  assert.match(failedHtml, /data-local-site-live="false"/);
+  assert.match(failedHtml, /本站镜像：本站更新失败，已有站点不会被替换/);
+  assert.match(failedHtml, /本站构建失败/);
+  assert.match(failedHtml, /如已发布过，上一版本仍可访问/);
+  assert.match(failedHtml, />访问站点</);
+  assert.doesNotMatch(failedHtml, /访问本站网站/);
+
+  const legacyHtml = renderToStaticMarkup(
+    createElement(GitHubPublishJobResult, { job: makeJob() }),
+  );
+  assert.doesNotMatch(legacyHtml, /data-local-site-phase/);
+  assert.doesNotMatch(legacyHtml, /访问本站网站/);
+  assert.match(
+    renderToStaticMarkup(createElement(GitHubLocalSiteHint)),
+    /同步更新到本站的\s*\/notes\/\s*页面/,
+  );
 });
 
 test("轮询间隔在 3–5 秒内，终态任务停止轮询", () => {
@@ -393,6 +646,27 @@ test("提交成功与已发布分开：只有 published 才算站点上线", () 
   assert.equal(deploying.committed, true);
   assert.match(deploying.label, /已提交成功/);
   assert.doesNotMatch(deploying.label, /已发布/);
+
+  const deployingLocal = describeGitHubPublishJob({
+    id: "job-1",
+    phase: "deploying",
+    message: "",
+    startedAt: 1,
+    updatedAt: 2,
+    commitSha: "abc123",
+    commitUrl: "https://github.com/octo/notes-site/commit/abc123",
+    localSite: {
+      phase: "building",
+      url: "https://notes-ui.example.test/notes/",
+      message: "正在更新本站网站…",
+    },
+  });
+  assert.equal(deployingLocal.active, true);
+  assert.equal(deployingLocal.terminal, false);
+  assert.equal(deployingLocal.live, false);
+  assert.equal(deployingLocal.committed, true);
+  assert.equal(deployingLocal.label, "GitHub Pages 已上线，正在更新本站");
+  assert.doesNotMatch(deployingLocal.label, /等待 GitHub Pages 部署/);
 
   const published = describeGitHubPublishJob({
     id: "job-1",

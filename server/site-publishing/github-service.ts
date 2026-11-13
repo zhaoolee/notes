@@ -8,6 +8,7 @@ import { buildSiteEntries, validateSiteExportRequest, type SiteBuildOptions, typ
 import { GitHubApi, GitHubPublishingError, type GitHubAppConfig } from "./github-api.js";
 import { GitHubPublishingStore } from "./github-store.js";
 import { commitStaticSite, configurePages, githubSiteLocation, readPages, repositoryApiPath, waitForPages } from "./github-publisher.js";
+import { LOCAL_SITE_BASE_PATH, type LocalSitePublisher } from "./local-site.js";
 
 export interface GitHubPublishingOptions {
   dataDirectory: string; rootDirectory: string; imagesDirectory: string; publicDirectory: string;
@@ -18,6 +19,7 @@ export interface GitHubPublishingOptions {
   api?: GitHubApi;
   build?: (request: SiteExportRequest, options: SiteBuildOptions) => Promise<SiteZipEntry[]>;
   timeoutMs?: number; pollMs?: number;
+  localSitePublisher?: LocalSitePublisher;
 }
 
 export async function createGitHubPublishingRouter(options: GitHubPublishingOptions) {
@@ -38,7 +40,8 @@ export async function createGitHubPublishingRouter(options: GitHubPublishingOpti
   async function status(owner: string): Promise<GitHubPublishingStatus> {
     const account = await store.get(owner);
     return { enabled: !!api, connected: !!account.connection, githubLogin: account.connection?.user.login,
-      repository: account.repository ?? null, job: jobs.get(owner) ?? account.job ?? null };
+      repository: account.repository ?? null, job: jobs.get(owner) ?? account.job ?? null,
+      ...(options.localSitePublisher?.canPublish(owner) ? { localSiteEnabled: true } : {}) };
   }
   async function userToken(owner: string): Promise<string> {
     const existing = refreshing.get(owner); if (existing) return existing;
@@ -196,11 +199,30 @@ export async function createGitHubPublishingRouter(options: GitHubPublishingOpti
       // 当前用户的管理权限，避免把 App 安装的管理权限提升给普通写入者。
       await configurePages(api!, await userToken(owner), authorized, controller.signal);
       await waitForPages({ api: api!, token, repository: authorized, commitSha: committed.commitSha, signal: controller.signal, pollMs: options.pollMs });
-      await patch({ phase: "published", message: "网站已发布。" });
+      if (job.localSite && options.localSitePublisher?.canPublish(owner)) {
+        try {
+          await patch({ message: "GitHub Pages 已上线，正在生成本站网站…", localSite: { ...job.localSite, phase: "building", message: "正在更新本站网站…" } });
+          const releaseLocalBuild = await siteBuildGate.acquire(owner, controller.signal);
+          try {
+            // Rebuild for this origin/path; GitHub canonical URLs and repository
+            // prefixes must never leak into navigation on the local website.
+            const entries = await (options.build ?? buildSiteEntries)({ ...request, settings: { ...request.settings, origin: publicOrigin, basePath: LOCAL_SITE_BASE_PATH } }, {
+              rootDirectory: options.rootDirectory, signal: controller.signal,
+              readImage: createSiteImageReader({ imagesDirectory: options.imagesDirectory, publicDirectory: options.publicDirectory, publicOrigin }),
+            });
+            await options.localSitePublisher.publish(owner, entries, controller.signal);
+          } finally { releaseLocalBuild(); }
+          await patch({ localSite: { ...job.localSite!, phase: "published", message: "本站网站已更新。" } });
+        } catch {
+          await patch({ localSite: { ...job.localSite!, phase: "failed", message: "本站更新失败，原站点保持不变；可重新发布重试。" } });
+        }
+      }
+      await patch({ phase: "published", message: job.localSite?.phase === "published" ? "GitHub Pages 与本站网站均已发布。" : job.localSite?.phase === "failed" ? "GitHub Pages 已发布，本站网站更新失败，请重试。" : "网站已发布。" });
     } catch (error) {
       const message = controller.signal.aborted ? (job.commitSha ? "等待 Pages 发布超时，网站提交已保留。可重新发布以继续确认状态。" : "网站发布超时，请稍后重试。")
         : error instanceof GitHubPublishingError ? error.message : job.phase === "building" ? "Hugo 网站构建失败，请检查便签、图片和服务端 Hugo 环境后重试。" : "网站发布失败，请稍后重试。";
-      try { await patch({ phase: "failed", message }); } catch { jobs.set(owner, { ...job, phase: "failed", message: "无法保存发布状态，请检查服务端存储；已提交的版本不会回滚。", updatedAt: Date.now() }); }
+      const localSite = job.localSite && job.localSite.phase !== "published" ? { ...job.localSite, phase: "failed" as const, message: "GitHub Pages 未成功上线，本站网站未更新。" } : job.localSite;
+      try { await patch({ phase: "failed", message, ...(localSite ? { localSite } : {}) }); } catch { jobs.set(owner, { ...job, phase: "failed", message: "无法保存发布状态，请检查服务端存储；已提交的版本不会回滚。", updatedAt: Date.now() }); }
     } finally { clearTimeout(deadline); activeOwners.delete(owner); activeRepositories.delete(repository.id); }
   }
   router.post("/publish", async (request, response) => {
@@ -223,6 +245,9 @@ export async function createGitHubPublishingRouter(options: GitHubPublishingOpti
       if (activeRepositories.has(repository.id)) throw new GitHubPublishingError("该仓库正在发布，请稍后重试。", 429);
       activeRepositories.add(repository.id); repositoryReserved = true;
       const job: GitHubPublishJob = { id: randomUUID(), phase: "queued", message: "发布已排队…", startedAt: Date.now(), updatedAt: Date.now() };
+      if (options.localSitePublisher?.canPublish(owner)) {
+        job.localSite = { phase: "pending", url: new URL(LOCAL_SITE_BASE_PATH, origin).href, message: "GitHub Pages 上线后自动更新本站。" };
+      }
       await store.update(owner, (current) => ({ ...current, job })); jobs.set(owner, job);
       started = true;
       void run(owner, parsed, repository, origin, job);

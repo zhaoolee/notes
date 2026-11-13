@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import type { NoteDocument } from "../../types/app.js";
 import {
   activeGitHubPublishPhases,
+  type GitHubLocalSitePhase,
+  type GitHubLocalSiteStatus,
   type GitHubPublishCounts,
   type GitHubPublishJob,
   type GitHubPublishPhase,
@@ -17,6 +19,7 @@ import {
   publishSiteToGitHub,
   sanitizeGitHubCommitUrl,
   sanitizeGitHubSiteUrl,
+  sanitizeLocalSiteUrl,
   selectGitHubRepository,
   type GitHubPublishRedirect,
 } from "./github-client.js";
@@ -43,6 +46,13 @@ const PHASE_LABELS: Record<GitHubPublishPhase, string> = {
   interrupted: "发布已中断",
 };
 
+const LOCAL_SITE_PHASE_LABELS: Record<GitHubLocalSitePhase, string> = {
+  pending: "等待更新本站镜像",
+  building: "正在构建本站镜像",
+  published: "已更新",
+  failed: "本站更新失败，已有站点不会被替换",
+};
+
 export interface GitHubPublishJobView {
   active: boolean;
   terminal: boolean;
@@ -61,12 +71,17 @@ export function isGitHubPublishJobActive(
 export function describeGitHubPublishJob(
   job: GitHubPublishJob,
 ): GitHubPublishJobView {
+  const localSiteBuilding =
+    job.phase === "deploying" && job.localSite?.phase === "building";
+
   return {
     active: ACTIVE_PHASES.has(job.phase),
     terminal: TERMINAL_PHASES.has(job.phase),
     live: job.phase === "published",
     committed: Boolean(job.commitSha || job.commitUrl),
-    label: PHASE_LABELS[job.phase],
+    label: localSiteBuilding
+      ? "GitHub Pages 已上线，正在更新本站"
+      : PHASE_LABELS[job.phase],
   };
 }
 
@@ -84,6 +99,122 @@ export function formatGitHubPublishCounts(
     `未变 ${counts.unchanged}`,
     `上传文件 ${counts.uploaded}`,
   ].join(" · ");
+}
+
+export interface GitHubLocalSiteView {
+  label: string;
+  live: boolean;
+  failed: boolean;
+  url: string | null;
+}
+
+/** 本站镜像与 GitHub Pages 完全分开判定，失败不能借 GitHub 的成功状态展示为已上线。 */
+export function describeGitHubLocalSite(
+  localSite: GitHubLocalSiteStatus | null | undefined,
+): GitHubLocalSiteView | null {
+  if (!localSite) {
+    return null;
+  }
+
+  return {
+    label: LOCAL_SITE_PHASE_LABELS[localSite.phase],
+    live: localSite.phase === "published",
+    failed: localSite.phase === "failed",
+    url:
+      localSite.phase === "published"
+        ? sanitizeLocalSiteUrl(localSite.url)
+        : null,
+  };
+}
+
+/** 仅管理员配置的本站账号会看到这条说明，其他账号保持 GitHub-only 文案。 */
+export function GitHubLocalSiteHint() {
+  return (
+    <p className="site-publish-github-hint" data-local-site-enabled="true">
+      发布到 GitHub Pages 成功后，还会把本次选中的便签同步更新到本站的
+      /notes/ 页面。
+    </p>
+  );
+}
+export interface GitHubPublishJobResultProps {
+  job: GitHubPublishJob;
+}
+
+/** 独立的结果视图，便于在不挂载完整面板时验证 GitHub 与本站状态不会混淆。 */
+export function GitHubPublishJobResult({ job }: GitHubPublishJobResultProps) {
+  const jobView = describeGitHubPublishJob(job);
+  const countsText = formatGitHubPublishCounts(job.counts);
+  const siteUrl = sanitizeGitHubSiteUrl(job.siteUrl);
+  const commitUrl = sanitizeGitHubCommitUrl(job.commitUrl);
+  const localSiteView = describeGitHubLocalSite(job.localSite);
+
+  return (
+    <div
+      className="site-publish-github-job"
+      role="status"
+      aria-live="polite"
+      data-github-publish-phase={job.phase}
+      data-github-publish-live={jobView.live ? "true" : "false"}
+    >
+      <strong>{jobView.label}</strong>
+      {job.message && job.message !== jobView.label ? (
+        <p>{job.message}</p>
+      ) : null}
+      {countsText ? (
+        <p className="site-publish-github-counts">{countsText}</p>
+      ) : null}
+      {siteUrl || commitUrl ? (
+        <p className="site-publish-github-links">
+          {siteUrl ? (
+            <a href={siteUrl} target="_blank" rel="noreferrer noopener">
+              访问站点
+            </a>
+          ) : null}
+          {commitUrl ? (
+            <a href={commitUrl} target="_blank" rel="noreferrer noopener">
+              查看提交记录
+            </a>
+          ) : null}
+        </p>
+      ) : null}
+      {localSiteView ? (
+        <div
+          className="site-publish-local-site"
+          data-local-site-phase={job.localSite?.phase}
+          data-local-site-live={localSiteView.live ? "true" : "false"}
+        >
+          <span className="site-publish-local-site-label">
+            本站镜像：{localSiteView.label}
+          </span>
+          {job.localSite?.message &&
+          job.localSite.message !== localSiteView.label ? (
+            <p>{job.localSite.message}</p>
+          ) : null}
+          {localSiteView.url ? (
+            <p className="site-publish-github-links">
+              <a
+                href={localSiteView.url}
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                访问本站网站
+              </a>
+            </p>
+          ) : null}
+          {localSiteView.failed ? (
+            <p className="site-publish-local-site-failed">
+              本站镜像没有更新，已有站点不会被替换；如已发布过，上一版本仍可访问。GitHub Pages 的发布结果不受影响，可重试本次更新。
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {job.phase === "failed" && !job.message ? (
+        <p className="site-publish-field-error" role="alert">
+          发布失败，请检查授权与仓库设置后重试。
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 export interface GitHubPublishAvailabilityInput {
@@ -234,10 +365,6 @@ export function GitHubPublishControls({
   const [disconnecting, setDisconnecting] = useState(false);
 
   const job = status?.job ?? null;
-  const jobView = job ? describeGitHubPublishJob(job) : null;
-  const countsText = job ? formatGitHubPublishCounts(job.counts) : "";
-  const siteUrl = job ? sanitizeGitHubSiteUrl(job.siteUrl) : null;
-  const commitUrl = job ? sanitizeGitHubCommitUrl(job.commitUrl) : null;
   const availability = getGitHubPublishAvailability({
     selectedCount: draft.selections.length,
     disabled,
@@ -834,6 +961,8 @@ export function GitHubPublishControls({
               : "已连接 GitHub 账号"}
           </p>
 
+          {status.localSiteEnabled ? <GitHubLocalSiteHint /> : null}
+
           <div className="site-publish-github-repository">
             <label className="site-publish-field" htmlFor={repositorySelectId}>
               <span>发布仓库</span>
@@ -903,42 +1032,7 @@ export function GitHubPublishControls({
         </div>
       ) : null}
 
-      {job && jobView ? (
-        <div
-          className="site-publish-github-job"
-          role="status"
-          aria-live="polite"
-          data-github-publish-phase={job.phase}
-          data-github-publish-live={jobView.live ? "true" : "false"}
-        >
-          <strong>{jobView.label}</strong>
-          {job.message && job.message !== jobView.label ? (
-            <p>{job.message}</p>
-          ) : null}
-          {countsText ? (
-            <p className="site-publish-github-counts">{countsText}</p>
-          ) : null}
-          {siteUrl || commitUrl ? (
-            <p className="site-publish-github-links">
-              {siteUrl ? (
-                <a href={siteUrl} target="_blank" rel="noreferrer noopener">
-                  访问站点
-                </a>
-              ) : null}
-              {commitUrl ? (
-                <a href={commitUrl} target="_blank" rel="noreferrer noopener">
-                  查看提交记录
-                </a>
-              ) : null}
-            </p>
-          ) : null}
-          {job.phase === "failed" && !job.message ? (
-            <p className="site-publish-field-error" role="alert">
-              发布失败，请检查授权与仓库设置后重试。
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+      {job ? <GitHubPublishJobResult job={job} /> : null}
 
       {error && status ? (
         <p className="site-publish-field-error" role="alert">

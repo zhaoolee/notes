@@ -1251,6 +1251,7 @@ test("recoverInterruptedJobs 把活动任务标为 interrupted 并保留提交�
       startedAt: 10,
       updatedAt: 10,
       commitSha: "abc123",
+      localSite: { phase: "building", url: "https://notes.example.test/notes/", message: "构建中" },
     },
   }));
   await store.update("pending", () => ({
@@ -1270,6 +1271,7 @@ test("recoverInterruptedJobs 把活动任务标为 interrupted 并保留提交�
       startedAt: 30,
       updatedAt: 30,
       commitSha: "def456",
+      localSite: { phase: "published", url: "https://notes.example.test/notes/", message: "已发布" },
     },
   }));
 
@@ -1280,6 +1282,8 @@ test("recoverInterruptedJobs 把活动任务标为 interrupted 并保留提交�
   assert.equal(committed.job?.phase, "interrupted");
   assert.equal(committed.job?.commitSha, "abc123");
   assert.match(committed.job?.message ?? "", /已提交/);
+  assert.equal(committed.job?.localSite?.phase, "failed");
+  assert.match(committed.job?.localSite?.message ?? "", /本站更新中断/);
 
   const pending = await restarted.get("pending");
   assert.equal(pending.job?.phase, "interrupted");
@@ -1288,4 +1292,5 @@ test("recoverInterruptedJobs 把活动任务标为 interrupted 并保留提交�
   const published = await restarted.get("published");
   assert.equal(published.job?.phase, "published");
   assert.equal(published.job?.message, "已发布");
+  assert.equal(published.job?.localSite?.phase, "published");
 });
