@@ -882,7 +882,7 @@ export function GitHubPublishControls({
         ? "正在发布…"
         : publishing
           ? "正在提交…"
-          : "发布到 GitHub Pages"}
+          : "发布到网站"}
     </button>
   );
   const portalPublishButton =

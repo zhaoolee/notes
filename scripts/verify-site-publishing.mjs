@@ -460,7 +460,7 @@ try {
     check(await panel.getByText("已连接 GitHub：@ui-feedback", { exact: true }).isVisible() === false, `${prefix}: connected GitHub settings stay hidden while collapsed`);
     check(await githubSummary.isVisible(), `${prefix}: collapsed GitHub Pages summary stays visible`);
     const footer = panel.locator(".site-publish-footer");
-    const publishButton = footer.getByRole("button", { name: "发布到 GitHub Pages" });
+    const publishButton = footer.getByRole("button", { name: "发布到网站" });
     const zipButton = footer.getByRole("button", { name: "生成网站 ZIP" });
     check(await publishButton.isVisible(), `${prefix}: footer publish action stays visible while the GitHub card is collapsed`);
     check(await publishButton.isDisabled(), `${prefix}: footer publish action waits for a repository`);
@@ -490,10 +490,10 @@ try {
     check(await repositorySelect.inputValue() === "42", `${prefix}: expanded card keeps the selected repository`);
 
     check(await publishButton.count() === 1, `${prefix}: footer renders exactly one publish action`);
-    check(await panel.locator(".site-publish-github").getByRole("button", { name: "发布到 GitHub Pages" }).count() === 0, `${prefix}: repository card no longer holds the publish action`);
+    check(await panel.locator(".site-publish-github").getByRole("button", { name: "发布到网站" }).count() === 0, `${prefix}: repository card no longer holds the publish action`);
     const footerOrder = await footer.evaluate((element) => {
       const buttons = Array.from(element.querySelectorAll("button"));
-      const publish = buttons.find((button) => button.textContent?.trim() === "发布到 GitHub Pages");
+      const publish = buttons.find((button) => button.textContent?.trim() === "发布到网站");
       const zip = buttons.find((button) => button.textContent?.trim() === "生成网站 ZIP");
       return Boolean(publish && zip && (publish.compareDocumentPosition(zip) & Node.DOCUMENT_POSITION_FOLLOWING));
     });
@@ -506,7 +506,7 @@ try {
     const desktopFooter = await footer.evaluate((element) => {
       const box = (button) => { const rect = button.getBoundingClientRect(); return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }; };
       const buttons = Array.from(element.querySelectorAll("button"));
-      const publish = buttons.find((button) => button.textContent?.trim() === "发布到 GitHub Pages");
+      const publish = buttons.find((button) => button.textContent?.trim() === "发布到网站");
       const zip = buttons.find((button) => button.textContent?.trim() === "生成网站 ZIP");
       return { publish: box(publish), zip: box(zip), viewport: { width: window.innerWidth, height: window.innerHeight }, overflows: element.scrollWidth > element.clientWidth + 1 };
     });
@@ -520,7 +520,7 @@ try {
     const mobileFooter = await footer.evaluate((element) => {
       const box = (button) => { const rect = button.getBoundingClientRect(); return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, visible: rect.width > 0 && rect.height > 0 }; };
       const buttons = Array.from(element.querySelectorAll("button"));
-      const publish = buttons.find((button) => button.textContent?.trim() === "发布到 GitHub Pages");
+      const publish = buttons.find((button) => button.textContent?.trim() === "发布到网站");
       const zip = buttons.find((button) => button.textContent?.trim() === "生成网站 ZIP");
       return { publish: box(publish), zip: box(zip), viewport: { width: window.innerWidth, height: window.innerHeight }, overflows: element.scrollWidth > element.clientWidth + 1 };
     });
@@ -608,7 +608,7 @@ try {
 
     simulated.nextPublishPhase = "failed";
     simulated.nextPublishMessage = "模拟的部署失败：GitHub Pages 构建未通过。";
-    const retryButton = panel.getByRole("button", { name: "发布到 GitHub Pages" });
+    const retryButton = panel.getByRole("button", { name: "发布到网站" });
     check(await retryButton.isEnabled(), `${prefix}: published job re-enables the publish action`);
     await retryButton.click();
     const failedJob = panel.locator('[data-github-publish-phase="failed"]');
@@ -617,7 +617,7 @@ try {
     check(await failedJob.getAttribute("data-github-publish-live") === "false", `${prefix}: failed publish is not live`);
     check(simulated.calls.publish === 2, `${prefix}: second publish sends exactly one additional POST`);
     checkSimulatedSelection(simulated.publishBodies[1], "second publish");
-    check(await panel.getByRole("button", { name: "发布到 GitHub Pages" }).isEnabled(), `${prefix}: failed publish re-enables the retry button`);
+    check(await panel.getByRole("button", { name: "发布到网站" }).isEnabled(), `${prefix}: failed publish re-enables the retry button`);
     check(realGitHubRequests.length === 0, `${prefix}: no request reached github.com`);
     check(new URL(page.url()).origin === baseURL, `${prefix}: no navigation left the Notes app`);
     check(simulated.calls.unhandled === 0, `${prefix}: no real GitHub endpoint was attempted`);

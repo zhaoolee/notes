@@ -2,7 +2,7 @@
 
 ## 用户流程
 
-在“发布为网站”面板选择便签，点击“授权 GitHub 仓库”，在 GitHub 安装本部署的 GitHub App，并选择允许访问的仓库。回到 Notes 后选择发布仓库，点击面板固定底部的“发布到 GitHub Pages”（位于“生成网站 ZIP”之前）。授权、仓库选择与发布进度仍显示在默认折叠的 GitHub Pages 卡片（展开后可查看和操作）；普通用户无需申请、复制或粘贴 GitHub Token。
+在“发布为网站”面板选择便签，点击“授权 GitHub 仓库”，在 GitHub 安装本部署的 GitHub App，并选择允许访问的仓库。回到 Notes 后选择发布仓库，点击面板固定底部的“发布到网站”（位于“生成网站 ZIP”之前）。授权、仓库选择与发布进度仍显示在默认折叠的 GitHub Pages 卡片（展开后可查看和操作）；普通用户无需申请、复制或粘贴 GitHub Token。
 
 Notes 服务器使用已有的 Hugo 构建器和模板，把所选便签、Logo、图片和搜索索引构建成完整网站，仅提交构建后的 `public/` 文件。原有“生成网站 ZIP”继续可用，与发布按钮同处面板固定底部。发布设置和便签选择仍按 Notes 账号保存。每次使用点击发布时的便签快照，发布过程中继续编辑的内容需要下一次发布才会更新。
 
@@ -79,7 +79,7 @@ GitHub 发布的域名以目标仓库当前 Pages 配置为准，未启用时使
 
 管理员可在 Notes 本机额外开启一份只属于指定 Notes 账号的本站镜像：设置 `SITE_PUBLISH_LOCAL_ENABLED=true`，并用 `SITE_PUBLISH_LOCAL_OWNER_ID` 指定允许的账号（默认 `superadmin`）。这两个字段都是非密钥配置。只有该账号的发布状态会带 `localSiteEnabled: true`；其他账号、未启用部署和旧服务保持原有 GitHub-only 行为，不显示本站说明或链接。
 
-开启后，用户点击“发布到 GitHub Pages”时仍先完成 GitHub Pages 发布；只有 GitHub Pages 成功后，服务端才以同一份便签快照构建本站镜像，固定发布到当前 Notes 站点的 `/notes/`，使用本站自己的 origin 和路径，不沿用 GitHub 仓库域名、Pages 自定义域名或发布面板里的 basePath。本站构建不会新增第二个发布按钮，也不会在打开面板、轮询或授权回调时自动发布。
+开启后，用户点击“发布到网站”时仍先完成 GitHub Pages 发布；只有 GitHub Pages 成功后，服务端才以同一份便签快照构建本站镜像，固定发布到当前 Notes 站点的 `/notes/`，使用本站自己的 origin 和路径，不沿用 GitHub 仓库域名、Pages 自定义域名或发布面板里的 basePath。本站构建不会新增第二个发布按钮，也不会在打开面板、轮询或授权回调时自动发布。
 
 发布任务继续使用原有 GitHub 阶段；最终 `phase: "published"` 只表示 GitHub Pages 成功，本站结果单独放在可选 `job.localSite` 中，可能为 `pending`、`building`、`published` 或 `failed`。面板分别显示本站进度和独立链接“访问本站网站”，只有 `localSite.phase === "published"` 才给出该链接。本站构建或写入失败时显示“已有站点不会被替换；如已发布过，上一版本仍可访问”，不影响 GitHub Pages 已发布结果，重新发布即可重试；不会把旧本站版本说成本次成功，也不会因本站失败把 GitHub 结果标成失败。
 

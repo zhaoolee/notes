@@ -169,6 +169,15 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
     content: RegExp[];
   }> = [
     {
+      version: "1.17.2",
+      heading:
+        "[1.17.2](https://github.com/zhaoolee/notes/compare/1.17.1...1.17.2) - 2026-11-13",
+      content: [
+        /发布按钮文案由“发布到 GitHub Pages”改为“发布到网站”/,
+        /发布中状态.*不变.*“生成网站 ZIP”仍在其后/s,
+      ],
+    },
+    {
       version: "1.17.1",
       heading:
         "[1.17.1](https://github.com/zhaoolee/notes/compare/1.17.0...1.17.1) - 2026-11-13",
