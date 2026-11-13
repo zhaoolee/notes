@@ -191,6 +191,42 @@ test("githubSiteLocation 正确拼接项目站点、根站点、自定义域名�
   );
 });
 
+test("githubSiteLocation 对项目根 /notes/ 和根域名 Pages /notes/ 不重复追加前缀", () => {
+  const notesRepository = { ...REPOSITORY, name: "notes", fullName: "octo/notes" };
+  const pages = { html_url: "https://octo.github.io/notes/" };
+  for (const basePath of ["/notes", "/notes/"]) {
+    const location = githubSiteLocation(notesRepository, makeSettings({ basePath }), pages);
+    assert.equal(location.url, "https://octo.github.io/notes/");
+    assert.equal(location.prefix, "");
+    assert.equal(location.settings.basePath, "/notes/");
+  }
+
+  const nested = githubSiteLocation(
+    notesRepository,
+    makeSettings({ basePath: "/notes/blog/" }),
+    pages,
+  );
+  assert.equal(nested.url, "https://octo.github.io/notes/blog/");
+  assert.equal(nested.prefix, "blog/");
+
+  const repositorySubpath = githubSiteLocation(
+    notesRepository,
+    makeSettings({ basePath: "/blog/" }),
+    pages,
+  );
+  assert.equal(repositorySubpath.url, "https://octo.github.io/notes/blog/");
+  assert.equal(repositorySubpath.prefix, "blog/");
+
+  const rootDomainPages = githubSiteLocation(
+    { ...REPOSITORY, name: "octo.github.io" },
+    makeSettings({ basePath: "/notes/" }),
+    { html_url: "https://blog.example.com/" },
+  );
+  assert.equal(rootDomainPages.url, "https://blog.example.com/notes/");
+  assert.equal(rootDomainPages.prefix, "notes/");
+  assert.equal(rootDomainPages.settings.basePath, "/notes/");
+});
+
 test("首次发布创建 orphan gh-pages 单次提交，不写默认分支", async () => {
   const fixture = createFakeGitHub({
     repository: REPOSITORY,

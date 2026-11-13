@@ -2,6 +2,8 @@ import type { NoteDocument } from "../../types/app.js";
 import { normalizeSiteLogoPath } from "./logo.js";
 
 export const SITE_THEME_ID = "smartisan-blog" as const;
+/** 新草稿的默认静态站点子路径；统一带首尾斜杠，保存过的设置仍以实际值为准。 */
+export const DEFAULT_SITE_BASE_PATH = "/notes/";
 /**
  * 可供选择的站点模板元数据。当前只有经典便签博客一种，面板按列表长度决定是否
  * 渲染“网站样式”选择区；以后接入第二种模板时只需在此追加条目。
@@ -121,7 +123,7 @@ export function validateSiteCategories(value: SiteCategory[]): SiteCategory[] {
 }
 
 export function createSitePublishDraft(origin = ""): SitePublishDraft {
-  return { settings: { title: "我的便签网站", description: "记录与分享", author: "", origin, basePath: "/", logoPath: "", themeId: SITE_THEME_ID }, categories: DEFAULT_SITE_CATEGORIES.map((category) => ({ ...category })), selections: [] };
+  return { settings: { title: "我的便签网站", description: "记录与分享", author: "", origin, basePath: DEFAULT_SITE_BASE_PATH, logoPath: "", themeId: SITE_THEME_ID }, categories: DEFAULT_SITE_CATEGORIES.map((category) => ({ ...category })), selections: [] };
 }
 
 export function getSiteNoteTitle(markdown: string): string {

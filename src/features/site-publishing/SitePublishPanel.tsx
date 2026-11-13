@@ -30,6 +30,7 @@ import {
   validateSiteLogoFile,
 } from "./logo.js";
 import {
+  DEFAULT_SITE_BASE_PATH,
   DEFAULT_SITE_CATEGORIES,
   SITE_THEMES,
   SITE_THEME_ID,
@@ -829,13 +830,13 @@ export function SitePublishPanel({
                   <input
                     type="text"
                     value={draft.settings.basePath}
-                    placeholder="/blog/"
+                    placeholder={DEFAULT_SITE_BASE_PATH}
                     aria-invalid={Boolean(basePathError)}
                     onChange={(event: ChangeEvent<HTMLInputElement>) =>
                       updateSettings({ basePath: event.target.value })
                     }
                   />
-                  <small>例如部署到 /blog/ 时填写 /blog/；根域名填写 /。</small>
+                  <small>默认 {DEFAULT_SITE_BASE_PATH}；自定义子路径如 /blog/，根域名填写 /。</small>
                   {basePathError ? (
                     <small className="site-publish-field-error" role="alert">
                       {basePathError}

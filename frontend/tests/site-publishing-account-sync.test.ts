@@ -41,10 +41,12 @@ test("旧浏览器配置首次迁入账号，新浏览器没有本机缓存也�
   const first = client(cache, remote.transport);
   await first.sync.start();
   assert.deepEqual(remote.get()?.draft, draft);
+  assert.equal(remote.get()?.draft.settings.basePath, "/notes/");
   first.sync.dispose();
   const second = client(storage(), remote.transport);
   await second.sync.start();
   assert.deepEqual(second.draft(), draft);
+  assert.equal(second.draft().settings.basePath, "/notes/");
   assert.equal(second.state().status, "saved");
   assert.equal(remote.writes.length, 1);
   second.sync.dispose();

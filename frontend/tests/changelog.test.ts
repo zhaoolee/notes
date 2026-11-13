@@ -34,7 +34,7 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
   assert.match(changelog, /^# 更新日志\n/);
   assert.equal(
     secondLevelHeadings[latestReleaseIndex],
-    `[${packageVersion.version}] - 2026-11-12`,
+    `[${packageVersion.version}] - 2026-11-13`,
   );
   assert.ok(categoryHeadings.length > 0);
 
@@ -62,6 +62,10 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
   assert.match(
     changelog,
     /^\[1\.11\.1\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.11\.0\.\.\.1\.11\.1$/m,
+  );
+  assert.match(
+    changelog,
+    /^\[1\.16\.4\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.16\.3\.\.\.1\.16\.4$/m,
   );
   assert.match(
     changelog,
@@ -160,6 +164,16 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
     heading: string;
     content: RegExp[];
   }> = [
+    {
+      version: "1.16.4",
+      heading:
+        "[1.16.4](https://github.com/zhaoolee/notes/compare/1.16.3...1.16.4) - 2026-11-13",
+      content: [
+        /默认部署子路径改为 `\/notes\/`/,
+        /自定义路径或根路径 `\/`/,
+        /已保存的根路径、自定义路径和旧 `rootPath` 保持原值.*不会自动迁移或重新发布/s,
+      ],
+    },
     {
       version: "1.16.3",
       heading:

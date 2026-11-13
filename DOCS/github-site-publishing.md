@@ -60,7 +60,7 @@ GitHub App 用户 access/refresh token 使用 AES-256-GCM 加密，AAD 绑定 No
 
 GitHub 发布的域名以目标仓库当前 Pages 配置为准，未启用时使用标准 `<owner>.github.io/<repo>/`（用户/组织主页仓库使用根路径），不直接套用 ZIP 中的域名。已有自定义 Pages 域名会沿用并保留 CNAME，不替用户修改 DNS。
 
-高级设置中的 `basePath` 在一键发布时用作仓库站点内的子路径：项目仓库默认 `/` 发布到 `https://owner.github.io/repo/`，填写 `/blog/` 发布到 `https://owner.github.io/repo/blog/` 并把静态文件放到 `gh-pages` 的 `blog/` 下。已填写 `/repo/blog/` 的旧设置不会重复追加项目名前缀。Hugo 在构建前使用最终路径，导航、图片、CSS、字体和搜索索引都保持一致。更换子路径后旧清单中的旧文件一起清理，非本应用文件保留。
+高级设置中的“部署子路径（basePath）”在一键发布时用作仓库站点内的子路径，新草稿默认为 `/notes/`：项目仓库 `https://owner.github.io/repo/` 会发布到 `https://owner.github.io/repo/notes/`，静态文件放在 `gh-pages` 的 `notes/` 下；填写 `/blog/` 会发布到 `https://owner.github.io/repo/blog/`，填写 `/` 则发布到仓库站点根。仓库 Pages 根已经是 `/notes/` 时，保存 `/notes` 或 `/notes/` 都会解析为 `https://owner.github.io/notes/`，`gh-pages` 前缀为空，不会生成 `/notes/notes/`。已填写 `/repo/notes/`、`/repo/blog/` 等包含项目名前缀的旧设置不会重复追加前缀，已保存的根路径和自定义路径也不会被新默认值自动迁移。Hugo 在构建前使用最终路径，导航、图片、CSS、字体和搜索索引都保持一致。更换子路径后旧清单中的旧文件一起清理，非本应用文件保留。
 
 ## 任务与故障恢复
 

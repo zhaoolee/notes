@@ -160,6 +160,33 @@ test("默认 Logo 保持锤子图标，导出不依赖 notes 的 /images/ 运行
   assert.equal(homePage("meta[name=description]").attr("content"), "");
 });
 
+test("默认草稿用空域名生成 /notes/ 站点，配置、资源、导航与搜索链接一致", async () => {
+  const draft = createSitePublishDraft();
+  draft.selections = [{ noteId: note.id, categoryId: "guides" }];
+  const request = validateSiteExportRequest(buildSiteExportRequest(draft, [note]));
+  assert.equal(request.settings.basePath, "/notes/");
+  const entries = await buildSiteEntries(request, {
+    rootDirectory: process.cwd(),
+    signal: new AbortController().signal,
+    readImage: async () => ({ buffer: png, extension: "png" }),
+  });
+  const files = new Map(entries.map((entry) => [entry.path.replace(/^notes-hugo-site\//, ""), entry.data]));
+  const config = JSON.parse(files.get("hugo.json")!.toString());
+  assert.equal(config.baseURL, "/notes/");
+  const home = load(files.get("public/index.html")!.toString());
+  assert.equal(home("link[rel=canonical]").length, 0);
+  assert.equal(home(".site-brand").attr("href"), "/notes/");
+  assert.equal(home(".site-brand img").attr("src"), "/notes/logo.png");
+  assert.equal(home("form.sidebar-search-form").attr("action"), "/notes/search/");
+  const articleHref = home(".home-post-list a").attr("href")!;
+  assert.ok(articleHref.startsWith("/notes/"), articleHref);
+  const search = JSON.parse(files.get("public/index.json")!.toString()) as { pages: Array<{ permalink: string }> };
+  assert.equal(search.pages.length, 1);
+  assert.ok(search.pages[0].permalink.startsWith("/notes/"), search.pages[0].permalink);
+  const relative = decodeURIComponent(search.pages[0].permalink.slice("/notes/".length));
+  assert.ok(files.has(`public/${relative}${relative.endsWith("/") ? "index.html" : "/index.html"}`), search.pages[0].permalink);
+});
+
 test("自定义 Logo 损坏或超过 2MB 时明确失败，不静默回退默认图标", async () => {
   const draft = createSitePublishDraft();
   draft.settings.logoPath = customLogoPath;

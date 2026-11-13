@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.16.4] - 2026-11-13
+
+### 变更
+
+- 新建“发布为网站”草稿的默认部署子路径改为 `/notes/`，高级设置中的“部署子路径（basePath）”仍可填写 `/blog/` 等自定义路径或根路径 `/`；已保存的根路径、自定义路径和旧 `rootPath` 保持原值，不会自动迁移或重新发布。
+
 ## [1.16.3] - 2026-11-12
 
 ### 修复
@@ -433,6 +439,7 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.16.4]: https://github.com/zhaoolee/notes/compare/1.16.3...1.16.4
 [1.16.3]: https://github.com/zhaoolee/notes/compare/1.16.2...1.16.3
 [1.16.2]: https://github.com/zhaoolee/notes/compare/1.16.1...1.16.2
 [1.16.1]: https://github.com/zhaoolee/notes/compare/1.16.0...1.16.1

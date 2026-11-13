@@ -128,6 +128,10 @@ try {
 
   await advanced.locator("summary").click();
   check(await advanced.evaluate((element) => element.open) === true, "advanced settings expands on demand");
+  const rootInput = panel.getByRole("textbox", { name: /^部署子路径/ });
+  check(await rootInput.inputValue() === "/notes/", "fresh draft defaults to /notes/");
+  check((await panel.locator(".site-publish-address").innerText()).includes("部署路径：/notes/"), "fresh default previews /notes/ without a domain");
+  await page.screenshot({ path: path.join(temporary, "panel-default-basepath.png") });
   const logoPreview = panel.locator(".site-publish-logo img");
   const logoInput = panel.locator('input[type="file"]');
   check(await logoPreview.getAttribute("src") === "/smartisan/web/smartisan_hammer_footer.png", "default hammer logo preview");
@@ -157,7 +161,16 @@ try {
   if (!noOrigin) {
     await domainInput.fill(`http://127.0.0.1:${staticPort}`);
   }
-  const rootInput = panel.getByRole("textbox", { name: /^部署子路径/ });
+  await rootInput.fill("/nested/blog");
+  const normalizedAddressText = await panel.locator(".site-publish-address").innerText();
+  if (noOrigin) {
+    check(normalizedAddressText.includes("部署路径：/nested/blog/"), "basePath normalization adds the trailing slash");
+  } else {
+    check(normalizedAddressText.includes(`http://127.0.0.1:${staticPort}/nested/blog/`), "normalized basePath previews under the domain");
+  }
+  await rootInput.fill("/blog/");
+  const replacedAddressText = await panel.locator(".site-publish-address").innerText();
+  check(!replacedAddressText.includes("/notes/blog/") && replacedAddressText.includes("/blog/"), "custom basePath replaces the default /notes/");
   await rootInput.fill("/../invalid");
   check(await panel.getByText(/basePath 只能包含/).count() > 0, "invalid basePath explained");
   await rootInput.fill("/nested/blog/");
@@ -367,7 +380,7 @@ try {
   await page.screenshot({ path: path.join(temporary, "website-mobile.png") });
   check(missingResources.length === 0, `all generated browser resources load: ${missingResources.join(", ")}`);
   check(consoleErrors.length === 0, `no browser errors: ${consoleErrors.join(", ")}`);
-  const screenshots = ["menu.png", "panel-desktop.png", "panel-mobile.png", "website-desktop.png", "website-mobile.png"];
+  const screenshots = ["menu.png", "panel-default-basepath.png", "panel-desktop.png", "panel-mobile.png", "website-desktop.png", "website-mobile.png"];
   let simulatedProviderReport = null;
   if (githubUi) {
     // 这一段只验证前端 UI 状态机。所有 GitHub 发布接口都在第一个浏览器上下文里

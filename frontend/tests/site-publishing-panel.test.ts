@@ -25,6 +25,7 @@ import {
   validateSiteLogoFile,
 } from "../../src/features/site-publishing/logo.js";
 import {
+  DEFAULT_SITE_BASE_PATH,
   DEFAULT_SITE_CATEGORIES,
   SITE_THEMES,
   SITE_THEME_ID,
@@ -217,6 +218,42 @@ test("站点域名可选：空串和空白通过，非空域名仍严格校验",
       origin,
     );
   }
+});
+
+test("新草稿默认 /notes/，规范化补齐斜杠，显式根路径与自定义路径保持", () => {
+  const draft = createSitePublishDraft();
+  assert.equal(DEFAULT_SITE_BASE_PATH, "/notes/");
+  assert.equal(draft.settings.basePath, DEFAULT_SITE_BASE_PATH);
+  assert.equal(draft.settings.origin, "");
+
+  const normalized = (basePath: string) =>
+    normalizeSiteSettings({ ...draft.settings, basePath }).basePath;
+  assert.equal(normalized("/notes"), "/notes/");
+  assert.equal(normalized("/notes/"), "/notes/");
+  assert.equal(normalized("/"), "/");
+  assert.equal(normalized("/blog/"), "/blog/");
+  assert.equal(normalized("/knowledge/notes"), "/knowledge/notes/");
+  assert.equal(normalized(""), "/");
+  assert.throws(() => normalizeSiteSettings({ ...draft.settings, basePath: "notes?x=1" }), /basePath 只能包含/);
+
+  // 已保存的根路径和自定义路径仍是权威值，不会因为新默认值被自动迁移。
+  const storage = createMemoryStorage();
+  const saveSettings = (scope: string, basePath: string) => {
+    storage.setItem(
+      sitePublishStorageKey(scope),
+      JSON.stringify({
+        version: 1,
+        settings: { ...draft.settings, basePath },
+        categories: DEFAULT_SITE_CATEGORIES,
+        selections: [],
+      }),
+    );
+    return loadSitePublishDraft(storage, scope, []).settings.basePath;
+  };
+  assert.equal(saveSettings("saved-root", "/"), "/");
+  assert.equal(saveSettings("saved-custom", "/legacy/blog/"), "/legacy/blog/");
+  assert.equal(saveSettings("saved-blank", ""), "");
+  assert.equal(saveSettings("saved-invalid", "blog?next=1"), "blog?next=1");
 });
 
 test("本机草稿保留空域名、恢复真实域名，不自动补 example.com", () => {
@@ -535,7 +572,9 @@ test("面板 SSR 渲染独立对话框，默认按分类分组并折叠高级设
     assert.match(html, /<span>站长名<\/span>/);
     assert.doesNotMatch(html, /<span>作者<\/span>/);
     assert.match(html, /站点域名（可选）/);
-    assert.match(html, /部署路径：<code>\/<\/code>/);
+    assert.match(html, /部署路径：<code>\/notes\/<\/code>/);
+    assert.match(html, /placeholder="\/notes\/"/);
+    assert.match(html, /默认 \/notes\/；自定义子路径如 \/blog\/，根域名填写 \//);
     assert.doesNotMatch(html, /最终访问地址/);
     assert.doesNotMatch(html, /value="https:\/\/example\.com/);
     assert.doesNotMatch(html, /example\.com/);
@@ -740,7 +779,7 @@ test("导出客户端提交草稿、同源 Cookie、ZIP 文件名与错误消息
   const submitted = JSON.parse(String(captured[0].init.body)) as {
     settings: Record<string, unknown>;
   };
-  assert.equal(submitted.settings.basePath, "/");
+  assert.equal(submitted.settings.basePath, DEFAULT_SITE_BASE_PATH);
   assert.equal(submitted.settings.logoPath, "");
   assert.equal(submitted.settings.themeId, SITE_THEME_ID);
   assert.equal("rootPath" in submitted.settings, false);

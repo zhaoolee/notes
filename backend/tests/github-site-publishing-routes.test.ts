@@ -60,7 +60,10 @@ async function fixture(overrides: Partial<GitHubPublishingOptions> = {}) {
   } };
 }
 function payload(id = "note-a", body = "# 发布内容\n\n正文") {
-  const draft = createSitePublishDraft(); draft.selections = [{ noteId: id, categoryId: "guides" }];
+  const draft = createSitePublishDraft();
+  // 这条端到端用例保留仓库站点根路径的既有预期；新草稿默认 /notes/ 由模型与 Hugo 集成测试覆盖。
+  draft.settings.basePath = "/";
+  draft.selections = [{ noteId: id, categoryId: "guides" }];
   return buildSiteExportRequest(draft, [{ id, markdown: body, createdAt: 1, updatedAt: 1, normalOrder: 0, folderId: null, pinnedAt: null, isStarred: false, deletedAt: null }]);
 }
 function cookie(response: Response) { return response.headers.getSetCookie().at(-1)!.split(";")[0]; }
