@@ -177,7 +177,6 @@ export async function buildSiteEntries(request: SiteExportRequest, options: Site
     }
     add(`${directory}/index.md`, frontMatter({ title: getSiteNoteTitle(note.markdown), date: new Date(Math.min(note.createdAt, Date.now())).toISOString(), lastmod: new Date(Math.min(note.updatedAt, Date.now())).toISOString(), draft: false, categories: [category.name] }, body));
   }
-  for (const weight of ["R", "M", "B"]) add(`static/assets/fonts/OPPOSans-${weight}.woff2`, await fs.readFile(path.join(options.rootDirectory, "src", "assets", "fonts", `OPPOSans-${weight}.woff2`)));
   add("static/assets/bg.jpg", await fs.readFile(path.join(options.rootDirectory, "public", "bg.jpg")));
   add(
     "static/logo.png",

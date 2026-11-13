@@ -4,7 +4,7 @@
 
 在“发布为网站”面板选择便签，点击“授权 GitHub 仓库”，在 GitHub 安装本部署的 GitHub App，并选择允许访问的仓库。回到 Notes 后选择发布仓库，点击面板固定底部的“发布到 GitHub Pages”（位于“生成网站 ZIP”之前）。授权、仓库选择与发布进度仍显示在默认折叠的 GitHub Pages 卡片（展开后可查看和操作）；普通用户无需申请、复制或粘贴 GitHub Token。
 
-Notes 服务器使用已有的 Hugo 构建器和模板，把所选便签、Logo、图片、字体和搜索索引构建成完整网站，仅提交构建后的 `public/` 文件。原有“生成网站 ZIP”继续可用，与发布按钮同处面板固定底部。发布设置和便签选择仍按 Notes 账号保存。每次使用点击发布时的便签快照，发布过程中继续编辑的内容需要下一次发布才会更新。
+Notes 服务器使用已有的 Hugo 构建器和模板，把所选便签、Logo、图片和搜索索引构建成完整网站，仅提交构建后的 `public/` 文件。原有“生成网站 ZIP”继续可用，与发布按钮同处面板固定底部。发布设置和便签选择仍按 Notes 账号保存。每次使用点击发布时的便签快照，发布过程中继续编辑的内容需要下一次发布才会更新。
 
 首次发布会建立独立的 `gh-pages` 分支，并为 GitHub Pages 配置“Deploy from a branch → gh-pages → / (root)”。之后新增、修改和取消发布的便签一起增量更新。页面分别显示排队、构建、上传、提交、等待 Pages 和已发布；只有 Pages 构建的 commit SHA 与本次提交一致且状态为 `built` 才显示已上线。关闭面板不取消服务器发布任务，重新打开会恢复最新状态；网络异常可点击刷新发布状态。
 
@@ -57,7 +57,7 @@ GitHub App 用户 access/refresh token 使用 AES-256-GCM 加密，AAD 绑定 No
 
 ## 增量提交与目录
 
-- 本地按 Git 规则计算每份静态文件的 `SHA1("blob " + 字节数 + NUL + bytes)`，包括图片、字体等二进制文件。
+- 本地按 Git 规则计算每份静态文件的 `SHA1("blob " + 字节数 + NUL + bytes)`，包括图片等二进制文件。
 - 读取 `gh-pages` HEAD、commit tree 和文件 SHA；递归树被 GitHub 截断时逐层读取，不能完整读取则停止。
 - 未变化的文件直接复用 SHA，不上传；相同的新文件内容也只上传一次 Blob。新增/修改通过 SHA 写入 tree，删除使用 `sha: null`。
 - 使用当前 `base_tree` 保留无关文件，一次 Create Tree、一次 Create Commit、一次更新目标 ref 合并全部变化；首次使用无父提交的独立站点历史。未变化时不制造空 commit。
@@ -67,7 +67,7 @@ GitHub App 用户 access/refresh token 使用 AES-256-GCM 加密，AAD 绑定 No
 
 GitHub 发布的域名以目标仓库当前 Pages 配置为准，未启用时使用标准 `<owner>.github.io/<repo>/`（用户/组织主页仓库使用根路径），不直接套用 ZIP 中的域名。已有自定义 Pages 域名会沿用并保留 CNAME，不替用户修改 DNS。
 
-高级设置中的“部署子路径（basePath）”在一键发布时用作仓库站点内的子路径，新草稿默认为 `/notes/`：项目仓库 `https://owner.github.io/repo/` 会发布到 `https://owner.github.io/repo/notes/`，静态文件放在 `gh-pages` 的 `notes/` 下；填写 `/blog/` 会发布到 `https://owner.github.io/repo/blog/`，填写 `/` 则发布到仓库站点根。仓库 Pages 根已经是 `/notes/` 时，保存 `/notes` 或 `/notes/` 都会解析为 `https://owner.github.io/notes/`，`gh-pages` 前缀为空，不会生成 `/notes/notes/`。已填写 `/repo/notes/`、`/repo/blog/` 等包含项目名前缀的旧设置不会重复追加前缀，已保存的根路径和自定义路径也不会被新默认值自动迁移。Hugo 在构建前使用最终路径，导航、图片、CSS、字体和搜索索引都保持一致。更换子路径后旧清单中的旧文件一起清理，非本应用文件保留。
+高级设置中的“部署子路径（basePath）”在一键发布时用作仓库站点内的子路径，新草稿默认为 `/notes/`：项目仓库 `https://owner.github.io/repo/` 会发布到 `https://owner.github.io/repo/notes/`，静态文件放在 `gh-pages` 的 `notes/` 下；填写 `/blog/` 会发布到 `https://owner.github.io/repo/blog/`，填写 `/` 则发布到仓库站点根。仓库 Pages 根已经是 `/notes/` 时，保存 `/notes` 或 `/notes/` 都会解析为 `https://owner.github.io/notes/`，`gh-pages` 前缀为空，不会生成 `/notes/notes/`。已填写 `/repo/notes/`、`/repo/blog/` 等包含项目名前缀的旧设置不会重复追加前缀，已保存的根路径和自定义路径也不会被新默认值自动迁移。Hugo 在构建前使用最终路径，导航、图片、CSS 和搜索索引都保持一致。更换子路径后旧清单中的旧文件一起清理，非本应用文件保留。
 
 ## 任务与故障恢复
 
@@ -87,7 +87,7 @@ GitHub 发布的域名以目标仓库当前 Pages 配置为准，未启用时使
 
 本站托管默认关闭：只有显式设置 `SITE_PUBLISH_LOCAL_ENABLED=true`，且当前发布账号为配置的 owner 时，才会生成或更新本站版本；未启用时不会创建新的本站版本，尚未发布的 `/notes/` 返回 404，已有版本仍可访问。`/notes` 使用相对地址的 308 跳转到 `/notes/` 并保留查询参数（Nginx `absolute_redirect off`），HTTPS 终止后不会改写成对内 http 地址；`/notes/` 由后端直接提供静态页面，缺失的页面或资源返回 404，不回退到 Notes 编辑器。已发布的本站页面保持公开，匿名访客可直接阅读，不依赖编辑器或 API 的登录会话；`REQUIRE_LOGIN=true` 只保护编辑器和 API，不会隐藏已有本站页面。发布指针绑定首次发布账号；如果磁盘上的本站版本属于另一个账号，即使 owner 配置或当前发布账号变化，服务也会拒绝覆盖，旧页面保持不变。
 
-截至本版本，这只是可配置的源码能力，尚未在正式生产环境部署或验证；真实 GitHub Pages 与本站上线仍需部署者配置后联调，不能用模拟 UI 验证代替。
+本站镜像已经在生产环境上线：1.17.0 于 2026-11-13 部署，并已验证公开的 `/notes/` 可匿名访问。GitHub 集成仍在隔离环境中测试，这与真实发布是两件不同的事；真实 GitHub Pages 发布仍需部署者配置 GitHub App 后联调，不能用模拟 UI 验证代替。
 
 ## API 与验证
 

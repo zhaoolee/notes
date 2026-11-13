@@ -23,7 +23,7 @@
 部署子路径采用 [Next.js 官方已使用的 `basePath` 命名](https://nextjs.org/docs/app/api-reference/config/next-config-js/basePath)。位置在发布面板默认折叠的“高级设置”→“部署子路径（basePath）”。新建草稿默认 `/notes/`，也可填写 `/blog/` 等自定义子路径，根域名填写 `/`；生成网站时会统一补齐首尾斜杠。已保存的设置（包括旧根路径 `/`、自定义路径和旧 `rootPath`）仍以实际保存值为准，不会因为新默认值自动迁移、改写或重新发布。各框架的配置字段并不统一，写入 Hugo 配置时仍使用 [Hugo 官方字段 `baseURL`](https://gohugo.io/configuration/all/#baseurl)（填写域名时为完整地址，留空时为 `basePath`）。前端草稿、接口请求与导出数据只使用 `basePath`；旧版本机草稿或旧客户端仍提交 `rootPath` 时仅作兼容读取，新字段存在时以新字段为准（即使它是空串或非法路径，也保留给 UI 报错，不回退旧值）。
 
 
-站点域名是可选字段，默认留空，不会预填 `example.com`。留空时，导出的 Hugo `baseURL` 直接使用规范化后的 basePath，例如新草稿的 `/notes/`、根路径 `/` 或自定义的 `/knowledge/notes/`；页面导航、分类、图片、字体、脚本、CSS 与搜索索引全部使用 `RelPermalink` 等相对当前站点的路径，不写入 `example.com`、`localhost` 或其他占位域名。此时不输出 canonical，不生成需要绝对 URL 的 RSS 与 sitemap，首页只输出 HTML 与搜索 JSON；`robots.txt` 也不会指向不存在的 sitemap。面板会显示“部署路径：/blog/”，部署时沿用当前网站域名。
+站点域名是可选字段，默认留空，不会预填 `example.com`。留空时，导出的 Hugo `baseURL` 直接使用规范化后的 basePath，例如新草稿的 `/notes/`、根路径 `/` 或自定义的 `/knowledge/notes/`；页面导航、分类、图片、脚本、CSS 与搜索索引全部使用 `RelPermalink` 等相对当前站点的路径，不写入 `example.com`、`localhost` 或其他占位域名。此时不输出 canonical，不生成需要绝对 URL 的 RSS 与 sitemap，首页只输出 HTML 与搜索 JSON；`robots.txt` 也不会指向不存在的 sitemap。面板会显示“部署路径：/blog/”，部署时沿用当前网站域名。
 
 填写域名时只填协议和域名，例如 `https://example.com`；basePath 新草稿默认为 `/notes/`，也可填 `/`、`/blog/` 或 `/knowledge/notes/`，会统一补齐首尾斜杠。为避免文件路径和 URL 转义歧义，basePath 只接受英文字母、数字、短横线、下划线与斜杠。空白域名会被规范化为空串；非空但不完整、带账号密码、查询参数或子路径的域名仍会明确报错，不会被静默忽略。
 
@@ -60,7 +60,7 @@ notes-hugo-site/
 
 面板中的“网站样式”选项位于高级设置，由 `src/features/site-publishing/model.ts` 的 `SITE_THEMES` 元数据列表生成。当前列表只有 `smartisan-blog` 一项，因此完全不渲染样式选择区；默认 `themeId` 仍参与本机/账号保存与导出，不会因为隐藏选择区而改变导出结果。以后追加第二种模板时，选择区按列表自动出现，不需要改回硬编码开关。
 
-字体与背景从 notes 自带资源复制，导出时不依赖 GitHub 下载模板。个人统计、广告、域名和文章不进入新网站。搜索使用 Hugo 生成的本地 JSON 索引和浏览器脚本，不需要第三方服务。
+生成站点只使用系统字体栈（如 system-ui、PingFang SC、Microsoft YaHei），不再打包或下载 OPPO Sans 字体文件；背景图从 notes 自带资源复制，导出时不依赖 GitHub 下载模板。个人统计、广告、域名和文章不进入新网站。搜索使用 Hugo 生成的本地 JSON 索引和浏览器脚本，不需要第三方服务。
 
 文章使用 Markdown 语法树收集内联与引用式图片，不处理代码块和行内代码中的图片示例。图片按内容哈希复制进文章包，正文替换为相对引用。相同文章内的重复图片只保存一次；不同文章的资源保持独立。
 

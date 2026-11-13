@@ -15,8 +15,8 @@
  * - 搜索页内容来自 content/search/_index.md 或 content/search/index.md，
  *   由 layouts/_default/search.html 或 layouts/search/* 渲染，使用本地 JSON 索引，
  *   不依赖任何在线索引服务或额外的 npm 搜索依赖。
- * - 字体、背景和 logo 由调用方放在 static/assets/fonts/、static/assets/bg.jpg
- *   和 static/logo.png；CSS 位于 css/，故使用 ../assets/ 相对地址。
+ * - 背景和 logo 由调用方放在 static/assets/bg.jpg 和 static/logo.png；正文只使用
+ *   系统字体栈，不打包字体文件；CSS 位于 css/，故使用 ../assets/ 相对地址。
  * - 分类菜单由 hugo.json 的 menu.main 提供，不在这里硬编码任何分类。
  * - 图片 render hook 只输出页面资源或经过协议白名单校验的地址，不引入 safeHTML。
  */
@@ -316,31 +316,7 @@ Sitemap: {{ "sitemap.xml" | absURL }}
 {{ partial "search-page.html" . }}
 {{ end }}
 `,
-    "assets/css/site.css": `@font-face {
-  font-family: "OPPOSans";
-  src: url("../assets/fonts/OPPOSans-R.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "OPPOSans";
-  src: url("../assets/fonts/OPPOSans-M.woff2") format("woff2");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "OPPOSans";
-  src: url("../assets/fonts/OPPOSans-B.woff2") format("woff2");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-:root {
+    "assets/css/site.css": `:root {
   --bg: #ede1ce;
   --paper: #fefcf6;
   --frame: rgba(237, 233, 225, 0.92);
@@ -353,8 +329,8 @@ Sitemap: {{ "sitemap.xml" | absURL }}
   --sidebar-ink: #5b4638;
   --sidebar-muted: #8a6847;
   --sheet-shadow: 0 24px 42px rgba(89, 65, 34, 0.12);
-  --base-font-family: "OPPOSans", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB",
-    "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --base-font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --mono-font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
 

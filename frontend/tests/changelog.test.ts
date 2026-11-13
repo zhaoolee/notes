@@ -169,6 +169,16 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
     content: RegExp[];
   }> = [
     {
+      version: "1.17.1",
+      heading:
+        "[1.17.1](https://github.com/zhaoolee/notes/compare/1.17.0...1.17.1) - 2026-11-13",
+      content: [
+        /不再打包和下载 OPPO Sans 字体/,
+        /系统字体栈.*system-ui.*PingFang SC.*Microsoft YaHei/s,
+        /编辑器、图片导出与离线归档的字体保持不变/,
+      ],
+    },
+    {
       version: "1.17.0",
       heading:
         "[1.17.0](https://github.com/zhaoolee/notes/compare/1.16.4...1.17.0) - 2026-11-13",

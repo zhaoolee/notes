@@ -333,7 +333,7 @@ test("真实 Hugo 构建有/无域名与根/嵌套路径，所有站内资源可
         if (url.pathname.endsWith(".woff2")) cssFontCount += 1;
         assert.ok(files.has(`public/${url.pathname.slice(basePath.length)}`), url.pathname);
       }
-      assert.ok(cssFontCount >= 3);
+      assert.equal(cssFontCount, 0);
       const search = JSON.parse(files.get("public/index.json")!.toString());
       assert.equal(search.pages.length, 1); assert.match(JSON.stringify(search), /公开正文/);
       for (const page of search.pages as Array<{ permalink: string }>) {

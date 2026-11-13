@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.17.1] - 2026-11-13
+
+### 变更
+
+- 发布的静态网站不再打包和下载 OPPO Sans 字体，改用系统字体栈（system-ui、PingFang SC、Microsoft YaHei 等），生成的 ZIP 与 GitHub Pages 站点体积更小、首屏不再请求字体文件；编辑器、图片导出与离线归档的字体保持不变。
+
 ## [1.17.0] - 2026-11-13
 
 ### 新增
@@ -449,6 +455,7 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.17.1]: https://github.com/zhaoolee/notes/compare/1.17.0...1.17.1
 [1.17.0]: https://github.com/zhaoolee/notes/compare/1.16.4...1.17.0
 [1.16.4]: https://github.com/zhaoolee/notes/compare/1.16.3...1.16.4
 [1.16.3]: https://github.com/zhaoolee/notes/compare/1.16.2...1.16.3
