@@ -90,10 +90,24 @@ test("网站 Logo 设置兼容旧请求，只接受本机图片导入路径", ()
   }
 });
 
-test("网站图片转换处理括号与引用式图片，不改写普通链接或代码块", async () => {
+test("网站导出去重开头 Markdown 标题或独立纯文本标题，保留后续结构与同名正文", () => {
   assert.equal(removeDuplicateSiteTitle("## 标题\n\n## 章节\n正文", "标题"), "## 章节\n正文");
-  assert.equal(removeDuplicateSiteTitle("普通开头\n\n## 章节", "普通开头"), "普通开头\n\n## 章节");
   assert.equal(removeDuplicateSiteTitle("## 第一节\n正文", "自定义文章标题"), "## 第一节\n正文");
+  assert.equal(removeDuplicateSiteTitle("纯文本标题\n\n公开正文", "纯文本标题"), "公开正文");
+  assert.equal(removeDuplicateSiteTitle("纯文本标题\r\n\r\n第一段\r\n第二段", "纯文本标题"), "第一段\r\n第二段");
+  assert.equal(removeDuplicateSiteTitle("纯文本标题\n第一段\n第二段", "纯文本标题"), "纯文本标题\n第一段\n第二段");
+  assert.equal(removeDuplicateSiteTitle("纯文本标题\n\n公开正文\n\n纯文本标题", "纯文本标题"), "公开正文\n\n纯文本标题");
+  assert.equal(removeDuplicateSiteTitle("**纯文本标题**\n\n公开正文", "纯文本标题"), "**纯文本标题**\n\n公开正文");
+  assert.equal(removeDuplicateSiteTitle("前置段落\n\n纯文本标题\n\n公开正文", "纯文本标题"), "前置段落\n\n纯文本标题\n\n公开正文");
+  assert.equal(removeDuplicateSiteTitle("纯文本标题\n\n- 第一项\n- 第二项", "纯文本标题"), "- 第一项\n- 第二项");
+  assert.equal(removeDuplicateSiteTitle("纯文本标题\n\n```md\n正文\n```", "纯文本标题"), "```md\n正文\n```");
+  assert.equal(removeDuplicateSiteTitle("纯文本标题\n\n[链接](https://example.test)", "纯文本标题"), "[链接](https://example.test)");
+  assert.equal(removeDuplicateSiteTitle("纯文本标题\n\n| 项目 | 状态 |\n| --- | --- |", "纯文本标题"), "| 项目 | 状态 |\n| --- | --- |");
+  const table = "项目 | 状态\n--- | ---\n网站 | 完成";
+  assert.equal(removeDuplicateSiteTitle(table, "项目 | 状态"), table);
+});
+
+test("网站图片转换处理括号与引用式图片，不改写普通链接或代码块", async () => {
   const sources: string[] = [];
   const markdown = ["![图](https://example.test/a(b).png)", "", "![引用][image]", "", "[image]: /images/example.png", "", "[普通链接](/images/example.png)", "", "```md", "![代码图片](/images/private.png)", "```", "", "`![行内代码](/images/inline.png)`", "", "<script>alert(1)</script>"].join("\n");
   const result = await localizeSiteMarkdown(markdown, async (source) => { sources.push(source); return `index.assets/${sources.length}.png`; });
@@ -266,6 +280,7 @@ test("真实 Hugo 构建有/无域名与根/嵌套路径，所有站内资源可
       assert.ok(articlePath);
       const $ = load(files.get(articlePath)!.toString());
       assert.equal($("article h1").text(), "标题" + "长".repeat(45));
+      assert.equal(countOccurrences($("article").text(), "标题" + "长".repeat(45)), 1);
       assert.ok($(".reader-sheet").length); assert.ok($(".sidebar").length); assert.ok($(".article-toc").length);
       const homePage = load(files.get("public/index.html")!.toString());
       // 首页简介只显示一次：标题下的 home-description 保留，.Content 不再重复简介。
@@ -374,4 +389,35 @@ test("真实 Hugo 构建有/无域名与根/嵌套路径，所有站内资源可
       }
     }
   }
+});
+
+test("真实 Hugo 构建去掉纯文本开头标题，保留正文、列表与表格", async () => {
+  const draft = createSitePublishDraft();
+  draft.selections = [{ noteId: note.id, categoryId: "guides" }];
+  const markdown = [
+    "纯文本开头标题",
+    "",
+    "公开正文段落",
+    "",
+    "- 列表项",
+    "",
+    "| 项目 | 状态 |",
+    "| --- | --- |",
+    "| 网站 | 完成 |",
+  ].join("\n");
+  const request = validateSiteExportRequest(buildSiteExportRequest(draft, [{ ...note, markdown }]));
+  const entries = await buildSiteEntries(request, {
+    rootDirectory: process.cwd(),
+    signal: new AbortController().signal,
+    readImage: async () => ({ buffer: png, extension: "png" }),
+  });
+  const files = new Map(entries.map((entry) => [entry.path.replace(/^notes-hugo-site\//, ""), entry.data]));
+  const articlePath = Array.from(files.keys()).find((key) => /^public\/guides\/p-[a-f0-9]+\/index\.html$/.test(key))!;
+  assert.ok(articlePath);
+  const $ = load(files.get(articlePath)!.toString());
+  assert.equal($("article h1").text(), "纯文本开头标题");
+  assert.equal(countOccurrences($("article").text(), "纯文本开头标题"), 1);
+  assert.match($("article").text(), /公开正文段落/);
+  assert.ok($("article ul li").length);
+  assert.ok($("article table").length);
 });

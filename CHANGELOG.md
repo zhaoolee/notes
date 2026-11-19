@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.17.3] - 2026-11-19
+
+### 修复
+
+- 生成网站时，如果正文开头的独立纯文本行与文章标题完全相同，页面只在文章头部显示一次标题。
+
 ## [1.17.2] - 2026-11-13
 
 ### 变更
@@ -461,6 +467,7 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.17.3]: https://github.com/zhaoolee/notes/compare/1.17.2...1.17.3
 [1.17.2]: https://github.com/zhaoolee/notes/compare/1.17.1...1.17.2
 [1.17.1]: https://github.com/zhaoolee/notes/compare/1.17.0...1.17.1
 [1.17.0]: https://github.com/zhaoolee/notes/compare/1.16.4...1.17.0
