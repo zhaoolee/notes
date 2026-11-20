@@ -654,21 +654,8 @@
   color: #a5483f;
 }
 
-.site-publish-note-tools {
-  min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
 .site-publish-search {
-  flex: 1 1 140px;
   min-width: 0;
-}
-
-.site-publish-note-tools .site-publish-secondary {
-  flex: 0 1 auto;
 }
 
 .site-publish-secondary,

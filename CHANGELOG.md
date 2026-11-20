@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.17.5] - 2026-11-20
+
+### 变更
+
+- 点击“添加便签”展开分类的便签列表后，原按钮会变为“收起便签列表”，取代单独的“完成”按钮。
+
 ## [1.17.4] - 2026-11-20
 
 ### 修复
@@ -474,6 +480,7 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.17.5]: https://github.com/zhaoolee/notes/compare/1.17.4...1.17.5
 [1.17.4]: https://github.com/zhaoolee/notes/compare/1.17.3...1.17.4
 [1.17.3]: https://github.com/zhaoolee/notes/compare/1.17.2...1.17.3
 [1.17.2]: https://github.com/zhaoolee/notes/compare/1.17.1...1.17.2
