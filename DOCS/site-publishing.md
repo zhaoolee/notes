@@ -16,7 +16,7 @@
 
 网站设置中的 Logo 默认为锤子图标 `public/smartisan/web/smartisan_hammer_footer.png`，也可以上传自定义图片。默认状态只显示“上传图片”；更换后才显示“更换图片”和“恢复默认”。支持 PNG、JPEG、WebP、GIF、AVIF，单张不超过 2MB，明确拒绝 SVG；建议使用正方形图片，但面板不强制裁切。上传复用现有 `POST /api/images/import`，账号配置和浏览器缓存只保存服务端 `/images/` 图片路径，不把大图 base64 写进 localStorage，也不修改当前便签或用户全局签名 Logo。上传失败时保留原 Logo；上传过程中不能导出，避免使用尚未保存的配置。预览失效会提示并可恢复默认。
 
-服务端导出时只读取已上传到本机图片目录的 Logo，用 sharp 解码并等比缩放到 256×256 透明背景 PNG，打包为 `static/logo.png`。生成站点的品牌 Logo 和 favicon 都使用这份文件，CSS 使用 `object-fit: contain`，非正方形图片不会拉伸。未设置自定义 Logo 时继续打包默认锤子图标。Logo 损坏、超过 2MB 或无法解码会明确报错，不会悄悄回退默认图标；导出配置和 HTML 不引用 notes 的 `/images/` 运行时路径，生成的静态站点仍可独立部署。
+服务端导出时只读取已上传到本机图片目录的 Logo，用 sharp 解码并等比缩放到 256×256 透明背景 PNG，打包为 `static/logo.png`。生成站点的侧栏品牌 Logo 固定 28×28、与站点标题间距 8px，CSS 使用 `object-fit: contain`，非正方形图片不会拉伸；favicon 和共享页脚图标直接使用同一份原图，不受品牌 Logo 样式影响。未设置自定义 Logo 时继续打包默认锤子图标，此时 `hugo.json` 写入 `notesDefaultLogo: true`，品牌 Logo 额外带 `is-default-site-logo` 类并用滤镜压成更清楚的暖铜色徽标；上传自定义 Logo 后不加该类，保持原图颜色。Logo 损坏、超过 2MB 或无法解码会明确报错，不会悄悄回退默认图标；导出配置和 HTML 不引用 notes 的 `/images/` 运行时路径，生成的静态站点仍可独立部署。
 
 ## 域名与部署子路径
 

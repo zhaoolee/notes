@@ -65,6 +65,10 @@ test("CHANGELOG 使用固定的人类可读格式记录未发布与正式版本"
   );
   assert.match(
     changelog,
+    /^\[1\.17\.7\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.17\.6\.\.\.1\.17\.7$/m,
+  );
+  assert.match(
+    changelog,
     /^\[1\.17\.0\]: https:\/\/github\.com\/zhaoolee\/notes\/compare\/1\.16\.4\.\.\.1\.17\.0$/m,
   );
   assert.match(
@@ -168,6 +172,16 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
     heading: string;
     content: RegExp[];
   }> = [
+    {
+      version: "1.17.7",
+      heading:
+        "[1.17.7](https://github.com/zhaoolee/notes/compare/1.17.6...1.17.7) - 2026-11-20",
+      content: [
+        /侧栏 Logo 改为固定的 28×28/,
+        /内置锤子图标.*提升对比度.*暖铜色徽标/s,
+        /自定义 Logo 保留原图颜色.*favicon 与共享页脚图标不变/s,
+      ],
+    },
     {
       version: "1.17.6",
       heading:

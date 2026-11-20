@@ -17,6 +17,10 @@
  *   不依赖任何在线索引服务或额外的 npm 搜索依赖。
  * - 背景和 logo 由调用方放在 static/assets/bg.jpg 和 static/logo.png；正文只使用
  *   系统字体栈，不打包字体文件；CSS 位于 css/，故使用 ../assets/ 相对地址。
+ * - 侧栏品牌 Logo 固定 28×28。hugo.json 的 notesDefaultLogo 为真表示当前
+ *   static/logo.png 是内置的淡色锤子图标，只有这种情况才加 is-default-site-logo
+ *   类并用 CSS filter 提高对比度；用户上传的自定义 Logo 不加类、不改颜色。
+ *   favicon 与共享页脚图标仍直接使用同一份原图，不受此滤镜影响。
  * - 分类菜单由 hugo.json 的 menu.main 提供，不在这里硬编码任何分类。
  * - 图片 render hook 只输出页面资源或经过协议白名单校验的地址，不引入 safeHTML。
  */
@@ -174,7 +178,8 @@ Sitemap: {{ "sitemap.xml" | absURL }}
     "layouts/partials/sidebar.html": `<aside class="sidebar" aria-label="站点导航">
   <div class="sidebar-head">
     <a class="site-brand" href="{{ site.Home.RelPermalink }}" aria-label="{{ site.Title }}">
-      <img src="{{ "logo.png" | relURL }}" alt="" width="40" height="40">
+      {{- $defaultLogo := site.Params.notesDefaultLogo | default false }}
+      <img class="site-brand-logo{{ if $defaultLogo }} is-default-site-logo{{ end }}" src="{{ "logo.png" | relURL }}" alt="" width="28" height="28">
       <span>{{ site.Title }}</span>
     </a>
     <form class="sidebar-search-form" action="{{ "search/" | relURL }}" method="get" role="search">
@@ -423,7 +428,7 @@ a:hover {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   margin: 0 6px 12px;
   color: var(--accent-strong);
   font-size: 18px;
@@ -432,11 +437,17 @@ a:hover {
 }
 
 .site-brand img {
-  width: 40px;
-  height: 40px;
+  width: 28px;
+  height: 28px;
   flex: 0 0 auto;
   object-fit: contain;
   border-radius: 8px;
+}
+
+/* 只作用于内置的淡色锤子图标：浅色侧栏上原本几乎看不见，压成暖铜色徽标后更清楚。
+   自定义 Logo 没有这个类，保持原图颜色；favicon 与页脚图标也不受影响。 */
+.site-brand img.is-default-site-logo {
+  filter: grayscale(1) brightness(0.55) contrast(8) sepia(0.75) saturate(1.2);
 }
 
 .site-brand span {

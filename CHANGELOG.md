@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.17.7] - 2026-11-20
+
+### 变更
+
+- 生成的静态网站侧栏 Logo 改为固定的 28×28 并缩小与站点标题的间距。使用内置锤子图标时只对该图标提升对比度，显示为更清楚的暖铜色徽标；上传的自定义 Logo 保留原图颜色，favicon 与共享页脚图标不变。
+
 ## [1.17.6] - 2026-11-20
 
 ### 变更
@@ -486,6 +492,7 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.17.7]: https://github.com/zhaoolee/notes/compare/1.17.6...1.17.7
 [1.17.6]: https://github.com/zhaoolee/notes/compare/1.17.5...1.17.6
 [1.17.5]: https://github.com/zhaoolee/notes/compare/1.17.4...1.17.5
 [1.17.4]: https://github.com/zhaoolee/notes/compare/1.17.3...1.17.4

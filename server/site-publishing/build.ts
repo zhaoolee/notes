@@ -136,7 +136,7 @@ export async function buildSiteEntries(request: SiteExportRequest, options: Site
   add("hugo.json", JSON.stringify({
     baseURL, title: settings.title, locale: "zh-CN", defaultContentLanguage: "zh", hasCJKLanguage: true,
     enableRobotsTXT: true, summaryLength: 120, timeZone: "Asia/Taipei",
-    params: { description: settings.description, author: settings.author, notesTheme: settings.themeId, notesHasDomain: hasDomain },
+    params: { description: settings.description, author: settings.author, notesTheme: settings.themeId, notesHasDomain: hasDomain, notesDefaultLogo: !settings.logoPath },
     outputs: { home: hasDomain ? ["HTML", "RSS", "JSON"] : ["HTML", "JSON"] },
     ...(hasDomain ? {} : { disableKinds: ["RSS", "sitemap"] }),
     markup: { goldmark: { renderer: { unsafe: false } }, highlight: { noClasses: false }, tableOfContents: { startLevel: 2, endLevel: 3 } },
