@@ -74,6 +74,8 @@ clawhub地址 https://clawhub.ai/zhaoolee/notes-export-api
 
 ## 支持发布为github pages静态网站，白嫖无限流量
 
+[在线演示](https://zhaoolee.com/notes/)
+
 ![](./README.assets/7ca532157d38abd0258431821dff11f4b74dca577263d1eb978bb1607e67b406.gif)
 
 ## 支持下载文章，包含网页，markdown以及管理的图片资源
