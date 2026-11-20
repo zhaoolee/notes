@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -149,7 +150,7 @@ test("网站图片读取拒绝内网、跨目录和符号链接，仅保存真�
   for (const source of ["/images/outside.png", "/images/%2e%2e%2fprivate.png", "/../private.png", "file:///etc/passwd", "./private.png", "/fake.png", "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="]) await assert.rejects(() => readImage(source, signal), source);
 });
 
-test("默认 Logo 保持锤子图标，导出不依赖 notes 的 /images/ 运行时路径", async () => {
+test("默认页头 Logo 和 favicon 共用暖色 PNG 及带内容哈希的地址", async () => {
   const draft = createSitePublishDraft();
   // 顺带覆盖空简介：首页不渲染 home-description，正文也不写入简介。
   draft.settings.description = "";
@@ -163,12 +164,22 @@ test("默认 Logo 保持锤子图标，导出不依赖 notes 的 /images/ 运行
   });
   assert.equal(reads, 0);
   const files = new Map(entries.map((entry) => [entry.path.replace(/^notes-hugo-site\//, ""), entry.data]));
-  const defaultLogo = await fs.readFile(path.join(process.cwd(), "public", "smartisan", "web", "smartisan_hammer_footer.png"));
+  const defaultLogo = await fs.readFile(path.join(process.cwd(), "public", "smartisan", "web", "smartisan_hammer_site.png"));
   assert.deepEqual(files.get("static/logo.png"), defaultLogo);
   assert.deepEqual(files.get("public/logo.png"), defaultLogo);
+  const logoMetadata = await sharp(defaultLogo).metadata();
+  assert.equal(logoMetadata.width, 48);
+  assert.equal(logoMetadata.height, 48);
+  assert.equal(logoMetadata.format, "png");
+  assert.equal(logoMetadata.hasAlpha, true);
+  const logoUrl = `logo.png?v=${createHash("sha256").update(defaultLogo).digest("hex").slice(0, 12)}`;
+  const config = JSON.parse(files.get("hugo.json")!.toString());
+  assert.equal(config.params.logo, logoUrl);
   assert.doesNotMatch(files.get("hugo.json")!.toString(), /logoPath|\/images\//);
   // 空简介：首页不生成 home-description，正文也不写入空段落。
   const homePage = load(files.get("public/index.html")!.toString());
+  assert.equal(homePage(".site-brand img").attr("src"), `${request.settings.basePath}${logoUrl}`);
+  assert.equal(homePage("link[rel=icon]").attr("href"), `${request.settings.basePath}${logoUrl}`);
   assert.equal(homePage(".home-description").length, 0);
   assert.equal(homePage(".reader-sheet .article-content").length, 0);
   assert.equal(homePage("meta[name=description]").attr("content"), "");
@@ -190,7 +201,9 @@ test("默认草稿用空域名生成 /notes/ 站点，配置、资源、导航�
   const home = load(files.get("public/index.html")!.toString());
   assert.equal(home("link[rel=canonical]").length, 0);
   assert.equal(home(".site-brand").attr("href"), "/notes/");
-  assert.equal(home(".site-brand img").attr("src"), "/notes/logo.png");
+  const sharedLogoUrl = home(".site-brand img").attr("src");
+  assert.match(sharedLogoUrl ?? "", /^\/notes\/logo\.png\?v=[a-f0-9]{12}$/);
+  assert.equal(home("link[rel=icon]").attr("href"), sharedLogoUrl);
   assert.equal(home("form.sidebar-search-form").attr("action"), "/notes/search/");
   const articleHref = home(".home-post-list a").attr("href")!;
   assert.ok(articleHref.startsWith("/notes/"), articleHref);

@@ -15,12 +15,12 @@
  * - 搜索页内容来自 content/search/_index.md 或 content/search/index.md，
  *   由 layouts/_default/search.html 或 layouts/search/* 渲染，使用本地 JSON 索引，
  *   不依赖任何在线索引服务或额外的 npm 搜索依赖。
- * - 背景和 logo 由调用方放在 static/assets/bg.jpg 和 static/logo.png；正文只使用
- *   系统字体栈，不打包字体文件；CSS 位于 css/，故使用 ../assets/ 相对地址。
- * - 侧栏品牌 Logo 固定 28×28。hugo.json 的 notesDefaultLogo 为真表示当前
- *   static/logo.png 是内置的淡色锤子图标，只有这种情况才加 is-default-site-logo
- *   类并用 CSS filter 提高对比度；用户上传的自定义 Logo 不加类、不改颜色。
- *   favicon 与共享页脚图标仍直接使用同一份原图，不受此滤镜影响。
+ * - 背景由调用方放在 static/assets/bg.jpg；Logo 放在 static/logo.png，并在
+ *   hugo.json 的 params.logo 中提供页头与默认 favicon 共用的地址。默认 Logo 使用
+ *   已着色的暖色的 PNG，地址带内容哈希查询参数；自定义 Logo 使用 logo.png，
+ *   site.Params.favicon 仍可覆盖默认 favicon。
+ * - 侧栏品牌 Logo 固定 28×28。正文只使用系统字体栈，不打包字体文件；CSS 位于
+ *   css/，故使用 ../assets/ 相对地址。
  * - 分类菜单由 hugo.json 的 menu.main 提供，不在这里硬编码任何分类。
  * - 图片 render hook 只输出页面资源或经过协议白名单校验的地址，不引入 safeHTML。
  */
@@ -44,7 +44,7 @@ const SITE_THEME_FILES: Record<string, Record<string, string>> = {
     {{- if site.Params.notesHasDomain }}
     <link rel="canonical" href="{{ .Permalink }}">
     {{- end }}
-    {{- $icon := "logo.png" | relURL -}}
+    {{- $icon := site.Params.logo | default "logo.png" | relURL -}}
     {{- with site.Params.favicon }}{{ $icon = . }}{{ if not (strings.HasPrefix $icon "http") }}{{ $icon = strings.TrimPrefix "/" $icon | relURL }}{{ end }}{{ end }}
     <link rel="icon" href="{{ $icon }}">
     {{- if site.Params.notesHasDomain }}{{ with .OutputFormats.Get "rss" }}
@@ -178,8 +178,7 @@ Sitemap: {{ "sitemap.xml" | absURL }}
     "layouts/partials/sidebar.html": `<aside class="sidebar" aria-label="站点导航">
   <div class="sidebar-head">
     <a class="site-brand" href="{{ site.Home.RelPermalink }}" aria-label="{{ site.Title }}">
-      {{- $defaultLogo := site.Params.notesDefaultLogo | default false }}
-      <img class="site-brand-logo{{ if $defaultLogo }} is-default-site-logo{{ end }}" src="{{ "logo.png" | relURL }}" alt="" width="28" height="28">
+      <img class="site-brand-logo" src="{{ site.Params.logo | default "logo.png" | relURL }}" alt="" width="28" height="28">
       <span>{{ site.Title }}</span>
     </a>
     <form class="sidebar-search-form" action="{{ "search/" | relURL }}" method="get" role="search">
@@ -442,12 +441,6 @@ a:hover {
   flex: 0 0 auto;
   object-fit: contain;
   border-radius: 8px;
-}
-
-/* 只作用于内置的淡色锤子图标：浅色侧栏上原本几乎看不见，压成暖铜色徽标后更清楚。
-   自定义 Logo 没有这个类，保持原图颜色；favicon 与页脚图标也不受影响。 */
-.site-brand img.is-default-site-logo {
-  filter: grayscale(1) brightness(0.55) contrast(8) sepia(0.75) saturate(1.2);
 }
 
 .site-brand span {

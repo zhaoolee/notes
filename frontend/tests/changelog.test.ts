@@ -173,6 +173,12 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
     content: RegExp[];
   }> = [
     {
+      version: "1.17.8",
+      heading:
+        "[1.17.8](https://github.com/zhaoolee/notes/compare/1.17.7...1.17.8) - 2026-11-20",
+      content: [/默认标签页图标和页头 Logo 使用同一张暖铜色图标/],
+    },
+    {
       version: "1.17.7",
       heading:
         "[1.17.7](https://github.com/zhaoolee/notes/compare/1.17.6...1.17.7) - 2026-11-20",

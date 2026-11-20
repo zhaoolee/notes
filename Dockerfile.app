@@ -52,6 +52,7 @@ COPY --from=server-build /app/dist-server ./dist-server
 COPY --from=server-build /app/src/assets/fonts ./src/assets/fonts
 COPY public/bg.jpg ./public/bg.jpg
 COPY public/smartisan/web/smartisan_hammer_footer.png ./public/smartisan/web/smartisan_hammer_footer.png
+COPY public/smartisan/web/smartisan_hammer_site.png ./public/smartisan/web/smartisan_hammer_site.png
 COPY skills/notes-workspace-api ./skills/notes-workspace-api
 
 ENV NODE_ENV=production

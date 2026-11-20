@@ -124,6 +124,13 @@ export async function buildSiteEntries(request: SiteExportRequest, options: Site
   const deploymentDescription = hasDomain
     ? `将 public/ 内的全部文件部署到网站的 ${settings.basePath} 路径。例如当前配置 ${settings.basePath} 时，public/index.html 应能从 ${baseURL} 访问。不要把整个 ZIP 作为 public/ 再多嵌套一层。静态文件不依赖 notes 后端。`
     : `将 public/ 内的全部文件部署到当前网站域名的 ${settings.basePath} 路径。例如当前配置 ${settings.basePath} 时，public/index.html 应能从当前网站域名的 ${settings.basePath} 访问。未填写站点域名，因此不生成 canonical、RSS 或 sitemap。不要把整个 ZIP 作为 public/ 再多嵌套一层。静态文件不依赖 notes 后端。`;
+  // 默认 Logo 使用已着色的暖色的 PNG；带内容哈希的共享地址用于刷新 favicon 与页头缓存。
+  const logo = settings.logoPath
+    ? await buildSiteLogo(settings.logoPath, options)
+    : await fs.readFile(path.join(options.rootDirectory, "public", "smartisan", "web", "smartisan_hammer_site.png"));
+  const logoUrl = settings.logoPath
+    ? "logo.png"
+    : `logo.png?v=${createHash("sha256").update(logo).digest("hex").slice(0, 12)}`;
   const files = new Map<string, Buffer>();
   let totalBytes = 0;
   const add = (filename: string, data: string | Buffer) => {
@@ -136,7 +143,7 @@ export async function buildSiteEntries(request: SiteExportRequest, options: Site
   add("hugo.json", JSON.stringify({
     baseURL, title: settings.title, locale: "zh-CN", defaultContentLanguage: "zh", hasCJKLanguage: true,
     enableRobotsTXT: true, summaryLength: 120, timeZone: "Asia/Taipei",
-    params: { description: settings.description, author: settings.author, notesTheme: settings.themeId, notesHasDomain: hasDomain, notesDefaultLogo: !settings.logoPath },
+    params: { description: settings.description, author: settings.author, notesTheme: settings.themeId, notesHasDomain: hasDomain, logo: logoUrl },
     outputs: { home: hasDomain ? ["HTML", "RSS", "JSON"] : ["HTML", "JSON"] },
     ...(hasDomain ? {} : { disableKinds: ["RSS", "sitemap"] }),
     markup: { goldmark: { renderer: { unsafe: false } }, highlight: { noClasses: false }, tableOfContents: { startLevel: 2, endLevel: 3 } },
@@ -178,12 +185,7 @@ export async function buildSiteEntries(request: SiteExportRequest, options: Site
     add(`${directory}/index.md`, frontMatter({ title: getSiteNoteTitle(note.markdown), date: new Date(Math.min(note.createdAt, Date.now())).toISOString(), lastmod: new Date(Math.min(note.updatedAt, Date.now())).toISOString(), draft: false, categories: [category.name] }, body));
   }
   add("static/assets/bg.jpg", await fs.readFile(path.join(options.rootDirectory, "public", "bg.jpg")));
-  add(
-    "static/logo.png",
-    settings.logoPath
-      ? await buildSiteLogo(settings.logoPath, options)
-      : await fs.readFile(path.join(options.rootDirectory, "public", "smartisan", "web", "smartisan_hammer_footer.png")),
-  );
+  add("static/logo.png", logo);
   add("static/.nojekyll", "");
   add(".github/workflows/pages.yml", githubWorkflow());
   add(".gitignore", "/public/\n/resources/\n/.hugo_build.lock\n");

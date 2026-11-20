@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.17.8] - 2026-11-20
+
+### 修复
+
+- 生成网站的默认标签页图标和页头 Logo 使用同一张暖铜色图标，重新发布时使用带版本的地址更新缓存。
+
 ## [1.17.7] - 2026-11-20
 
 ### 变更
@@ -492,6 +498,7 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.17.8]: https://github.com/zhaoolee/notes/compare/1.17.7...1.17.8
 [1.17.7]: https://github.com/zhaoolee/notes/compare/1.17.6...1.17.7
 [1.17.6]: https://github.com/zhaoolee/notes/compare/1.17.5...1.17.6
 [1.17.5]: https://github.com/zhaoolee/notes/compare/1.17.4...1.17.5
