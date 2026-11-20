@@ -89,7 +89,7 @@ try {
   check(login.ok(), "isolated login works");
   const now = Date.now() - 1000;
   const makeNote = (id, markdown, deletedAt = null) => ({ id, markdown, createdAt: now, updatedAt: now, normalOrder: 0, pinnedAt: null, isStarred: false, folderId: null, deletedAt });
-  const notes = [makeNote("selected", "## 示例网站发布\n\n这是用于验证子路径部署的图文便签。\n\n![验证图片](/images/pixel.png)\n\n## 操作步骤\n\n- [x] 选择便签\n- [x] 生成网站\n\n```js\nconsole.log('hello');\n```"), makeNote("private", "## 不公开的便签\n\nPRIVATEONLYMARKER"), makeNote("trash", "## 回收站不可发布\n\nTRASHONLYMARKER", now)];
+  const notes = [makeNote("selected", "## 示例网站发布\n\n这是用于验证子路径部署的图文便签。\n\n图前文字![验证图片](/images/pixel.png)图后文字\n\n## 操作步骤\n\n- [x] 选择便签\n- [x] 生成网站\n\n```js\nconsole.log('hello');\n```"), makeNote("private", "## 不公开的便签\n\nPRIVATEONLYMARKER"), makeNote("trash", "## 回收站不可发布\n\nTRASHONLYMARKER", now)];
   const save = await context.request.put(`${baseURL}/api/workspace`, { data: { workspace: { activeNoteId: "selected", version: 1, folders: [], notes } } });
   check(save.ok(), "isolated workspace seeded");
   check((await context.request.post(`${baseURL}/api/site-publishing/export`, { data: {}, headers: { Origin: "https://outside.example.test" } })).status() === 403, "cross-origin export rejected");
@@ -369,6 +369,19 @@ try {
   await page.locator(".home-post-list a").click();
   await page.evaluate(() => document.fonts.ready);
   check(await page.locator("article img").evaluateAll((images) => images.every((image) => image.complete && image.naturalWidth > 0)), "published images load at subpath");
+  check(await page.getByRole("img", { name: "验证图片", exact: true }).evaluate((image) => {
+    const before = image.previousSibling;
+    const after = image.nextSibling;
+    if (before?.textContent !== "图前文字" || after?.textContent !== "图后文字") return false;
+
+    const range = document.createRange();
+    range.selectNodeContents(before);
+    const beforeBottom = range.getBoundingClientRect().bottom;
+    range.selectNodeContents(after);
+    const afterTop = range.getBoundingClientRect().top;
+    const { top, bottom } = image.getBoundingClientRect();
+    return beforeBottom <= top && afterTop >= bottom;
+  }), "published article text sits above and below the image");
   check(await page.locator(".site-brand img").evaluate((image) => image.complete && image.naturalWidth === 256 && image.naturalHeight === 256), "published brand logo loads generated 256x256 image");
   await page.screenshot({ path: path.join(temporary, "website-desktop.png") });
   await page.goto(`http://127.0.0.1:${staticPort}/nested/blog/search/?q=图文`);

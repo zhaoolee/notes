@@ -112,9 +112,9 @@ export function SitePublishContent({
     <div className="site-publish-content">
       <div className="site-publish-group-grid">
         {draft.categories.map((category) => {
-          const selections = draft.selections.filter(
-            (selection) => selection.categoryId === category.id,
-          );
+          const selections = draft.selections
+            .filter((selection) => selection.categoryId === category.id)
+            .reverse();
           const pickerOpen = pickerCategoryId === category.id;
 
           return (

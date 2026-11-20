@@ -610,24 +610,25 @@ test("面板 SSR 从本机草稿恢复分组选择与分类，并展示最终子
   try {
     const draft = createPublishDraft();
     draft.settings.basePath = "blog";
+    draft.selections.push({ noteId: "note-c", categoryId: "guides" });
     assert.equal(saveSitePublishDraft(storage, "user-a", draft), true);
 
     const html = renderToStaticMarkup(
       createElement(SitePublishPanel, {
-        notes: [makeNote("note-a", "甲便签"), makeNote("note-b", "乙便签")],
+        notes: [makeNote("note-a", "甲便签"), makeNote("note-b", "乙便签"), makeNote("note-c", "丙便签")],
         storageScope: "user-a",
         onClose: noop,
       }),
     );
 
     assert.match(html, /aria-label="做法分类"/);
-    assert.match(html, /1 张/);
-    assert.match(html, /<strong>甲便签<\/strong>/);
+    assert.match(html, /2 张/);
+    assert.match(html, /<strong>丙便签<\/strong>[\s\S]*<strong>甲便签<\/strong>/);
     assert.match(html, /aria-label="从「做法」移除甲便签"/);
     assert.doesNotMatch(html, /“甲便签”的网站分类/);
     assert.doesNotMatch(html, /<select/);
     assert.match(html, /https:\/\/notes\.example\.com\/blog\//);
-    assert.doesNotMatch(html, /2 张/);
+    assert.doesNotMatch(html, /3 张/);
 
     draft.settings.logoPath = CUSTOM_LOGO_PATH;
     assert.equal(saveSitePublishDraft(storage, "user-logo-panel", draft), true);

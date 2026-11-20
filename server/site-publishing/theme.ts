@@ -847,6 +847,7 @@ a:hover {
 }
 
 .article-content img {
+  display: block;
   max-width: 100%;
   height: auto;
   border-radius: 7px;
