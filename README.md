@@ -19,6 +19,7 @@
 - 可用来分享与openclaw的对话记录。
 - 完美复刻锤子便签网页版和PC版，支持多便签，分类存储。
 - 支持Docker一键私有化部署
+- 支持发布为github pages静态网站，白嫖无限流量
 - 纯WEB应用，无需安装任何App，打开即用
 - 支持PC端和手机版，多端数据同步，支持公网部署
 - 支持图片插入。
@@ -70,6 +71,10 @@ clawhub地址 https://clawhub.ai/zhaoolee/notes-export-api
 
 
 
+
+## 支持发布为github pages静态网站，白嫖无限流量
+
+![](./README.assets/7ca532157d38abd0258431821dff11f4b74dca577263d1eb978bb1607e67b406.gif)
 
 ## 支持下载文章，包含网页，markdown以及管理的图片资源
 
