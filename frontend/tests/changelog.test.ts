@@ -169,6 +169,12 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
     content: RegExp[];
   }> = [
     {
+      version: "1.17.6",
+      heading:
+        "[1.17.6](https://github.com/zhaoolee/notes/compare/1.17.5...1.17.6) - 2026-11-20",
+      content: [/提交和发布时显示加载环/, /重新打开面板后继续计时/],
+    },
+    {
       version: "1.17.5",
       heading:
         "[1.17.5](https://github.com/zhaoolee/notes/compare/1.17.4...1.17.5) - 2026-11-20",

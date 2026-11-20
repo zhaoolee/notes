@@ -101,6 +101,27 @@ export function formatGitHubPublishCounts(
   ].join(" · ");
 }
 
+function GitHubPublishElapsedTimer({ startedAt }: { startedAt: number }) {
+  const [mountedAt] = useState(Date.now);
+  const [now, setNow] = useState(mountedAt);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const start = startedAt > 0 ? startedAt : mountedAt;
+  const totalSeconds = Math.max(0, Math.floor((now - start) / 1_000));
+  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+
+  return (
+    <span className="site-publish-elapsed" role="timer" aria-live="off">
+      {minutes}:{seconds}
+    </span>
+  );
+}
+
 export interface GitHubLocalSiteView {
   label: string;
   live: boolean;
@@ -873,16 +894,22 @@ export function GitHubPublishControls({
   const publishButton = (
     <button
       type="button"
-      className="site-publish-primary"
+      className="site-publish-primary site-publish-github-action"
       disabled={!availability.canPublish}
       title={availability.canPublish ? undefined : availability.reason}
       onClick={() => void handlePublish()}
     >
+      {publishing || activeJob ? (
+        <span className="site-publish-spinner" aria-hidden="true" />
+      ) : null}
       {activeJob
         ? "正在发布…"
         : publishing
           ? "正在提交…"
           : "发布到网站"}
+      {activeJob && job ? (
+        <GitHubPublishElapsedTimer key={job.id} startedAt={job.startedAt} />
+      ) : null}
     </button>
   );
   const portalPublishButton =

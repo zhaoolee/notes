@@ -566,7 +566,29 @@ try {
     check(simulated.calls.publish === 1, `${prefix}: first publish sends exactly one POST`);
     check(simulated.publishTargets[0] === "42", `${prefix}: publish confirms the repository shown in the panel`);
     checkSimulatedSelection(simulated.publishBodies[0], "first publish");
-    check(await footer.getByRole("button", { name: "正在发布…" }).isDisabled(), `${prefix}: active job disables the footer publish action`);
+    const activePublishButton = footer.getByRole("button", { name: /^正在发布/ });
+    check(await activePublishButton.isDisabled(), `${prefix}: active job disables the footer publish action`);
+    const publishSpinner = activePublishButton.locator(".site-publish-spinner");
+    check(await publishSpinner.getAttribute("aria-hidden") === "true", `${prefix}: active publish spinner is decorative only`);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    check(await publishSpinner.evaluate((element) => getComputedStyle(element).animationName) === "site-publish-spin", `${prefix}: active publish spinner animates`);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    check(await publishSpinner.evaluate((element) => getComputedStyle(element).animationName) === "none", `${prefix}: reduced motion keeps the publish spinner static`);
+    await page.emulateMedia({ reducedMotion: null });
+    const parseElapsed = (text) => {
+      const match = /^(\d{2,}):([0-5]\d)$/.exec(text.trim());
+      return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+    };
+    const publishTimer = activePublishButton.locator('[role="timer"]');
+    check(await publishTimer.getAttribute("aria-live") === "off", `${prefix}: active publish timer is not announced continuously`);
+    const initialTimerText = await publishTimer.innerText();
+    const firstElapsed = parseElapsed(initialTimerText);
+    check(Number.isInteger(firstElapsed), `${prefix}: active publish timer uses minute:second digits`);
+    await page.waitForFunction((initial) => {
+      const timer = document.querySelector('.site-publish-footer [role="timer"]');
+      return timer && timer.textContent.trim() !== initial;
+    }, initialTimerText, { timeout: 5_000 });
+    check(parseElapsed(await publishTimer.innerText()) > firstElapsed, `${prefix}: active publish timer advances while the job runs`);
     await githubSummary.click();
     check(await githubDetails.evaluate((element) => element.open) === true, `${prefix}: expanding the collapsed card shows the publish result`);
     await queuedJob.waitFor({ state: "visible", timeout: 15_000 });
@@ -584,6 +606,8 @@ try {
     check(await panel.getByText("已发布，站点已上线", { exact: true }).count() === 0, `${prefix}: no premature success message while deploying`);
     check(await panel.locator('.site-publish-github-links a[href="https://octo.github.io/notes-site/"]').isVisible(), `${prefix}: deploying phase exposes the commit and site links`);
 
+    const elapsedBeforeReopen = parseElapsed(await publishTimer.innerText());
+    check(Number.isInteger(elapsedBeforeReopen), `${prefix}: active timer reads before reopening the panel`);
     await panel.getByRole("button", { name: "关闭网站发布面板" }).click();
     await panel.waitFor({ state: "detached" });
     await openPublishingPanel();
@@ -592,6 +616,10 @@ try {
     check(await panel.getByText("已连接 GitHub：@ui-feedback", { exact: true }).isVisible() === false, `${prefix}: reopened panel hides GitHub settings until expanded`);
     const reopenedDeploying = panel.locator('[data-github-publish-phase="deploying"]');
     await reopenedDeploying.waitFor({ state: "attached" });
+    const elapsedAfterReopen = parseElapsed(await publishTimer.innerText());
+    const expectedElapsed = Math.floor((Date.now() - now) / 1_000);
+    check(Number.isInteger(elapsedAfterReopen) && elapsedAfterReopen >= elapsedBeforeReopen, `${prefix}: reopened timer continues from the same job start`);
+    check(Math.abs(elapsedAfterReopen - expectedElapsed) <= 2, `${prefix}: reopened timer uses the saved job startedAt`);
     check(await repositorySelect.evaluate((element) => element.value) === "42", `${prefix}: reopened panel restores the bound repository`);
     await githubSummary.click();
     await reopenedDeploying.waitFor();
@@ -601,6 +629,9 @@ try {
     const publishedJob = panel.locator('[data-github-publish-phase="published"]');
     await publishedJob.waitFor({ timeout: 15_000 });
     check(await publishedJob.getAttribute("data-github-publish-live") === "true", `${prefix}: published phase is the only live state`);
+    check(await footer.locator(".site-publish-spinner").count() === 0, `${prefix}: published terminal job removes the publish spinner`);
+    check(await footer.locator('[role="timer"]').count() === 0, `${prefix}: published terminal job removes the elapsed timer`);
+    check(await footer.getByRole("button", { name: "发布到网站" }).isEnabled(), `${prefix}: published terminal job restores the action label`);
     const publishedLocal = publishedJob.locator('[data-local-site-phase="published"]');
     await publishedLocal.waitFor();
     check(await publishedLocal.getAttribute("data-local-site-live") === "true", `${prefix}: simulated local mirror reports its own success`);

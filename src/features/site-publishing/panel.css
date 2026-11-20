@@ -817,6 +817,41 @@
   display: contents;
 }
 
+.site-publish-github-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.site-publish-spinner {
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  border: 2px solid color-mix(in srgb, currentColor 34%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: site-publish-spin 0.75s linear infinite;
+}
+
+.site-publish-elapsed {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes site-publish-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-publish-spinner {
+    animation: none;
+  }
+}
+
 .site-publish-status,
 .site-publish-error,
 .site-publish-notice {
