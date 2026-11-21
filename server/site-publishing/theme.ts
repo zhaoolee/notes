@@ -15,7 +15,7 @@
  * - 搜索页内容来自 content/search/_index.md 或 content/search/index.md，
  *   由 layouts/_default/search.html 或 layouts/search/* 渲染，使用本地 JSON 索引，
  *   不依赖任何在线索引服务或额外的 npm 搜索依赖。
- * - 背景由调用方放在 static/assets/bg.jpg；Logo 放在 static/logo.png，并在
+ * - 浅色和深色背景由调用方放在 static/assets/；Logo 放在 static/logo.png，并在
  *   hugo.json 的 params.logo 中提供页头与默认 favicon 共用的地址。默认 Logo 使用
  *   已着色的暖色的 PNG，地址带内容哈希查询参数；自定义 Logo 使用 logo.png，
  *   site.Params.favicon 仍可覆盖默认 favicon。
@@ -26,6 +26,46 @@
  */
 
 const SITE_THEME_ID = "smartisan-blog";
+
+// 沿用编辑器锤子暗黑的纸面、正文和金色强调色，次要文字使用正文引用色。
+const DARK_SITE_COLORS = `  color-scheme: dark;
+  --bg: #131113;
+  --background-texture: url("../assets/bg-dark.webp") center top / 358px 720px repeat;
+  --paper: #1c1a1c;
+  --frame: #343134;
+  --ink: #cecece;
+  --muted: #9f9c9f;
+  --accent: #c99a1e;
+  --accent-strong: #d5ab36;
+  --sidebar: #1e1c1e;
+  --sidebar-line: #343134;
+  --sidebar-ink: #cecece;
+  --sidebar-muted: var(--muted);
+  --sheet-shadow: 0 24px 42px rgba(0, 0, 0, 0.42);
+  --sidebar-head-bg: var(--sidebar);
+  --sidebar-head-shadow: 0 10px 14px var(--sidebar);
+  --field-bg: #201e20;
+  --field-icon: var(--muted);
+  --field-placeholder: var(--muted);
+  --field-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.24);
+  --focus-border: #a68b75;
+  --focus-shadow: 0 0 0 2px rgba(201, 154, 30, 0.14);
+  --control-track: #161416;
+  --control-border: var(--sidebar-line);
+  --control-bg: #292629;
+  --hover-bg: #302c30;
+  --control-shadow: 0 1px 5px rgba(0, 0, 0, 0.26);
+  --section-bg: #242224;
+  --section-ink: var(--sidebar-ink);
+  --toc-bg: #1e1c1e;
+  --toc-shadow: 0 16px 32px rgba(0, 0, 0, 0.42);
+  --secondary-ink: var(--muted);
+  --table-head-bg: #242224;
+  --code-bg: #242224;
+  --code-text: #c5c3c5;
+  --success: #acd48f;
+  --failure: #efac94;
+  --accent-border: #8c6c20;`;
 
 const SITE_THEME_FILES: Record<string, Record<string, string>> = {
   [SITE_THEME_ID]: {
@@ -51,6 +91,11 @@ const SITE_THEME_FILES: Record<string, Record<string, string>> = {
     <link rel="alternate" type="application/rss+xml" href="{{ .RelPermalink }}" title="{{ site.Title }}">
     {{- end }}{{- end }}
     {{- block "head" . }}{{ end }}
+    {{- with resources.Get "js/theme.js" }}
+      {{- with . | minify | fingerprint "sha256" }}
+    <script src="{{ .RelPermalink }}" integrity="{{ .Data.Integrity }}" crossorigin="anonymous" data-site-path="{{ site.Home.RelPermalink }}"></script>
+      {{- end }}
+    {{- end }}
     {{- with resources.Get "css/site.css" }}
       {{- with . | minify | fingerprint "sha256" }}
     <link rel="stylesheet" href="{{ .RelPermalink }}" integrity="{{ .Data.Integrity }}" crossorigin="anonymous">
@@ -187,9 +232,16 @@ Sitemap: {{ "sitemap.xml" | absURL }}
         <input type="search" name="q" placeholder="快速搜索关键字" aria-label="搜索站内内容">
       </label>
     </form>
-    <div class="sidebar-mode-toggle" role="tablist" aria-label="导航模式">
-      <button class="sidebar-mode-button" type="button" data-sidebar-mode-button="latest" aria-selected="true">最新</button>
-      <button class="sidebar-mode-button" type="button" data-sidebar-mode-button="sections" aria-selected="false">专题</button>
+    <div class="sidebar-controls">
+      <div class="sidebar-mode-toggle" role="tablist" aria-label="导航模式">
+        <button class="sidebar-mode-button" type="button" data-sidebar-mode-button="latest" aria-selected="true">最新</button>
+        <button class="sidebar-mode-button" type="button" data-sidebar-mode-button="sections" aria-selected="false">专题</button>
+      </div>
+      <select class="site-theme-select" aria-label="网站主题" hidden>
+        <option value="system">跟随系统</option>
+        <option value="light">浅色</option>
+        <option value="dark">深色</option>
+      </select>
     </div>
   </div>
   <nav class="sidebar-nav sidebar-nav-latest" data-sidebar-panel="latest" aria-label="最新文章">
@@ -321,7 +373,9 @@ Sitemap: {{ "sitemap.xml" | absURL }}
 {{ end }}
 `,
     "assets/css/site.css": `:root {
+  color-scheme: light;
   --bg: #ede1ce;
+  --background-texture: url("../assets/bg.jpg") left top / 420px auto repeat;
   --paper: #fefcf6;
   --frame: rgba(237, 233, 225, 0.92);
   --ink: #3f2f22;
@@ -338,6 +392,16 @@ Sitemap: {{ "sitemap.xml" | absURL }}
   --mono-font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
+:root[data-color-mode="dark"] {
+${DARK_SITE_COLORS}
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-mode="light"]) {
+${DARK_SITE_COLORS}
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -350,7 +414,7 @@ html {
 body {
   min-height: 100vh;
   margin: 0;
-  background: url("../assets/bg.jpg") left top / 420px auto repeat;
+  background: var(--bg) var(--background-texture);
   color: var(--ink);
   font-family: var(--base-font-family);
   letter-spacing: 0;
@@ -413,14 +477,14 @@ a:hover {
   top: 0;
   z-index: 3;
   padding: 16px 12px 12px;
-  background:
+  background: var(--sidebar-head-bg,
     linear-gradient(
       180deg,
       var(--sidebar) 0%,
       rgba(251, 247, 237, 0.98) 78%,
       rgba(251, 247, 237, 0.94) 100%
-    );
-  box-shadow: 0 10px 14px rgba(251, 247, 237, 0.92);
+    ));
+  box-shadow: var(--sidebar-head-shadow, 0 10px 14px rgba(251, 247, 237, 0.92));
 }
 
 .site-brand {
@@ -463,11 +527,10 @@ a:hover {
   align-items: center;
   gap: 9px;
   padding: 0 10px;
-  border: 1px solid rgb(228, 218, 209);
+  border: 1px solid var(--sidebar-line);
   border-radius: 16px;
-  background: rgb(252, 252, 252);
-  color: rgba(99, 87, 83, 0.68);
-  box-shadow: rgba(0, 0, 0, 0.12) 0 1px 4px inset;
+  background: var(--field-bg, rgb(252, 252, 252));
+  box-shadow: var(--field-shadow, rgba(0, 0, 0, 0.12) 0 1px 4px inset);
   transition:
     border-color 180ms ease,
     box-shadow 180ms ease,
@@ -475,18 +538,17 @@ a:hover {
 }
 
 .sidebar-search-field:focus-within {
-  border-color: rgb(218, 205, 193);
-  background: rgb(252, 252, 252);
+  border-color: var(--focus-border, rgb(218, 205, 193));
   box-shadow:
-    rgba(0, 0, 0, 0.12) 0 1px 4px inset,
-    0 0 0 2px rgba(145, 104, 71, 0.06);
+    var(--field-shadow, rgba(0, 0, 0, 0.12) 0 1px 4px inset),
+    var(--focus-shadow, 0 0 0 2px rgba(145, 104, 71, 0.06));
 }
 
 .sidebar-search-icon {
   width: 14px;
   height: 14px;
   flex: 0 0 14px;
-  border: 3px solid rgba(99, 87, 83, 0.58);
+  border: 3px solid var(--field-icon, rgba(99, 87, 83, 0.58));
   border-radius: 50%;
   position: relative;
 }
@@ -499,7 +561,7 @@ a:hover {
   right: -6px;
   bottom: -4px;
   border-radius: 999px;
-  background: rgba(99, 87, 83, 0.58);
+  background: var(--field-icon, rgba(99, 87, 83, 0.58));
   transform: rotate(45deg);
   transform-origin: center;
 }
@@ -520,7 +582,7 @@ a:hover {
 }
 
 .sidebar-search-field input::placeholder {
-  color: rgba(177, 166, 153, 0.58);
+  color: var(--field-placeholder, rgba(177, 166, 153, 0.58));
   font-weight: 400;
 }
 
@@ -530,15 +592,31 @@ a:hover {
   display: none;
 }
 
+.sidebar-controls {
+  display: flex;
+  gap: 6px;
+  margin: 0 6px;
+}
+
 .sidebar-mode-toggle {
   display: grid;
+  flex: 1;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 2px;
-  margin: 0 6px;
   padding: 2px;
-  border: 1px solid rgba(206, 190, 170, 0.78);
+  border: 1px solid var(--control-border, rgba(206, 190, 170, 0.78));
   border-radius: 8px;
-  background: rgba(245, 239, 228, 0.72);
+  background: var(--control-track, rgba(245, 239, 228, 0.72));
+}
+
+.site-theme-select {
+  padding: 0 4px 0 8px;
+  border: 1px solid var(--control-border, rgba(206, 190, 170, 0.78));
+  border-radius: 8px;
+  background: var(--control-bg, rgb(255, 251, 245));
+  color: var(--sidebar-ink);
+  font: 600 13px var(--base-font-family);
+  cursor: pointer;
 }
 
 .sidebar-mode-button {
@@ -557,9 +635,9 @@ a:hover {
 
 .sidebar-mode-button:hover,
 .sidebar-mode-button[aria-selected="true"] {
-  background: rgb(255, 251, 245);
+  background: var(--control-bg, rgb(255, 251, 245));
   color: var(--accent-strong);
-  box-shadow: 0 1px 5px rgba(89, 65, 34, 0.1);
+  box-shadow: var(--control-shadow, 0 1px 5px rgba(89, 65, 34, 0.1));
 }
 
 .sidebar ul {
@@ -587,9 +665,9 @@ a:hover {
 
 .sidebar-nav li li a {
   min-height: 42px;
-  background: rgba(255, 251, 245, 0.38);
-  border-bottom-color: rgba(228, 218, 209, 0.78);
-  color: #655044;
+  background: var(--section-bg, rgba(255, 251, 245, 0.38));
+  border-bottom-color: var(--control-border, rgba(228, 218, 209, 0.78));
+  color: var(--section-ink, #655044);
   font-size: 14px;
   font-weight: 500;
   line-height: 1.5;
@@ -598,7 +676,7 @@ a:hover {
 
 .sidebar-nav-sections > ul > li > a {
   min-height: 48px;
-  color: #4f392b;
+  color: var(--section-ink, #4f392b);
   font-size: 15px;
   font-weight: 700;
 }
@@ -636,7 +714,7 @@ a:hover {
 
 .sidebar-nav a:hover,
 .sidebar-nav a.active {
-  background: rgb(241, 236, 225);
+  background: var(--hover-bg, rgb(241, 236, 225));
   color: var(--accent-strong);
   box-shadow: rgba(0, 0, 0, 0.03) 0 1px 4px 0 inset;
 }
@@ -669,10 +747,10 @@ a:hover {
   width: 236px;
   max-height: calc(100vh - 48px);
   overflow: auto;
-  border: 1px solid rgba(206, 190, 170, 0.78);
+  border: 1px solid var(--control-border, rgba(206, 190, 170, 0.78));
   border-radius: 8px;
-  background: rgba(255, 250, 242, 0.94);
-  box-shadow: 0 16px 32px rgba(89, 65, 34, 0.12);
+  background: var(--toc-bg, rgba(255, 250, 242, 0.94));
+  box-shadow: var(--toc-shadow, 0 16px 32px rgba(89, 65, 34, 0.12));
   padding: 14px 0 12px;
 }
 
@@ -699,7 +777,7 @@ a:hover {
 .article-toc a {
   display: block;
   border-left: 2px solid transparent;
-  color: rgba(99, 87, 83, 0.78);
+  color: var(--secondary-ink, rgba(99, 87, 83, 0.78));
   font-size: 13px;
   font-weight: 500;
   line-height: 1.45;
@@ -715,21 +793,21 @@ a:hover {
 }
 
 .article-toc li li a {
-  color: rgba(99, 87, 83, 0.62);
+  color: var(--secondary-ink, rgba(99, 87, 83, 0.62));
   font-size: 12px;
   font-weight: 400;
   padding-left: 30px;
 }
 
 .article-toc a:hover {
-  border-left-color: rgba(143, 92, 44, 0.42);
-  background: rgba(241, 236, 225, 0.64);
+  border-left-color: var(--accent-border, rgba(143, 92, 44, 0.42));
+  background: var(--hover-bg, rgba(241, 236, 225, 0.64));
   color: var(--accent-strong);
 }
 
 .article-toc a.is-active {
   border-left-color: var(--accent);
-  background: rgba(241, 236, 225, 0.82);
+  background: var(--hover-bg, rgba(241, 236, 225, 0.82));
   color: var(--accent-strong);
   font-weight: 700;
 }
@@ -754,7 +832,7 @@ a:hover {
   position: absolute;
   width: 5px;
   height: 5px;
-  border: 1px solid rgba(237, 233, 225, 0.76);
+  border: 1px solid var(--control-border, rgba(237, 233, 225, 0.76));
   pointer-events: none;
 }
 
@@ -844,10 +922,14 @@ a:hover {
 
 .article-content th,
 .article-content td {
-  border-bottom: 1px solid rgba(206, 190, 170, 0.62);
+  border-bottom: 1px solid var(--control-border, rgba(206, 190, 170, 0.62));
   padding: 8px 10px;
   text-align: left;
   vertical-align: top;
+}
+
+.article-content th {
+  background: var(--table-head-bg, transparent);
 }
 
 .article-content img {
@@ -859,8 +941,8 @@ a:hover {
 
 .article-content code {
   border-radius: 4px;
-  background: rgba(102, 76, 49, 0.08);
-  color: #69451f;
+  background: var(--code-bg, rgba(102, 76, 49, 0.08));
+  color: var(--code-text, #69451f);
   font-family: var(--mono-font-family);
   font-size: 0.92em;
   padding: 0.15em 0.35em;
@@ -870,7 +952,7 @@ a:hover {
   position: relative;
   overflow-x: auto;
   border-radius: 7px;
-  background: rgba(102, 76, 49, 0.08);
+  background: var(--code-bg, rgba(102, 76, 49, 0.08));
   padding: 46px 18px 18px;
 }
 
@@ -885,9 +967,9 @@ a:hover {
   right: 10px;
   z-index: 2;
   min-height: 28px;
-  border: 1px solid rgba(206, 190, 170, 0.78);
+  border: 1px solid var(--control-border, rgba(206, 190, 170, 0.78));
   border-radius: 6px;
-  background: rgb(255, 251, 245);
+  background: var(--control-bg, rgb(255, 251, 245));
   color: var(--accent-strong);
   cursor: pointer;
   font-family: var(--base-font-family);
@@ -895,9 +977,9 @@ a:hover {
   font-weight: 700;
   line-height: 1;
   padding: 0 10px;
-  box-shadow:
+  box-shadow: var(--control-shadow,
     inset 0 1px 0 rgba(255, 255, 255, 0.72),
-    0 1px 4px rgba(89, 65, 34, 0.08);
+    0 1px 4px rgba(89, 65, 34, 0.08));
   transition:
     background 140ms ease,
     border-color 140ms ease,
@@ -905,22 +987,22 @@ a:hover {
 }
 
 .code-copy-button:hover {
-  border-color: rgba(143, 92, 44, 0.34);
-  background: rgb(250, 246, 238);
+  border-color: var(--accent-border, rgba(143, 92, 44, 0.34));
+  background: var(--hover-bg, rgb(250, 246, 238));
 }
 
 .code-copy-button.is-copied {
-  color: #4f7a32;
+  color: var(--success, #4f7a32);
 }
 
 .code-copy-button.is-failed {
-  color: #9a4f2f;
+  color: var(--failure, #9a4f2f);
 }
 
 .article-content blockquote {
   margin-left: 0;
-  border-left: 4px solid rgba(143, 92, 44, 0.28);
-  color: rgba(63, 47, 34, 0.8);
+  border-left: 4px solid var(--accent-border, rgba(143, 92, 44, 0.28));
+  color: var(--secondary-ink, rgba(63, 47, 34, 0.8));
   padding-left: 18px;
 }
 
@@ -936,7 +1018,7 @@ a:hover {
   display: flex;
   gap: 16px;
   justify-content: space-between;
-  border-bottom: 1px solid rgba(206, 190, 170, 0.72);
+  border-bottom: 1px solid var(--control-border, rgba(206, 190, 170, 0.72));
   padding: 14px 0;
 }
 
@@ -977,29 +1059,28 @@ a:hover {
   align-items: center;
   gap: 10px;
   padding: 0 12px;
-  border: 1px solid rgb(228, 218, 209);
+  border: 1px solid var(--sidebar-line);
   border-radius: 8px;
-  background: rgb(255, 253, 248);
-  color: rgba(99, 87, 83, 0.68);
-  box-shadow:
+  background: var(--field-bg, rgb(255, 253, 248));
+  box-shadow: var(--field-shadow,
     rgba(89, 65, 34, 0.06) 0 1px 3px inset,
-    rgba(255, 255, 255, 0.72) 0 1px 0;
+    rgba(255, 255, 255, 0.72) 0 1px 0);
 }
 
 .search-page-field:focus-within {
-  border-color: rgb(218, 205, 193);
+  border-color: var(--focus-border, rgb(218, 205, 193));
   box-shadow:
-    rgba(89, 65, 34, 0.08) 0 1px 4px inset,
-    0 0 0 2px rgba(145, 104, 71, 0.06);
+    var(--field-shadow, rgba(89, 65, 34, 0.08) 0 1px 4px inset),
+    var(--focus-shadow, 0 0 0 2px rgba(145, 104, 71, 0.06));
 }
 
 .search-page-icon {
   width: 13px;
   height: 13px;
   flex: 0 0 13px;
-  border: 2px solid rgba(99, 87, 83, 0.5);
+  border: 2px solid var(--field-icon, rgba(99, 87, 83, 0.5));
   border-radius: 50%;
-  box-shadow: 5px 5px 0 -4px rgba(99, 87, 83, 0.5);
+  box-shadow: 5px 5px 0 -4px var(--field-icon, rgba(99, 87, 83, 0.5));
   transform: rotate(-8deg);
 }
 
@@ -1019,7 +1100,7 @@ a:hover {
 }
 
 .search-page-field input::placeholder {
-  color: rgba(177, 166, 153, 0.58);
+  color: var(--field-placeholder, rgba(177, 166, 153, 0.58));
   font-weight: 400;
 }
 
@@ -1033,8 +1114,8 @@ a:hover {
   min-height: 42px;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid rgba(206, 190, 170, 0.64);
-  color: rgba(99, 87, 83, 0.72);
+  border-bottom: 1px solid var(--control-border, rgba(206, 190, 170, 0.64));
+  color: var(--secondary-ink, rgba(99, 87, 83, 0.72));
   font-size: 14px;
   font-weight: 700;
   margin: 0 0 4px;
@@ -1048,12 +1129,8 @@ a:hover {
 }
 
 .search-result {
-  border-bottom: 1px solid rgba(206, 190, 170, 0.64);
+  border-bottom: 1px solid var(--control-border, rgba(206, 190, 170, 0.64));
   padding: 22px 0;
-}
-
-.search-result:last-child {
-  border-bottom: 1px solid rgba(206, 190, 170, 0.64);
 }
 
 .search-result-title {
@@ -1065,7 +1142,7 @@ a:hover {
 }
 
 .search-result-excerpt {
-  color: rgba(63, 47, 34, 0.82);
+  color: var(--secondary-ink, rgba(63, 47, 34, 0.82));
   font-size: 15px;
   line-height: 1.8;
   margin: 8px 0 0;
@@ -1104,7 +1181,7 @@ a:hover {
 
 .image-unavailable {
   display: inline-block;
-  border: 1px dashed rgba(143, 92, 44, 0.42);
+  border: 1px dashed var(--accent-border, rgba(143, 92, 44, 0.42));
   border-radius: 6px;
   color: var(--muted);
   font-size: 14px;
@@ -1132,11 +1209,11 @@ a:hover {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    border: 1px solid rgba(82, 63, 47, 0.52);
-    background: rgb(255, 250, 243);
-    box-shadow:
+    border: 1px solid var(--control-border, rgba(82, 63, 47, 0.52));
+    background: var(--control-bg, rgb(255, 250, 243));
+    box-shadow: var(--control-shadow,
       inset 0 1px 0 rgba(255, 255, 255, 0.28),
-      0 2px 10px rgba(42, 29, 19, 0.2);
+      0 2px 10px rgba(42, 29, 19, 0.2));
     cursor: pointer;
     gap: 5px;
     transition:
@@ -1150,7 +1227,7 @@ a:hover {
     width: 18px;
     height: 2px;
     border-radius: 999px;
-    background: #5a3214;
+    background: var(--section-ink, #5a3214);
     transition:
       opacity 160ms ease,
       transform 180ms ease;
@@ -1159,8 +1236,8 @@ a:hover {
 
   .site-nav-toggle:checked + .site-nav-button {
     left: 248px;
-    border-color: rgba(143, 92, 44, 0.68);
-    background: rgb(255, 247, 235);
+    border-color: var(--accent-border, rgba(143, 92, 44, 0.68));
+    background: var(--hover-bg, rgb(255, 247, 235));
   }
 
   .site-nav-toggle:checked + .site-nav-button span:nth-child(1) {
@@ -1224,6 +1301,43 @@ a:hover {
     display: none;
   }
 }
+`,
+    "assets/js/theme.js": `(function () {
+  var root = document.documentElement;
+  var storageKey = "notes-site-color-mode:" + document.currentScript.dataset.sitePath;
+  var mode = "system";
+
+  function applyMode(value) {
+    mode = value === "light" || value === "dark" ? value : "system";
+    if (mode === "system") {
+      delete root.dataset.colorMode;
+    } else {
+      root.dataset.colorMode = mode;
+    }
+  }
+
+  try {
+    applyMode(window.localStorage.getItem(storageKey));
+  } catch {
+    // The stylesheet follows the system when browser storage is unavailable.
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    var select = document.querySelector(".site-theme-select");
+    if (!select) return;
+
+    select.value = mode;
+    select.hidden = false;
+    select.addEventListener("change", function () {
+      applyMode(select.value);
+      try {
+        window.localStorage.setItem(storageKey, mode);
+      } catch {
+        // Keep the selected theme for this page even if it cannot be saved.
+      }
+    });
+  });
+})();
 `,
     "assets/js/sidebar.js": `(function () {
   var scrollStorageKey = "notes-site-sidebar-scroll";

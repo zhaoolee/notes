@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.18.0] - 2026-11-21
+
+### 新增
+
+- Hugo 网站支持与便签编辑器一致的锤子暗黑配色。访客可在侧栏选择跟随系统、浅色或深色，浏览器会记住每个站点的选择。已有网站重新发布或重新部署后即可使用。
+
 ## [1.17.9] - 2026-11-21
 
 ### 新增
@@ -504,6 +510,7 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.18.0]: https://github.com/zhaoolee/notes/compare/1.17.9...1.18.0
 [1.17.9]: https://github.com/zhaoolee/notes/compare/1.17.8...1.17.9
 [1.17.8]: https://github.com/zhaoolee/notes/compare/1.17.7...1.17.8
 [1.17.7]: https://github.com/zhaoolee/notes/compare/1.17.6...1.17.7

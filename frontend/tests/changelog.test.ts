@@ -173,6 +173,12 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
     content: RegExp[];
   }> = [
     {
+      version: "1.18.0",
+      heading:
+        "[1.18.0](https://github.com/zhaoolee/notes/compare/1.17.9...1.18.0) - 2026-11-21",
+      content: [/Hugo 网站支持与便签编辑器一致的锤子暗黑配色/, /跟随系统、浅色或深色/],
+    },
+    {
       version: "1.17.9",
       heading:
         "[1.17.9](https://github.com/zhaoolee/notes/compare/1.17.8...1.17.9) - 2026-11-21",

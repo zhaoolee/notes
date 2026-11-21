@@ -185,6 +185,7 @@ export async function buildSiteEntries(request: SiteExportRequest, options: Site
     add(`${directory}/index.md`, frontMatter({ title: getSiteNoteTitle(note.markdown), date: new Date(Math.min(note.createdAt, Date.now())).toISOString(), lastmod: new Date(Math.min(note.updatedAt, Date.now())).toISOString(), draft: false, categories: [category.name] }, body));
   }
   add("static/assets/bg.jpg", await fs.readFile(path.join(options.rootDirectory, "public", "bg.jpg")));
+  add("static/assets/bg-dark.webp", await fs.readFile(path.join(options.rootDirectory, "public", "smartisan", "mobile", "dark", "note_background.webp")));
   add("static/logo.png", logo);
   add("static/.nojekyll", "");
   add(".github/workflows/pages.yml", githubWorkflow());

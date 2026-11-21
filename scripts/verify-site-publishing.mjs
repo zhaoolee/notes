@@ -35,7 +35,7 @@ async function exists(filename) { try { await fs.access(filename); return true; 
 try {
   await fs.access(path.join(root, "dist/index.html"));
   let publicDirectory = "";
-  const mime = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".json": "application/json", ".xml": "application/xml", ".png": "image/png", ".jpg": "image/jpeg", ".woff2": "font/woff2" };
+  const mime = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".json": "application/json", ".xml": "application/xml", ".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".woff2": "font/woff2" };
   const missingResources = [];
   staticServer = createServer(async (request, response) => {
     try {
@@ -374,8 +374,24 @@ try {
   await panel.getByRole("textbox", { name: /^网站标题/ }).press("Escape");
   const workspace = await context.request.get(`${baseURL}/api/workspace`);
   check(JSON.stringify((await workspace.json()).workspace.notes) === JSON.stringify(notes), "export leaves notes and folders unchanged");
-  await page.goto(`http://127.0.0.1:${staticPort}/nested/blog/`);
+  const publishedHomeURL = `http://127.0.0.1:${staticPort}/nested/blog/`;
+  const themeSelect = page.getByRole("combobox", { name: "网站主题" });
+  const colorScheme = () => page.locator("html").evaluate((element) => getComputedStyle(element).colorScheme);
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto(publishedHomeURL);
+  await themeSelect.waitFor();
+  check(await themeSelect.inputValue() === "system" && await colorScheme() === "light", "published site defaults to the visitor's light system theme");
+  await page.emulateMedia({ colorScheme: "dark" });
+  check(await colorScheme() === "dark", "published system theme updates without a reload");
+  await themeSelect.selectOption("light");
+  check(await colorScheme() === "light", "published light theme overrides a dark system");
+  await themeSelect.selectOption("dark");
+  await page.emulateMedia({ colorScheme: "light" });
   await page.locator(".home-post-list a").click();
+  check(await themeSelect.inputValue() === "dark" && await colorScheme() === "dark", "published dark theme persists across navigation and overrides a light system");
+  check(await page.locator(".reader-sheet").evaluate((element) => getComputedStyle(element).backgroundColor) === "rgb(28, 26, 28)", "published reader uses the editor's dark paper color");
+  check(await page.locator("body").evaluate((element) => getComputedStyle(element).backgroundImage.includes("bg-dark.webp")), "published reader uses the editor's dark texture");
+  check(await page.locator(".article-content pre code").evaluate((element) => getComputedStyle(element).color) === "rgb(197, 195, 197)", "published code uses the editor's dark code text color");
   await page.evaluate(() => document.fonts.ready);
   check(await page.locator("article img").evaluateAll((images) => images.every((image) => image.complete && image.naturalWidth > 0)), "published images load at subpath");
   check(await page.getByRole("img", { name: "验证图片", exact: true }).evaluate((image) => {
@@ -393,13 +409,30 @@ try {
   }), "published article text sits above and below the image");
   check(await page.locator(".site-brand img").evaluate((image) => image.complete && image.naturalWidth === 256 && image.naturalHeight === 256), "published brand logo loads generated 256x256 image");
   await page.screenshot({ path: path.join(temporary, "website-desktop.png") });
+  await page.goto(new URL("../", publishedArticleURL).href);
+  check(await colorScheme() === "dark", "published category pages use the same saved theme");
   await page.goto(`http://127.0.0.1:${staticPort}/nested/blog/search/?q=图文`);
   await page.locator("#search-results a").first().waitFor();
   check((await page.locator("#search-results").innerText()).includes("示例网站发布"), "published static search works");
+  check(await colorScheme() === "dark", "published search uses the same saved theme");
+  await themeSelect.selectOption("system");
+  check(await colorScheme() === "light", "returning to the system theme clears the manual override");
+  await page.emulateMedia({ colorScheme: "dark" });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(publishedArticleURL);
+  check(await colorScheme() === "dark", "published mobile article follows the system theme");
   check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "published mobile page has no horizontal overflow");
   await page.screenshot({ path: path.join(temporary, "website-mobile.png") });
+  await page.locator(".site-nav-button").click();
+  await themeSelect.selectOption("light");
+  check(await colorScheme() === "light", "published mobile navigation can switch the theme");
+  await page.reload();
+  check(await colorScheme() === "light", "published mobile light theme persists on reload");
+  const noScript = await browser.newPage({ javaScriptEnabled: false, colorScheme: "dark" });
+  await noScript.goto(publishedHomeURL);
+  check(await noScript.locator("html").evaluate((element) => getComputedStyle(element).colorScheme) === "dark", "published site follows the system theme with JavaScript disabled");
+  check(await noScript.getByRole("combobox", { name: "网站主题" }).count() === 0, "published site hides the unavailable theme control with JavaScript disabled");
+  await noScript.close();
   check(missingResources.length === 0, `all generated browser resources load: ${missingResources.join(", ")}`);
   check(consoleErrors.length === 0, `no browser errors: ${consoleErrors.join(", ")}`);
   const screenshots = ["menu.png", "panel-default-basepath.png", "panel-desktop.png", "panel-mobile.png", "website-desktop.png", "website-mobile.png"];
