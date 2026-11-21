@@ -37,8 +37,8 @@ async function fixture(overrides: Partial<GitHubPublishingOptions> = {}) {
     build: async () => siteEntries({ "index.html": "<h1>Site</h1>" }), ...overrides,
   }));
   const store = new GitHubPublishingStore(directory, config.tokenKey);
-  async function request(endpoint: string, options: { actor?: string | null; method?: string; data?: unknown; cookie?: string; origin?: string; expectedRepositoryId?: string | null } = {}) {
-    return fetch(base + endpoint, { method: options.method || "GET", redirect: "manual", headers: {
+  async function request(endpoint: string, options: { actor?: string | null; method?: string; data?: unknown; cookie?: string; origin?: string; expectedRepositoryId?: string | null; signal?: AbortSignal } = {}) {
+    return fetch(base + endpoint, { method: options.method || "GET", redirect: "manual", signal: options.signal, headers: {
       ...(options.actor === null ? {} : { "x-test-user": options.actor || "alice" }),
       ...(options.data === undefined ? {} : { "Content-Type": "application/json" }),
       ...(endpoint === "/publish" && options.expectedRepositoryId !== null ? { "X-Notes-GitHub-Repository-Id": options.expectedRepositoryId ?? String(github.repository.id) } : {}),
@@ -243,6 +243,39 @@ test("发布期间重复请求、换仓库和断开连接被拒绝；同仓库�
     assert.equal((await f.request("/repository", { method: "PUT", data: { repositoryId: f.repository.id, installationId: f.repository.installationId } })).status, 409);
     release(); assert.equal((await f.waitJob()).phase, "published");
   } finally { release(); await f.close(); }
+});
+
+test("服务端收到发布正文后，即使客户端在收到 202 前关闭连接也会完成发布", async () => {
+  let markReceived!: () => void;
+  const requestReceived = new Promise<void>((resolve) => { markReceived = resolve; });
+  const f = await fixture({
+    getUser: async (request, response) => {
+      if (request.method === "POST" && request.path === "/publish") {
+        assert.equal(request.body.notes[0].id, "note-a");
+        const disconnected = once(response, "close");
+        markReceived();
+        await disconnected;
+      }
+      return { id: "alice" };
+    },
+  });
+  const controller = new AbortController();
+  try {
+    await f.seed();
+    const cancelled = assert.rejects(
+      f.request("/publish", { method: "POST", data: payload(), signal: controller.signal }),
+      { name: "AbortError" },
+    );
+    await requestReceived;
+    controller.abort();
+    await cancelled;
+    const job = await f.waitJob();
+    assert.equal(job.phase, "published");
+    assert.equal(job.commitSha, f.fake.branchHead("gh-pages"));
+  } finally {
+    controller.abort();
+    await f.close();
+  }
 });
 
 test("仓库授权撤销后后台失败且不提交，错误状态可恢复，断开连接会取消未完成的授权回调", async () => {

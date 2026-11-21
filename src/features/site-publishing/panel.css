@@ -825,6 +825,56 @@
   white-space: nowrap;
 }
 
+.site-publish-progress-slot {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.site-publish-progress-slot > * {
+  margin: 14px 22px 0;
+}
+
+.site-publish-progress {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--panel-border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--paper));
+}
+
+.site-publish-progress .site-publish-spinner {
+  width: 36px;
+  height: 36px;
+  flex-basis: 36px;
+  border-width: 3px;
+  color: var(--accent);
+}
+
+.site-publish-progress-copy {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.site-publish-progress-copy strong {
+  font-size: 0.92rem;
+}
+
+.site-publish-progress-copy p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.77rem;
+  line-height: 1.5;
+}
+
+.site-publish-progress .site-publish-elapsed {
+  color: var(--muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
 .site-publish-spinner {
   box-sizing: border-box;
   width: 12px;
@@ -939,6 +989,21 @@
 
   .site-publish-body {
     padding: 12px 14px;
+  }
+
+  .site-publish-progress-slot > * {
+    margin: 12px 14px 0;
+  }
+
+  .site-publish-progress {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .site-publish-progress .site-publish-spinner {
+    width: 28px;
+    height: 28px;
+    flex-basis: 28px;
   }
 
   .site-publish-group-grid,

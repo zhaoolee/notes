@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.17.9] - 2026-11-21
+
+### 新增
+
+- 网站发布时，弹窗主体顶部固定显示动画、当前阶段和用时，滚动便签列表时也能查看。关闭弹窗后发布请求继续提交，服务端收到后可在浏览器关闭的情况下完成发布。重新打开面板可恢复进度。
+
 ## [1.17.8] - 2026-11-20
 
 ### 修复
@@ -498,6 +504,7 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.17.9]: https://github.com/zhaoolee/notes/compare/1.17.8...1.17.9
 [1.17.8]: https://github.com/zhaoolee/notes/compare/1.17.7...1.17.8
 [1.17.7]: https://github.com/zhaoolee/notes/compare/1.17.6...1.17.7
 [1.17.6]: https://github.com/zhaoolee/notes/compare/1.17.5...1.17.6

@@ -206,6 +206,7 @@ export function SitePublishPanel({
   const [githubConfigured, setGithubConfigured] = useState(false);
   // 页脚动作挂载点由 ref 回调写入；null 表示目标尚未挂载，发布按钮此时不渲染副本。
   const [footerActionsTarget, setFooterActionsTarget] = useState<HTMLElement | null>(null);
+  const [progressTarget, setProgressTarget] = useState<HTMLElement | null>(null);
 
   const addressPreview = getSiteAddressPreview(draft.settings);
   const basePathError = getBasePathError(draft.settings.basePath);
@@ -672,6 +673,7 @@ export function SitePublishPanel({
           </button>
         </header>
 
+        <div className="site-publish-progress-slot" ref={setProgressTarget} />
         <div
           className="site-publish-body"
           data-site-publish-autofocus
@@ -704,6 +706,7 @@ export function SitePublishPanel({
             redirectNotice={githubPublishRedirect}
             onConfiguredChange={setGithubConfigured}
             actionTarget={footerActionsTarget}
+            progressTarget={progressTarget}
           />
 
           <details className="site-publish-advanced">

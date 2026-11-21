@@ -411,6 +411,8 @@ try {
     const prefix = "simulated GitHub provider (not live github.com)";
     const consoleErrorsBeforeGithubUi = consoleErrors.length;
     const simulatedRepository = { id: 42, installationId: 77, owner: "octo", name: "notes-site", fullName: "octo/notes-site", defaultBranch: "main" };
+    let acknowledgeFirstPublish;
+    const firstPublishAcknowledgement = new Promise((resolve) => { acknowledgeFirstPublish = resolve; });
     const simulated = {
       repository: null,
       job: null,
@@ -449,6 +451,7 @@ try {
         const body = readBody();
         simulated.publishBodies.push(body);
         simulated.publishTargets.push(request.headers()["x-notes-github-repository-id"]);
+        if (simulated.calls.publish === 1) await firstPublishAcknowledgement;
         const phase = simulated.nextPublishPhase;
         simulated.nextPublishPhase = "queued";
         simulated.job = simulatedJob(phase, phase === "failed" ? { message: simulated.nextPublishMessage } : {});
@@ -561,6 +564,17 @@ try {
     await page.setViewportSize({ width: 1440, height: 1000 });
     check(await githubDetails.evaluate((element) => element.open) === false, `${prefix}: GitHub Pages card stays collapsed before publishing`);
     await publishButton.click();
+    const mainProgress = panel.locator("[data-site-publish-progress]");
+    await mainProgress.getByText("正在提交发布请求", { exact: true }).waitFor();
+    try {
+      await panel.getByRole("button", { name: "关闭网站发布面板" }).click();
+      await panel.waitFor({ state: "detached" });
+      await openPublishingPanel();
+      check(await mainProgress.getByText("正在提交发布请求", { exact: true }).isVisible(), `${prefix}: reopened panel resumes the request before the server acknowledges it`);
+      check(simulated.calls.publish === 1, `${prefix}: reopening during submission does not send another POST`);
+    } finally {
+      acknowledgeFirstPublish();
+    }
     const queuedJob = panel.locator('[data-github-publish-phase="queued"]');
     await queuedJob.waitFor({ state: "attached", timeout: 15_000 });
     check(simulated.calls.publish === 1, `${prefix}: first publish sends exactly one POST`);
@@ -568,7 +582,9 @@ try {
     checkSimulatedSelection(simulated.publishBodies[0], "first publish");
     const activePublishButton = footer.getByRole("button", { name: /^正在发布/ });
     check(await activePublishButton.isDisabled(), `${prefix}: active job disables the footer publish action`);
-    const publishSpinner = activePublishButton.locator(".site-publish-spinner");
+    check(await mainProgress.getByText("已排队，等待生成站点", { exact: true }).isVisible(), `${prefix}: queued progress is visible above the content with the GitHub card collapsed`);
+    check(await mainProgress.getByText(/发布会在后台继续/).isVisible(), `${prefix}: accepted jobs explain that the window can be closed`);
+    const publishSpinner = mainProgress.locator(".site-publish-spinner");
     check(await publishSpinner.getAttribute("aria-hidden") === "true", `${prefix}: active publish spinner is decorative only`);
     await page.emulateMedia({ reducedMotion: "no-preference" });
     check(await publishSpinner.evaluate((element) => getComputedStyle(element).animationName) === "site-publish-spin", `${prefix}: active publish spinner animates`);
@@ -579,16 +595,27 @@ try {
       const match = /^(\d{2,}):([0-5]\d)$/.exec(text.trim());
       return match ? Number(match[1]) * 60 + Number(match[2]) : null;
     };
-    const publishTimer = activePublishButton.locator('[role="timer"]');
+    const publishTimer = mainProgress.locator('[role="timer"]');
     check(await publishTimer.getAttribute("aria-live") === "off", `${prefix}: active publish timer is not announced continuously`);
     const initialTimerText = await publishTimer.innerText();
     const firstElapsed = parseElapsed(initialTimerText);
     check(Number.isInteger(firstElapsed), `${prefix}: active publish timer uses minute:second digits`);
     await page.waitForFunction((initial) => {
-      const timer = document.querySelector('.site-publish-footer [role="timer"]');
+      const timer = document.querySelector('[data-site-publish-progress] [role="timer"]');
       return timer && timer.textContent.trim() !== initial;
     }, initialTimerText, { timeout: 5_000 });
     check(parseElapsed(await publishTimer.innerText()) > firstElapsed, `${prefix}: active publish timer advances while the job runs`);
+    await page.screenshot({ path: path.join(temporary, "github-progress-desktop.png") });
+    screenshots.push("github-progress-desktop.png");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await panel.locator(".site-publish-body").evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    check(await mainProgress.evaluate((element) => {
+      const { top, bottom, left, right } = element.getBoundingClientRect();
+      return top >= 0 && bottom <= window.innerHeight && left >= 0 && right <= window.innerWidth;
+    }), `${prefix}: mobile progress remains visible while the content scrolls`);
+    await page.screenshot({ path: path.join(temporary, "github-progress-mobile.png") });
+    screenshots.push("github-progress-mobile.png");
+    await page.setViewportSize({ width: 1440, height: 1000 });
     await githubSummary.click();
     check(await githubDetails.evaluate((element) => element.open) === true, `${prefix}: expanding the collapsed card shows the publish result`);
     await queuedJob.waitFor({ state: "visible", timeout: 15_000 });
@@ -616,6 +643,7 @@ try {
     check(await panel.getByText("已连接 GitHub：@ui-feedback", { exact: true }).isVisible() === false, `${prefix}: reopened panel hides GitHub settings until expanded`);
     const reopenedDeploying = panel.locator('[data-github-publish-phase="deploying"]');
     await reopenedDeploying.waitFor({ state: "attached" });
+    check(await mainProgress.getByText("GitHub Pages 已上线，正在更新本站", { exact: true }).isVisible(), `${prefix}: reopening restores the server phase above the collapsed card`);
     const elapsedAfterReopen = parseElapsed(await publishTimer.innerText());
     const expectedElapsed = Math.floor((Date.now() - now) / 1_000);
     check(Number.isInteger(elapsedAfterReopen) && elapsedAfterReopen >= elapsedBeforeReopen, `${prefix}: reopened timer continues from the same job start`);
@@ -629,8 +657,7 @@ try {
     const publishedJob = panel.locator('[data-github-publish-phase="published"]');
     await publishedJob.waitFor({ timeout: 15_000 });
     check(await publishedJob.getAttribute("data-github-publish-live") === "true", `${prefix}: published phase is the only live state`);
-    check(await footer.locator(".site-publish-spinner").count() === 0, `${prefix}: published terminal job removes the publish spinner`);
-    check(await footer.locator('[role="timer"]').count() === 0, `${prefix}: published terminal job removes the elapsed timer`);
+    check(await mainProgress.count() === 0, `${prefix}: published terminal job removes the in-progress display`);
     check(await footer.getByRole("button", { name: "发布到网站" }).isEnabled(), `${prefix}: published terminal job restores the action label`);
     const publishedLocal = publishedJob.locator('[data-local-site-phase="published"]');
     await publishedLocal.waitFor();

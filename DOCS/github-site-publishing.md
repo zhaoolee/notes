@@ -2,11 +2,11 @@
 
 ## 用户流程
 
-在“发布为网站”面板选择便签，点击“授权 GitHub 仓库”，在 GitHub 安装本部署的 GitHub App，并选择允许访问的仓库。回到 Notes 后选择发布仓库，点击面板固定底部的“发布到网站”（位于“生成网站 ZIP”之前）。授权、仓库选择与发布进度仍显示在默认折叠的 GitHub Pages 卡片（展开后可查看和操作）；普通用户无需申请、复制或粘贴 GitHub Token。
+在“发布为网站”面板选择便签，点击“授权 GitHub 仓库”，在 GitHub 安装本部署的 GitHub App，并选择允许访问的仓库。回到 Notes 后选择发布仓库，点击面板固定底部的“发布到网站”（位于“生成网站 ZIP”之前）。授权、仓库选择和发布详情位于默认折叠的 GitHub Pages 卡片。发布期间，面板主体顶部固定显示动画、当前阶段和用时。普通用户无需申请、复制或粘贴 GitHub Token。
 
 Notes 服务器使用已有的 Hugo 构建器和模板，把所选便签、Logo、图片和搜索索引构建成完整网站，仅提交构建后的 `public/` 文件。原有“生成网站 ZIP”继续可用，与发布按钮同处面板固定底部。发布设置和便签选择仍按 Notes 账号保存。每次使用点击发布时的便签快照，发布过程中继续编辑的内容需要下一次发布才会更新。
 
-首次发布会建立独立的 `gh-pages` 分支，并为 GitHub Pages 配置“Deploy from a branch → gh-pages → / (root)”。之后新增、修改和取消发布的便签一起增量更新。页面分别显示排队、构建、上传、提交、等待 Pages 和已发布；只有 Pages 构建的 commit SHA 与本次提交一致且状态为 `built` 才显示已上线。关闭面板不取消服务器发布任务，重新打开会恢复最新状态；网络异常可点击刷新发布状态。
+首次发布会建立独立的 `gh-pages` 分支，并为 GitHub Pages 配置“Deploy from a branch → gh-pages → / (root)”。之后新增、修改和取消发布的便签一起增量更新。页面分别显示排队、构建、上传、提交、等待 Pages 和已发布；只有 Pages 构建的 commit SHA 与本次提交一致且状态为 `built` 才显示已上线。关闭面板时正在提交的请求仍可完成，同一账号重新打开会继续显示进度。服务端收到完整请求后，即使标签页或浏览器窗口关闭，发布也会继续。活动任务的状态读取临时失败时会自动重试，也可以展开 GitHub Pages 卡片手动刷新。
 
 仓库必须已有至少一个分支，例如创建仓库时勾选 README。GitHub 的 Git Refs API 无法为完全空的仓库创建首个引用；Notes 会明确提示初始化，不会为此写入主分支。默认分支为 `gh-pages` 的仓库不能用作发布目标。
 
@@ -110,6 +110,6 @@ node --import tsx --test backend/tests/github-site-publishing.test.ts backend/te
 SITE_PUBLISH_GITHUB_UI=1 node scripts/verify-site-publishing.mjs # 浏览器界面使用隔离模拟 GitHub，非真实上线
 ```
 
-反馈测试使用隔离账号、临时数据目录、内存 GitHub API，并通过真实 Hugo 验证静态构建、首次提交、无变化更新和便签删除；浏览器 UI 验证还会检查 GitHub Pages 卡片默认折叠、键盘展开与收起、已连接时折叠卡片不影响页脚发布按钮，以及从折叠状态发布后展开可见进度；不会写入真实仓库。真实安装授权和 Pages 上线仍需要部署者配置真实 GitHub App 后联调，不能用模拟响应冒充验收。
+反馈测试使用隔离账号、临时数据目录、内存 GitHub API 和真实 Hugo。浏览器验证覆盖折叠卡片时的发布进度、减少动态效果设置，以及服务端响应前关闭并重开面板。路由测试验证收到完整请求后，即使客户端在收到响应前断开连接，发布也会完成。真实安装授权和 Pages 上线需配置 GitHub App 后联调。
 
 GitHub 官方契约：[Git Trees](https://docs.github.com/en/rest/git/trees)、[Git Refs 与空仓库限制](https://docs.github.com/en/rest/git/refs)、[GitHub App 用户授权与 PKCE](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app)、[安装 Token 限权](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app)、[Pages 配置及构建](https://docs.github.com/en/rest/pages/pages)。

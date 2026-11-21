@@ -35,6 +35,15 @@ const TERMINAL_PHASES = new Set<GitHubPublishPhase>([
   "interrupted",
 ]);
 
+interface PendingPublish {
+  startedAt: number;
+  previousJobId: string | undefined;
+  result: Promise<GitHubPublishJob>;
+}
+
+// 发布请求属于当前账号。关闭并重新打开面板时，继续等待同一个请求。
+const pendingPublishes = new Map<string, PendingPublish>();
+
 const PHASE_LABELS: Record<GitHubPublishPhase, string> = {
   queued: "已排队，等待生成站点",
   building: "正在生成站点",
@@ -334,6 +343,7 @@ export interface GitHubPublishControlsProps {
    * 唯一发布按钮通过 portal 渲染到页脚；不传则保持组件内联的独立用法。
    */
   actionTarget?: HTMLElement | null;
+  progressTarget?: HTMLElement | null;
 }
 
 export function GitHubPublishControls({
@@ -344,6 +354,7 @@ export function GitHubPublishControls({
   redirectNotice = null,
   onConfiguredChange,
   actionTarget,
+  progressTarget,
 }: GitHubPublishControlsProps) {
   const headingId = useId();
   const repositorySelectId = useId();
@@ -360,7 +371,7 @@ export function GitHubPublishControls({
   const actionControllersRef = useRef(new Set<AbortController>());
   const selectionTokenRef = useRef(0);
   const selectionInFlightRef = useRef(false);
-  const publishInFlightRef = useRef(false);
+  const publishObserverRef = useRef<symbol | null>(null);
   const connectInFlightRef = useRef(false);
   const disconnectInFlightRef = useRef(false);
 
@@ -382,10 +393,12 @@ export function GitHubPublishControls({
   );
   const [savingRepository, setSavingRepository] = useState(false);
   const [connecting, setConnecting] = useState(false);
-  const [publishing, setPublishing] = useState(false);
+  const [submissionStartedAt, setSubmissionStartedAt] = useState<number | null>(null);
+  const [publishError, setPublishError] = useState("");
   const [disconnecting, setDisconnecting] = useState(false);
 
   const job = status?.job ?? null;
+  const publishing = submissionStartedAt !== null;
   const availability = getGitHubPublishAvailability({
     selectedCount: draft.selections.length,
     disabled,
@@ -503,12 +516,12 @@ export function GitHubPublishControls({
         return;
       }
 
-      clearPoll();
       setError(
         options.silent
-          ? "读取 GitHub 发布状态失败，请稍后重试。"
+          ? "暂时无法读取发布进度，正在重试。"
           : errorMessage(caught, "读取 GitHub 发布状态失败，请稍后重试。"),
       );
+      schedulePoll();
     } finally {
       if (statusControllerRef.current === controller) {
         statusControllerRef.current = null;
@@ -594,7 +607,7 @@ export function GitHubPublishControls({
     scopeRef.current = storageScope;
     selectionTokenRef.current += 1;
     selectionInFlightRef.current = false;
-    publishInFlightRef.current = false;
+    publishObserverRef.current = null;
     connectInFlightRef.current = false;
     disconnectInFlightRef.current = false;
     statusRef.current = null;
@@ -609,12 +622,19 @@ export function GitHubPublishControls({
     setPendingRepositoryId(null);
     setSavingRepository(false);
     setConnecting(false);
-    setPublishing(false);
+    setSubmissionStartedAt(null);
+    setPublishError("");
     setDisconnecting(false);
-    void refreshStatus({ scope: storageScope });
+    const pending = pendingPublishes.get(storageScope);
+    if (pending) {
+      void observePublish(pending, storageScope);
+    } else {
+      void refreshStatus({ scope: storageScope });
+    }
 
     return () => {
       mountedRef.current = false;
+      publishObserverRef.current = null;
       clearPoll();
       cancelStatusRequest();
       repositoriesTokenRef.current += 1;
@@ -815,7 +835,7 @@ export function GitHubPublishControls({
     }
   }
 
-  async function handlePublish() {
+  function handlePublish() {
     const current = getGitHubPublishAvailability({
       selectedCount: draft.selections.length,
       disabled,
@@ -831,64 +851,91 @@ export function GitHubPublishControls({
       return;
     }
 
-    if (publishInFlightRef.current) {
+    const scope = scopeRef.current;
+    if (publishObserverRef.current || pendingPublishes.has(scope)) {
       return;
     }
 
-    const scope = scopeRef.current;
-    publishInFlightRef.current = true;
-    setPublishing(true);
-    setError("");
-    setNotice("");
     cancelStatusRequest();
     clearPoll();
-    const controller = trackAction(new AbortController());
+    setError("");
+    setNotice("");
+    setPublishError("");
 
-    try {
-      // 只在用户明确点击后提交；回调、挂载与轮询都不会触发发布。
-      const nextJob = await publishSiteToGitHub(draft, notes, {
-        signal: controller.signal,
+    // 仅响应明确点击，且不会随面板卸载取消正文提交。
+    const pending: PendingPublish = {
+      startedAt: Date.now(),
+      previousJobId: statusRef.current?.job?.id,
+      result: publishSiteToGitHub(draft, notes, {
         repositoryId: statusRef.current?.repository?.id,
-      });
+      }),
+    };
+    pendingPublishes.set(scope, pending);
+    const clearPending = () => {
+      if (pendingPublishes.get(scope) === pending) pendingPublishes.delete(scope);
+    };
+    void pending.result.then(clearPending, clearPending);
+    void observePublish(pending, scope);
+  }
 
-      if (
-        !mountedRef.current ||
-        scopeRef.current !== scope ||
-        controller.signal.aborted
-      ) {
-        return;
-      }
-
+  async function observePublish(pending: PendingPublish, scope: string) {
+    const observer = Symbol();
+    publishObserverRef.current = observer;
+    setSubmissionStartedAt(pending.startedAt);
+    const isCurrent = () => publishObserverRef.current === observer;
+    let refresh = true;
+    let submissionError = "";
+    try {
+      const nextJob = await pending.result;
+      if (!isCurrent()) return;
       const base = statusRef.current;
-
-      if (!base) {
-        setError("GitHub 发布状态已失效，请刷新后重试。");
-        return;
+      if (base) {
+        applyStatus({ ...base, job: nextJob });
+        refresh = false;
+        schedulePoll();
       }
-
-      applyStatus({ ...base, job: nextJob });
-      setNotice("");
-      schedulePoll();
     } catch (caught) {
-      if (
-        !mountedRef.current ||
-        scopeRef.current !== scope ||
-        controller.signal.aborted ||
-        isAbortError(caught)
-      ) {
-        return;
-      }
-
-      setError(errorMessage(caught, "发布到 GitHub 失败，请稍后重试。"));
+      submissionError = errorMessage(caught, "发布到 GitHub 失败，请稍后重试。");
     } finally {
-      releaseAction(controller);
-      publishInFlightRef.current = false;
-
-      if (mountedRef.current && scopeRef.current === scope) {
-        setPublishing(false);
+      if (isCurrent()) {
+        if (refresh) {
+          // 响应丢失时服务端可能已收到任务，重新读取状态再恢复发布按钮。
+          await refreshStatus({ scope, silent: Boolean(statusRef.current) });
+        }
+        if (isCurrent()) {
+          const currentJob = statusRef.current?.job;
+          if (submissionError && (!currentJob || currentJob.id === pending.previousJobId)) {
+            setPublishError(submissionError);
+          }
+          publishObserverRef.current = null;
+          setSubmissionStartedAt(null);
+        }
       }
     }
   }
+
+  const activeProgressJob = activeJob ? job : null;
+  const progressView = activeProgressJob || publishing ? (
+    <div className="site-publish-progress" data-site-publish-progress>
+      <span className="site-publish-spinner" aria-hidden="true" />
+      <div className="site-publish-progress-copy" role="status">
+        <strong>
+          {activeProgressJob ? describeGitHubPublishJob(activeProgressJob).label : "正在提交发布请求"}
+        </strong>
+        <p>
+          {activeProgressJob
+            ? error || "关闭此窗口后，发布会在后台继续。重新打开「生成网站」可查看结果。"
+            : "正在将所选便签发送到服务端…"}
+        </p>
+      </div>
+      <GitHubPublishElapsedTimer
+        key={activeProgressJob?.id ?? "submitting"}
+        startedAt={activeProgressJob?.startedAt ?? submissionStartedAt ?? 0}
+      />
+    </div>
+  ) : publishError ? (
+    <p className="site-publish-error" role="alert">{publishError}</p>
+  ) : null;
 
   // 同一个按钮节点只在页脚或卡片出现一次；页脚目标尚未挂载时不渲染临时副本。
   const publishButton = (
@@ -899,7 +946,7 @@ export function GitHubPublishControls({
       title={availability.canPublish ? undefined : availability.reason}
       onClick={() => void handlePublish()}
     >
-      {publishing || activeJob ? (
+      {progressTarget === undefined && (publishing || activeJob) ? (
         <span className="site-publish-spinner" aria-hidden="true" />
       ) : null}
       {activeJob
@@ -907,7 +954,7 @@ export function GitHubPublishControls({
         : publishing
           ? "正在提交…"
           : "发布到网站"}
-      {activeJob && job ? (
+      {progressTarget === undefined && activeJob && job ? (
         <GitHubPublishElapsedTimer key={job.id} startedAt={job.startedAt} />
       ) : null}
     </button>
@@ -1061,6 +1108,9 @@ export function GitHubPublishControls({
 
       {job ? <GitHubPublishJobResult job={job} /> : null}
 
+      {publishError && progressTarget === undefined ? (
+        <p className="site-publish-field-error" role="alert">{publishError}</p>
+      ) : null}
       {error && status ? (
         <p className="site-publish-field-error" role="alert">
           {error}
@@ -1074,6 +1124,7 @@ export function GitHubPublishControls({
       ) : null}
       </div>
       {portalPublishButton}
+      {progressTarget && progressView ? createPortal(progressView, progressTarget) : null}
     </details>
   );
 }
