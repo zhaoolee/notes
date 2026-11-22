@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [未发布]
+
+### 修复
+
+- 修复 `@zhaoolee/dsh-notes` 无法在 DSH 0.2.x 上安装与加载的问题：插件把 `@deepseek-ai/dsh-tools` 的 peer 范围写死为 `^0.1.0-rc.6`，而 DSH 会用 `engines.dsh` 与 `@deepseek-ai/dsh-*` peer 版本判定兼容性，0.2.x 因此被判定为 `IncompatiblePlugin` 并拒装。插件 `0.2.0` 起把 `@deepseek-ai/dsh-tools` 放宽为 `>=0.2.0-rc.2 <0.3.0-0`、`@deepseek-ai/cordis` 放宽为 `^4.0.4 || >=4.0.6-alpha.2 <5.0.0`，新增 `engines.dsh`，并给插件 `Config` 补上显式类型标注以消除 schemastery 双副本下的 `TS2883` 构建错误；已在 DSH `0.2.0-rc.2`、`0.2.1-rc.5`、`0.2.2-rc.1` 上验证工具可正常注册。
+
 ## [1.15.1] - 2026-10-31
 
 ### 修复

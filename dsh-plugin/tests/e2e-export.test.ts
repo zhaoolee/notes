@@ -63,9 +63,14 @@ async function waitForHealth(baseUrl: string, child: ChildProcess): Promise<void
 }
 
 async function stopChild(child: ChildProcess): Promise<void> {
-  if (child.exitCode != null) return;
+  // 被 SIGTERM 杀死的子进程 exitCode 仍是 null（只有 signalCode 有值），
+  // 只判断 exitCode 会让第二次调用永远等不到 'exit' 事件，把整个测试挂死。
+  if (child.exitCode != null || child.signalCode != null) return;
+
+  // 先注册监听再发信号，避免子进程正好在两者之间退出而漏掉事件。
+  const exited = once(child, "exit").catch(() => undefined);
   child.kill("SIGTERM");
-  await once(child, "exit").catch(() => undefined);
+  await exited;
 }
 
 test("插件客户端可把对话导出为便签并更新（真实后端 + 临时存储）", async (context) => {

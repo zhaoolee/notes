@@ -36,6 +36,28 @@ dsh plugin --profile web update @zhaoolee/dsh-notes --latest
 `0.1.0` 会在 DSH `0.1.0-rc.6` 首次执行工具时因宿主运行时重复安装而中止会话；
 请使用 `0.1.1` 或更高版本。
 
+## DSH 版本兼容
+
+| 插件版本 | 支持的 DSH |
+| --- | --- |
+| `0.2.0` 起 | `>=0.2.0-rc.2 <0.3.0-0`（实测 `0.2.0-rc.2`、`0.2.1-rc.5`、`0.2.2-rc.1`） |
+| `0.1.x` | 仅 `0.1.x` 运行时 |
+
+`0.1.x` 把 `@deepseek-ai/dsh-tools` 的 peer 范围写死为 `^0.1.0-rc.6`。DSH 会用插件声明的
+`engines.dsh` 和 `@deepseek-ai/dsh-*` peer 版本来判定兼容性，不满足时按 `IncompatiblePlugin`
+拒绝安装或加载，因此在 0.2.x 上装不上 `0.1.x` 版本。
+
+`0.2.0` 的改动：
+
+- `@deepseek-ai/dsh-tools` peer 放宽为 `>=0.2.0-rc.2 <0.3.0-0`，`@deepseek-ai/cordis` peer
+  放宽为 `^4.0.4 || >=4.0.6-alpha.2 <5.0.0` —— 0.2.0/0.2.1/0.2.2 分别捆绑 cordis
+  `~4.0.4` / `~4.0.5` / `~4.1.0`，两边都要容纳。
+- 新增 `engines.dsh`：`>=0.2.0-rc.2 <0.3.0-0`。
+- `Config` 改为显式 `z<Config>` 标注，消除 schemastery 在部分 0.2.x 版本下出现双副本时的
+  `TS2883` 构建错误。
+- 工具注册方式（`ctx.tools.register` + `defineTool`）与插件 patch 格式在 0.2.x 未变，
+  无需改业务逻辑。
+
 本地开发时，先在本目录构建产物（产出 `lib/`）：
 
 ```sh

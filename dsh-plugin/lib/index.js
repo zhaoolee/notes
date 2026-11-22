@@ -12,6 +12,8 @@ import { extractNoteTitle, NotesApiError, NotesClient, readConfiguredBaseUrl, re
 export const name = "notes-export";
 export const inject = ["tools"];
 // schemastery 的 z.object 默认所有键可选，与上面 Config 的可选语义一致。
+// 显式标注类型：0.2.x 的 workspace 里 schemastery 可能同时存在两份（插件与
+// @deepseek-ai/dsh-tools 各自解析），不标注时 tsc 会把推断类型归到嵌套副本上并报 TS2883。
 export const Config = z.object({
     baseUrl: z.string(),
     token: z.string(),
