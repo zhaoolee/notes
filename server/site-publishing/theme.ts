@@ -237,11 +237,13 @@ Sitemap: {{ "sitemap.xml" | absURL }}
         <button class="sidebar-mode-button" type="button" data-sidebar-mode-button="latest" aria-selected="true">最新</button>
         <button class="sidebar-mode-button" type="button" data-sidebar-mode-button="sections" aria-selected="false">专题</button>
       </div>
-      <select class="site-theme-select" aria-label="网站主题" hidden>
-        <option value="system">跟随系统</option>
-        <option value="light">浅色</option>
-        <option value="dark">深色</option>
-      </select>
+      <span class="site-theme-field" hidden>
+        <select class="site-theme-select" aria-label="网站主题">
+          <option value="system">自动</option>
+          <option value="light">浅色</option>
+          <option value="dark">深色</option>
+        </select>
+      </span>
     </div>
   </div>
   <nav class="sidebar-nav sidebar-nav-latest" data-sidebar-panel="latest" aria-label="最新文章">
@@ -609,14 +611,62 @@ a:hover {
   background: var(--control-track, rgba(245, 239, 228, 0.72));
 }
 
+.site-theme-field {
+  --theme-select-padding: 10px;
+  --theme-arrow-width: 8px;
+  --theme-arrow-gap: 6px;
+  position: relative;
+  display: flex;
+  flex: none;
+  color: var(--sidebar-ink);
+}
+
+/* 没有脚本时整组隐藏，与下拉框自身的原生隐藏行为一致。 */
+.site-theme-field[hidden] {
+  display: none;
+}
+
+/* 去掉浏览器原生箭头后自行绘制，避免各浏览器箭头位置不一致。 */
+.site-theme-field::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  inset-inline-end: calc(var(--theme-select-padding) + 1px);
+  width: 0;
+  height: 0;
+  border-left: calc(var(--theme-arrow-width) / 2) solid transparent;
+  border-right: calc(var(--theme-arrow-width) / 2) solid transparent;
+  border-top: 5px solid currentColor;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
 .site-theme-select {
-  padding: 0 4px 0 8px;
+  appearance: none;
+  -webkit-appearance: none;
+  /* Reserve space for the two-character labels even when the native control sizes itself more narrowly. */
+  min-inline-size: calc(2em + 2 * var(--theme-select-padding) + var(--theme-arrow-width) + var(--theme-arrow-gap) + 2px);
+  padding-block: 0;
+  padding-inline: var(--theme-select-padding) calc(var(--theme-select-padding) + var(--theme-arrow-width) + var(--theme-arrow-gap));
   border: 1px solid var(--control-border, rgba(206, 190, 170, 0.78));
   border-radius: 8px;
   background: var(--control-bg, rgb(255, 251, 245));
   color: var(--sidebar-ink);
   font: 600 13px var(--base-font-family);
+  line-height: 1.2;
+  text-align: start;
   cursor: pointer;
+}
+
+.site-theme-select:focus-visible {
+  outline: 2px solid var(--accent-border, rgba(143, 92, 44, 0.42));
+  outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+  .site-theme-field::after {
+    border-top-color: CanvasText;
+  }
 }
 
 .sidebar-mode-button {
@@ -1323,11 +1373,11 @@ a:hover {
   }
 
   document.addEventListener("DOMContentLoaded", function () {
-    var select = document.querySelector(".site-theme-select");
+    var select = document.querySelector(".site-theme-field > .site-theme-select");
     if (!select) return;
 
     select.value = mode;
-    select.hidden = false;
+    select.parentElement.hidden = false;
     select.addEventListener("change", function () {
       applyMode(select.value);
       try {
