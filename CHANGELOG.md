@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.20.3] - 2026-11-23
+
+### 修复
+
+- 「复制到 X 文章」成功后只在按钮上显示「已复制到 X」，移除配图弹窗。可继续通过扩展粘贴配图，或通过「下载归档」获取图片。
+
 ## [1.20.2] - 2026-11-23
 
 ### 修复
@@ -540,6 +546,8 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.20.3]: https://github.com/zhaoolee/notes/compare/1.20.2...1.20.3
+[1.20.2]: https://github.com/zhaoolee/notes/compare/1.20.1...1.20.2
 [1.20.1]: https://github.com/zhaoolee/notes/compare/1.19.2...1.20.1
 [1.19.2]: https://github.com/zhaoolee/notes/compare/1.19.1...1.19.2
 [1.19.1]: https://github.com/zhaoolee/notes/compare/1.19.0...1.19.1

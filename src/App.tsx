@@ -15,8 +15,6 @@ import { LoginDialog } from "./components/LoginDialog";
 import { MoveNoteDialog } from "./components/MoveNoteDialog";
 import { NoteSidebar } from "./components/NoteSidebar";
 import { WechatImportDialog } from "./components/WechatImportDialog";
-import { XArticleImagesDialog } from "./components/XArticleImagesDialog";
-import { canPasteXArticleImages } from "./lib/x-article-extension";
 import { SitePublishPanel } from "./features/site-publishing/SitePublishPanel";
 import {
   getUrlAfterConsumingGitHubPublishRedirect,
@@ -101,7 +99,6 @@ import {
   copyMarkdownForWechat,
   publishMarkdownAsWechatDraft,
 } from "./lib/wechat";
-import type { XArticleImage } from "./lib/x-article";
 import { useAppStore } from "./store/useAppStore";
 import type {
   CopyState,
@@ -319,10 +316,6 @@ export default function App() {
   const [wechatCopyState, setWechatCopyState] =
     useState<WechatCopyState>("idle");
   const [xArticleCopyState, setXArticleCopyState] = useState<XArticleCopyState>("idle");
-  const [xArticleImageExport, setXArticleImageExport] = useState<{
-    noteId: string;
-    images: XArticleImage[];
-  } | null>(null);
   const [wechatDraftState, setWechatDraftState] =
     useState<WechatDraftState>("idle");
   const [canPublishWechatDraft, setCanPublishWechatDraft] = useState(false);
@@ -408,7 +401,6 @@ export default function App() {
   const skipNextCloudSaveRef = useRef(false);
   const restoredNoteRouteRevisionRef = useRef(-1);
   const activeNoteId = useAppStore((state) => state.activeNoteId);
-  const isXArticleImagesOpen = xArticleImageExport?.noteId === activeNoteId;
   const folders = useAppStore((state) => state.folders);
   const noteDocuments = useAppStore((state) => state.notes);
   const markdown = useAppStore((state) => state.markdown);
@@ -1341,7 +1333,6 @@ export default function App() {
         isDesktopViewMenuOpen ||
         isMoveDialogOpen ||
         isCategorySidebarOpen ||
-        isXArticleImagesOpen ||
         Boolean(aiReviewNoteId) ||
         Boolean(pendingAction);
 
@@ -1396,7 +1387,6 @@ export default function App() {
     isSettingsOpen,
     isShareOpen,
     isSitePublishOpen,
-    isXArticleImagesOpen,
     pendingAction,
   ]);
 
@@ -1687,10 +1677,8 @@ export default function App() {
       const preparation = import("./lib/x-article").then(({ buildXArticleClipboard }) =>
         buildXArticleClipboard(markdown, pageUrl),
       );
-      const { images } = await copyRichHtmlToClipboard(preparation);
+      await copyRichHtmlToClipboard(preparation);
       setXArticleCopyState("copied");
-      const showImages = images.length > 0 && !canPasteXArticleImages(images.map(({ url }) => url));
-      setXArticleImageExport(showImages ? { noteId: activeNoteId, images } : null);
     } catch (error) {
       console.error("X Article rich-text copy failed", error);
       setXArticleCopyState("failed");
@@ -2932,13 +2920,6 @@ export default function App() {
             onConfirm={() => void handleHermesSkillLinkReset()}
           />
         </div>
-
-        {isXArticleImagesOpen && xArticleImageExport ? (
-          <XArticleImagesDialog
-            images={xArticleImageExport.images}
-            onClose={() => setXArticleImageExport(null)}
-          />
-        ) : null}
 
         {aiReviewNoteId === activeNoteId && activeNote ? (
           <AiReviewDialog

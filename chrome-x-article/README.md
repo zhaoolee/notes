@@ -12,7 +12,7 @@ Build the extension with `npm run build:x-article-extension` from the Notes repo
 2. Open or reload the [X Articles editor](https://x.com/compose/articles), click inside the body of a draft, and paste once.
 3. Wait for the image progress to finish, then check the placement before publishing.
 
-The extension recognizes the rich clipboard from **复制到 X 文章**. When every image is in the Notes library, the copy button confirms success without opening the image dialog. The extension also accepts **复制文字** Markdown containing a Notes library image on older versions of Notes. It downloads originals from that library, including repeated images, and keeps the corresponding draft marker when a file is unavailable or X rejects an insertion. Images hosted elsewhere can be imported into Notes first. Use **Stop** in the progress panel to stop processing further images.
+The extension recognizes the rich clipboard from **复制到 X 文章**. It also accepts **复制文字** Markdown containing a Notes library image on older versions of Notes. It downloads originals from that library, including repeated images, and keeps the corresponding draft marker when a file is unavailable or X rejects an insertion. Images hosted elsewhere can be imported into Notes first. Use **Stop** in the progress panel to stop processing further images.
 
 Chrome gives the extension access to x.com so it can recognize Articles when you navigate there from another X page. Its paste handler runs only in the Articles composer. Media downloads are limited to the production Notes image library. No X API key or separate account is required.
 

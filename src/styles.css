@@ -5600,65 +5600,6 @@ body,
   text-align: left;
 }
 
-.ai-review-dialog.x-article-images-dialog {
-  width: min(540px, calc(100vw - 32px));
-  padding: 0;
-}
-
-.x-article-images-dialog:not([open]) {
-  display: none;
-}
-
-.x-article-images-dialog::backdrop {
-  background: var(--dialog-backdrop);
-}
-
-.x-article-image-list {
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 12px;
-  list-style: none;
-}
-
-.x-article-image {
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  font-size: 0.85rem;
-}
-
-.x-article-image img {
-  width: 56px;
-  height: 56px;
-  border-radius: 6px;
-  background: var(--toolbar-surface);
-  object-fit: contain;
-}
-
-.x-article-image span,
-.x-article-image p {
-  display: block;
-  margin: 3px 0 0;
-  color: var(--muted);
-  overflow-wrap: anywhere;
-}
-
-.x-article-image button {
-  padding: 6px 10px;
-  min-height: 36px;
-  border: 1px solid var(--toolbar-border);
-  border-radius: 8px;
-  background: var(--toolbar-surface);
-  color: var(--ink);
-}
-
-.x-article-image button[aria-disabled="true"] {
-  opacity: 0.6;
-  cursor: wait;
-}
-
 .confirm-dialog-backdrop {
   position: fixed;
   inset: 0;

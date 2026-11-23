@@ -1,17 +1,12 @@
 {
   "manifest_version": 3,
   "name": "Notes to X Articles",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Paste a Notes article into an X draft with its inline images.",
   "action": { "default_popup": "popup.html" },
   "background": { "service_worker": "background.js", "type": "module" },
   "host_permissions": ["https://notes.fangyuanxiaozhan.com/*"],
   "content_scripts": [
-    {
-      "matches": ["https://notes.fangyuanxiaozhan.com/*"],
-      "js": ["notes.js"],
-      "run_at": "document_start"
-    },
     {
       "matches": ["https://x.com/*"],
       "js": ["content.js"],

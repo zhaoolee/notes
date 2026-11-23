@@ -173,6 +173,18 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
     content: RegExp[];
   }> = [
     {
+      version: "1.20.3",
+      heading:
+        "[1.20.3](https://github.com/zhaoolee/notes/compare/1.20.2...1.20.3) - 2026-11-23",
+      content: [/只在按钮上显示「已复制到 X」/, /移除配图弹窗/],
+    },
+    {
+      version: "1.20.2",
+      heading:
+        "[1.20.2](https://github.com/zhaoolee/notes/compare/1.20.1...1.20.2) - 2026-11-23",
+      content: [/扩展可处理当前便签全部图片时/, /仍会显示配图列表/],
+    },
+    {
       version: "1.20.1",
       heading:
         "[1.20.1](https://github.com/zhaoolee/notes/compare/1.19.2...1.20.1) - 2026-11-23",

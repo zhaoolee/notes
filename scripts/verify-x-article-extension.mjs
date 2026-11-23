@@ -5,7 +5,8 @@ import { chromium } from "playwright";
 import { preview } from "vite";
 import { notesOrigin } from "../chrome-x-article/media.js";
 
-const extension = fileURLToPath(new URL("../dist-x-article-extension", import.meta.url));
+const extension = process.env.NOTES_EXTENSION_DIRECTORY
+  ?? fileURLToPath(new URL("../dist-x-article-extension", import.meta.url));
 const editorFixture = await readFile(new URL("../chrome-x-article/tests/editor.html", import.meta.url), "utf8");
 const png = await readFile(new URL("../public/header/logo.png", import.meta.url));
 const draft = "https://x.com/compose/articles/fixture";
@@ -81,6 +82,7 @@ async function copyFromNotes(page, testCase = "") {
   await page.getByRole("button", { name: "打开分享与导出", exact: true }).click();
   await page.getByRole("button", { name: "复制到 X 文章", exact: true }).click();
   await page.getByRole("button", { name: "已复制到 X", exact: true }).waitFor();
+  assert.equal(await photosDialog(page).count(), 0);
 }
 
 try {
@@ -93,7 +95,6 @@ try {
   page.on("pageerror", (error) => errors.push(error.message));
   if (producerOrigin) {
     await copyFromNotes(page);
-    assert.equal(await photosDialog(page).count(), 0);
     const clipboard = await page.evaluate(async () => {
       const [item] = await navigator.clipboard.read();
       return {
@@ -149,7 +150,7 @@ try {
 
   if (producerOrigin) {
     await copyFromNotes(page, "mixed");
-    await photosDialog(page).getByRole("button", { name: "保存图片 3", exact: true }).waitFor();
+    assert.match(await page.evaluate(() => navigator.clipboard.readText()), /【图片 3】/);
 
     await copyFromNotes(page, "legacy-clipboard");
     const fallbackHtml = await page.evaluate(async () => {
@@ -157,7 +158,6 @@ try {
       return (await item.getType("text/html")).text();
     });
     assert.ok(fallbackHtml.includes("data-notes-x-image-url="));
-    assert.equal(await photosDialog(page).count(), 0);
 
     const browser = await chromium.launch();
     try {
@@ -166,7 +166,7 @@ try {
       await routeRequests(withoutExtension);
       const manualCopy = await withoutExtension.newPage();
       await copyFromNotes(manualCopy);
-      await photosDialog(manualCopy).getByRole("button", { name: "保存图片 1", exact: true }).waitFor();
+      assert.match(await manualCopy.evaluate(() => navigator.clipboard.readText()), /【图片 1】/);
     } finally {
       await browser.close();
     }
