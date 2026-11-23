@@ -19,7 +19,7 @@ test("X 文章剪贴板保留 Markdown 结构，并标出图片上传位置", ()
   assert.match(result.html, /<p>第一行有 <strong>粗体<\/strong> 和 <em>斜体<\/em><\/p>/);
   assert.match(result.html, /<p>第二行有 <del>删除线<\/del> 和 <a href="https:\/\/notes\.example\/reference">链接<\/a><\/p>/);
   assert.match(result.html, /<ul>\s*<li>甲<\/li>\s*<li>乙<\/li>\s*<\/ul>/);
-  assert.match(result.html, /<p>【图片 1】<\/p>/);
+  assert.match(result.html, /<p><span data-notes-x-image-url="https:\/\/notes\.example\/images\/picture\.png">【图片 1】<\/span><\/p>/);
   assert.doesNotMatch(result.html, /<img\b/);
   assert.match(result.markdown, /\n【图片 1】$/);
   assert.deepEqual(result.images, [{
@@ -67,4 +67,16 @@ test("X 文章富文本跳过原始 HTML 和不可粘贴的链接协议", () => 
 
   assert.equal(html, "<p>可见文字 图片说明</p>");
   assert.deepEqual(images, []);
+});
+
+test("X 文章扩展可为同一次粘贴生成独立的图片标记", () => {
+  const result = buildXArticleClipboard(
+    "![一](/images/one.png)\n\n![二](/images/two.jpg)",
+    "https://notes.example/",
+    (number) => `[draft-import-${number}]`,
+  );
+
+  assert.deepEqual(result.images.map(({ marker }) => marker), ["[draft-import-1]", "[draft-import-2]"]);
+  assert.equal(result.markdown, "[draft-import-1]\n\n[draft-import-2]");
+  assert.match(result.html, /<span[^>]+>\[draft-import-1\]<\/span>[\s\S]*<span[^>]+>\[draft-import-2\]<\/span>/);
 });

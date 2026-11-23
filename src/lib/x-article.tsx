@@ -11,6 +11,10 @@ export interface XArticleImage {
   alt: string;
 }
 
+export function formatXArticleImageMarker(number: number): string {
+  return `【图片 ${number}】`;
+}
+
 function absoluteWebUrl(value: string | undefined, pageUrl: string): string | undefined {
   if (!value) {
     return undefined;
@@ -24,7 +28,11 @@ function absoluteWebUrl(value: string | undefined, pageUrl: string): string | un
   }
 }
 
-export function buildXArticleClipboard(markdown: string, pageUrl: string) {
+export function buildXArticleClipboard(
+  markdown: string,
+  pageUrl: string,
+  imageMarker: (number: number) => string = formatXArticleImageMarker,
+) {
   const source = detachUnindentedImagesFromLists(markdown);
   const images: XArticleImage[] = [];
   const replacements: Array<{ start: number; end: number; marker: string }> = [];
@@ -41,7 +49,7 @@ export function buildXArticleClipboard(markdown: string, pageUrl: string) {
       }
 
       const number = images.length + 1;
-      const marker = `【图片 ${number}】`;
+      const marker = imageMarker(number);
       images.push({ number, marker, url, alt: alt ?? "" });
       const start = node?.position?.start.offset;
       const end = node?.position?.end.offset;
@@ -50,7 +58,7 @@ export function buildXArticleClipboard(markdown: string, pageUrl: string) {
         replacements.push({ start, end, marker });
       }
 
-      return <>{marker}</>;
+      return <span data-notes-x-image-url={url}>{marker}</span>;
     },
   };
 

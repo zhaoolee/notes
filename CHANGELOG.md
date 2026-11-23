@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.20.0] - 2026-11-23
+
+### 新增
+
+- 「复制到 X 文章」支持桌面 Chrome 扩展 Notes to X Articles。复制后在 X 草稿正文粘贴一次，扩展会通过 X 的媒体编辑器按位置添加便签图库图片。配图列表也可按编号保存原图。
+
 ## [1.19.1] - 2026-11-23
 
 ### 修复
@@ -522,6 +528,7 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.20.0]: https://github.com/zhaoolee/notes/compare/1.19.1...1.20.0
 [1.19.1]: https://github.com/zhaoolee/notes/compare/1.19.0...1.19.1
 [1.19.0]: https://github.com/zhaoolee/notes/compare/1.18.0...1.19.0
 [1.18.0]: https://github.com/zhaoolee/notes/compare/1.17.9...1.18.0
