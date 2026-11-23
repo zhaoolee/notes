@@ -2458,6 +2458,7 @@ body,
     width: 100%;
     display: flex;
     align-items: center;
+    gap: 6px;
   }
 
   .desktop-share-preview-actions button {
@@ -2483,9 +2484,11 @@ body,
   }
 
   .desktop-share-export-actions {
+    min-width: 0;
     margin-left: auto;
     display: flex;
     gap: clamp(6px, calc(1.88vw - 10px), 14px);
+    overflow-x: auto;
   }
 
   .desktop-share-export-actions button:last-child {

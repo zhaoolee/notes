@@ -274,16 +274,19 @@ test("分享面板承接存图、复制和归档", () => {
       copyButtonText: "已复制文字",
       isArchiving: true,
       isCopyingWechat: false,
+      isCopyingXArticle: false,
       isExporting: false,
       isPublishingWechatDraft: false,
       onArchiveDownload: noop,
       onClose: noop,
       onCopyMarkdown: noop,
       onCopyWechat: noop,
+      onCopyXArticle: noop,
       onExport: noop,
       onPublishWechatDraft: noop,
       wechatDraftButtonText: "发布为公众号草稿",
       wechatButtonText: "复制到公众号",
+      xArticleButtonText: "复制到 X 文章",
     }),
   );
   const appSource = readFileSync("src/App.tsx", "utf8");
@@ -298,14 +301,16 @@ test("分享面板承接存图、复制和归档", () => {
   assert.match(html, /上传图片并复制微信公众号富文本/);
   assert.match(html, /发布为公众号草稿/);
   assert.match(html, /发送当前文章及主题样式到公众号草稿箱/);
+  assert.match(html, /复制到 X 文章/);
   assert.match(html, /归档中\.\.\./);
 
   assert.ok(
     html.indexOf("已复制文字") < html.indexOf("复制到公众号") &&
       html.indexOf("复制到公众号") < html.indexOf("发布为公众号草稿") &&
-      html.indexOf("发布为公众号草稿") < html.indexOf("以图片形式分享") &&
+      html.indexOf("发布为公众号草稿") < html.indexOf("复制到 X 文章") &&
+      html.indexOf("复制到 X 文章") < html.indexOf("以图片形式分享") &&
       html.indexOf("以图片形式分享") < html.indexOf("归档中..."),
-    "分享动作顺序应先文字、公众号复制、公众号草稿、图片和归档",
+    "分享动作顺序应为文字、公众号复制、公众号草稿、X 文章、图片和归档",
   );
   assert.match(wechatConfigSource, /fetch\("\/api\/wechat\/status"/);
   assert.match(wechatSource, /fetch\("\/api\/wechat\/draft"/);

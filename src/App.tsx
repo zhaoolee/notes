@@ -54,7 +54,11 @@ import {
   saveCloudWorkspace,
   type AuthUser,
 } from "./lib/auth";
-import { copyTextToClipboard, normalizeClipboardMarkdown } from "./lib/clipboard";
+import {
+  copyRichHtmlToClipboard,
+  copyTextToClipboard,
+  normalizeClipboardMarkdown,
+} from "./lib/clipboard";
 import {
   exportMarkdownArchive,
   exportMarkdownAsPng,
@@ -108,6 +112,13 @@ type MobileWorkspaceView = "notes" | "editor" | "preview";
 type DesktopWorkspaceView = "editor" | "preview";
 type WechatCopyState = "idle" | "preparing" | "copied" | "failed";
 type WechatDraftState = "idle" | "publishing" | "published" | "failed";
+type XArticleCopyState = CopyState | "copying";
+const X_ARTICLE_COPY_LABELS: Record<XArticleCopyState, string> = {
+  idle: "复制到 X 文章",
+  copying: "正在复制...",
+  copied: "已复制到 X",
+  failed: "复制到 X 失败",
+};
 type HermesSkillLinkActionState =
   | "idle"
   | "copying"
@@ -304,6 +315,7 @@ export default function App() {
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [wechatCopyState, setWechatCopyState] =
     useState<WechatCopyState>("idle");
+  const [xArticleCopyState, setXArticleCopyState] = useState<XArticleCopyState>("idle");
   const [wechatDraftState, setWechatDraftState] =
     useState<WechatDraftState>("idle");
   const [canPublishWechatDraft, setCanPublishWechatDraft] = useState(false);
@@ -1049,6 +1061,15 @@ export default function App() {
   }, [wechatCopyState]);
 
   useEffect(() => {
+    if (xArticleCopyState !== "copied" && xArticleCopyState !== "failed") {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setXArticleCopyState("idle"), 2400);
+    return () => window.clearTimeout(timeoutId);
+  }, [xArticleCopyState]);
+
+  useEffect(() => {
     if (wechatDraftState === "idle" || wechatDraftState === "publishing") {
       return;
     }
@@ -1641,6 +1662,27 @@ export default function App() {
           ? `复制到公众号失败：${error.message}`
           : "复制到公众号失败",
       );
+    }
+  }
+
+  async function handleCopyXArticle() {
+    if (xArticleCopyState === "copying") {
+      return;
+    }
+
+    try {
+      setXArticleCopyState("copying");
+      setExportError("");
+      const pageUrl = window.location.href;
+      const preparation = import("./lib/x-article").then(({ buildXArticleClipboard }) =>
+        buildXArticleClipboard(markdown, pageUrl),
+      );
+      await copyRichHtmlToClipboard(preparation);
+      setXArticleCopyState("copied");
+    } catch (error) {
+      console.error("X Article rich-text copy failed", error);
+      setXArticleCopyState("failed");
+      setExportError("复制到 X 文章失败，请重试或检查浏览器的剪贴板权限。");
     }
   }
 
@@ -2488,6 +2530,7 @@ export default function App() {
                         copyButtonText={getCopyButtonText(copyState)}
                         isArchiving={isArchiving}
                         isCopyingWechat={wechatCopyState === "preparing"}
+                        isCopyingXArticle={xArticleCopyState === "copying"}
                         isExporting={isExporting}
                         isPublishingWechatDraft={
                           wechatDraftState === "publishing"
@@ -2503,6 +2546,7 @@ export default function App() {
                         onCopyWechat={() => {
                           void handleCopyWechat();
                         }}
+                        onCopyXArticle={handleCopyXArticle}
                         onExport={() => {
                           setIsShareOpen(false);
                           void handleExport();
@@ -2514,6 +2558,7 @@ export default function App() {
                           wechatDraftState,
                         )}
                         wechatButtonText={getWechatCopyButtonText(wechatCopyState)}
+                        xArticleButtonText={X_ARTICLE_COPY_LABELS[xArticleCopyState]}
                       />
                     ) : null}
                   </div>
@@ -2550,6 +2595,14 @@ export default function App() {
                         {getWechatDraftButtonText(wechatDraftState)}
                       </button>
                     ) : null}
+                    <button
+                      type="button"
+                      title="复制富文本，在 X 文章编辑器中粘贴"
+                      disabled={xArticleCopyState === "copying"}
+                      onClick={handleCopyXArticle}
+                    >
+                      {X_ARTICLE_COPY_LABELS[xArticleCopyState]}
+                    </button>
                     <button
                       type="button"
                       onClick={() => {

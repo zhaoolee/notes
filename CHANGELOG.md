@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.19.0] - 2026-11-23
+
+### 新增
+
+- 桌面和手机分享菜单新增「复制到 X 文章」。可复制便签富文本并手动粘贴到 x.com 的文章编辑器，整个复制流程无需 X API。
+
 ## [1.18.0] - 2026-11-21
 
 ### 新增
@@ -510,6 +516,7 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.19.0]: https://github.com/zhaoolee/notes/compare/1.18.0...1.19.0
 [1.18.0]: https://github.com/zhaoolee/notes/compare/1.17.9...1.18.0
 [1.17.9]: https://github.com/zhaoolee/notes/compare/1.17.8...1.17.9
 [1.17.8]: https://github.com/zhaoolee/notes/compare/1.17.7...1.17.8
