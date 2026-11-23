@@ -173,6 +173,12 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
     content: RegExp[];
   }> = [
     {
+      version: "1.19.1",
+      heading:
+        "[1.19.1](https://github.com/zhaoolee/notes/compare/1.19.0...1.19.1) - 2026-11-23",
+      content: [/为正文图片插入编号/, /Insert → Media/],
+    },
+    {
       version: "1.19.0",
       heading:
         "[1.19.0](https://github.com/zhaoolee/notes/compare/1.18.0...1.19.0) - 2026-11-23",

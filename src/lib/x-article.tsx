@@ -4,6 +4,13 @@ import remarkGfm from "remark-gfm";
 import { remarkManualLineParagraphs } from "../components/MarkdownText.js";
 import { detachUnindentedImagesFromLists } from "./markdown.js";
 
+export interface XArticleImage {
+  number: number;
+  marker: string;
+  url: string;
+  alt: string;
+}
+
 function absoluteWebUrl(value: string | undefined, pageUrl: string): string | undefined {
   if (!value) {
     return undefined;
@@ -18,15 +25,32 @@ function absoluteWebUrl(value: string | undefined, pageUrl: string): string | un
 }
 
 export function buildXArticleClipboard(markdown: string, pageUrl: string) {
+  const source = detachUnindentedImagesFromLists(markdown);
+  const images: XArticleImage[] = [];
+  const replacements: Array<{ start: number; end: number; marker: string }> = [];
   const components: Components = {
     p: ({ children }) => <p>{children}</p>,
     a: ({ children, href }) => {
       const url = absoluteWebUrl(href, pageUrl);
       return url ? <a href={url}>{children}</a> : <>{children}</>;
     },
-    img: ({ alt, src }) => {
+    img: ({ alt, src, node }) => {
       const url = absoluteWebUrl(src, pageUrl);
-      return url ? <img src={url} alt={alt ?? ""} loading="lazy" /> : <>{alt}</>;
+      if (!url) {
+        return <>{alt}</>;
+      }
+
+      const number = images.length + 1;
+      const marker = `【图片 ${number}】`;
+      images.push({ number, marker, url, alt: alt ?? "" });
+      const start = node?.position?.start.offset;
+      const end = node?.position?.end.offset;
+
+      if (start !== undefined && end !== undefined) {
+        replacements.push({ start, end, marker });
+      }
+
+      return <>{marker}</>;
     },
   };
 
@@ -36,9 +60,21 @@ export function buildXArticleClipboard(markdown: string, pageUrl: string) {
       remarkPlugins={[remarkGfm, remarkManualLineParagraphs]}
       skipHtml
     >
-      {detachUnindentedImagesFromLists(markdown)}
+      {source}
     </ReactMarkdown>,
   ).trim();
 
-  return { html, markdown };
+  if (replacements.length === 0) {
+    return { html, markdown, images };
+  }
+
+  let offset = 0;
+  const parts = replacements.map(({ start, end, marker }) => {
+    const fragment = source.slice(offset, start) + marker;
+    offset = end;
+    return fragment;
+  });
+  parts.push(source.slice(offset));
+
+  return { html, markdown: parts.join(""), images };
 }

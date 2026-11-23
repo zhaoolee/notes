@@ -76,7 +76,7 @@ function getFilenameFromContentDisposition(value: string | null, fallback: strin
   return decodeURIComponent(match[1].replace(/^"|"$/g, ""));
 }
 
-async function saveBlob(blob: Blob, filename: string): Promise<void> {
+export async function saveBlob(blob: Blob, filename: string): Promise<void> {
   const isCoarsePointer =
     typeof window !== "undefined" &&
     window.matchMedia?.("(pointer: coarse)").matches;

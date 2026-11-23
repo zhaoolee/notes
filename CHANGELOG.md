@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.19.1] - 2026-11-23
+
+### 修复
+
+- 复制到 X 文章时，为正文图片插入编号，并提供按编号保存原图的入口。在 X 编辑器中通过 Insert → Media 上传即可恢复配图位置。
+
 ## [1.19.0] - 2026-11-23
 
 ### 新增
@@ -516,6 +522,7 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.19.1]: https://github.com/zhaoolee/notes/compare/1.19.0...1.19.1
 [1.19.0]: https://github.com/zhaoolee/notes/compare/1.18.0...1.19.0
 [1.18.0]: https://github.com/zhaoolee/notes/compare/1.17.9...1.18.0
 [1.17.9]: https://github.com/zhaoolee/notes/compare/1.17.8...1.17.9
