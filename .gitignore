@@ -8,3 +8,4 @@ storage/images/*
 storage/data/*
 !storage/data/.gitkeep
 .playwright-mcp/
+dist-x-article-extension/

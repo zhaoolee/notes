@@ -106,7 +106,8 @@ export function XArticleImagesDialog({
         <div>
           <h2 id={titleId}>正文已复制</h2>
           <p id={guideId}>
-            粘贴到 X 后，在每个图片标记处选择 Insert → Media，上传对应的图片，再删除标记。
+            装有 Notes to X Articles 扩展时，粘贴到 X 草稿即可按顺序插图。手动添加时，
+            保存下方图片，在 X 选择 Insert → Media 上传，再删除对应标记。
           </p>
         </div>
         <button type="button" aria-label="关闭 X 文章图片" onClick={onClose}>×</button>

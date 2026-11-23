@@ -1,0 +1,28 @@
+#notes-x-article-paste-status {
+  position: fixed;
+  z-index: 2147483647;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border: 1px solid #424a50;
+  border-radius: 12px;
+  background: #16181c;
+  color: #f7f9f9;
+  font: 14px/1.45 system-ui, sans-serif;
+  box-shadow: 0 8px 28px #0005;
+}
+
+#notes-x-article-paste-status button {
+  flex: none;
+  padding: 5px 10px;
+  border: 1px solid #6e767d;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}

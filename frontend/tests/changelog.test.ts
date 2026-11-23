@@ -173,6 +173,12 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
     content: RegExp[];
   }> = [
     {
+      version: "1.20.1",
+      heading:
+        "[1.20.1](https://github.com/zhaoolee/notes/compare/1.19.2...1.20.1) - 2026-11-23",
+      content: [/「复制到 X 文章」支持桌面 Chrome/, /按位置添加便签图库图片/],
+    },
+    {
       version: "1.19.2",
       heading:
         "[1.19.2](https://github.com/zhaoolee/notes/compare/1.19.1...1.19.2) - 2026-11-23",

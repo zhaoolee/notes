@@ -1,0 +1,70 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>X Articles test editor</title>
+<label>Title <textarea></textarea></label>
+<input type="file" data-testid="fileInput" id="cover" hidden>
+<button id="insert" aria-label="Add Media">Insert</button>
+<div id="menu" hidden><button role="menuitem">Media</button></div>
+<div class="DraftEditor-editorContainer">
+  <div id="editor" contenteditable="true" role="textbox" aria-label="Article body">
+    <p data-block="true">Existing draft text</p>
+  </div>
+</div>
+<button id="publish">Publish</button>
+<script>
+  const editor = document.querySelector("#editor");
+  const menu = document.querySelector("#menu");
+  let insertionPoint;
+  editor.addEventListener("paste", (event) => {
+    const html = event.clipboardData.getData("text/html");
+    if (!html) return;
+    event.preventDefault();
+    const template = document.createElement("template");
+    template.innerHTML = html;
+    for (const block of template.content.children) block.dataset.block = "true";
+    editor.append(template.content);
+  });
+  document.querySelector("#publish").onclick = () => { document.body.dataset.published = "true"; };
+  document.querySelector("#cover").onchange = () => { document.body.dataset.coverChanged = "true"; };
+  document.querySelector("#insert").onclick = () => {
+    insertionPoint = getSelection().getRangeAt(0).cloneRange();
+    menu.hidden = false;
+  };
+  menu.querySelector("button").onclick = () => {
+    menu.hidden = true;
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.innerHTML = '<span>Upload media</span><input hidden type="file" data-testid="fileInput"><button disabled>Apply</button>';
+    document.body.append(dialog);
+    const input = dialog.querySelector("input");
+    const apply = dialog.querySelector("button");
+    if (editor.querySelectorAll("section").length % 2) dialog.after(input);
+    input.onchange = async () => {
+      const file = input.files[0];
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      apply.disabled = false;
+      apply.onclick = () => {
+        const point = insertionPoint.startContainer;
+        const block = point.parentElement.closest("[data-block]");
+        const tail = document.createRange();
+        tail.setStart(point, insertionPoint.startOffset);
+        tail.setEndAfter(block.lastChild);
+        const after = document.createElement("p");
+        after.dataset.block = "true";
+        after.append(tail.extractContents());
+        const media = document.createElement("section");
+        media.dataset.block = "true";
+        media.contentEditable = "false";
+        media.dataset.filename = file.name;
+        media.dataset.tailByte = bytes[bytes.length - 1];
+        const image = document.createElement("img");
+        image.src = URL.createObjectURL(file);
+        media.append(image);
+        block.after(media, after);
+        input.remove();
+        dialog.remove();
+      };
+    };
+  };
+</script>
