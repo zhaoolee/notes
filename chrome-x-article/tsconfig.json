@@ -3,5 +3,5 @@
   "compilerOptions": {
     "allowJs": true
   },
-  "include": ["content.ts"]
+  "include": ["content.ts", "notes.ts"]
 }

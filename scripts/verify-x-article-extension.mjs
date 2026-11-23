@@ -13,9 +13,10 @@ const producer = process.env.NOTES_EXTENSION_PRODUCER;
 const previewServer = producer === "local"
   ? await preview({ preview: { host: "127.0.0.1", port: 0, strictPort: true } })
   : null;
-const producerOrigin = previewServer
+const previewOrigin = previewServer
   ? "http://127.0.0.1:" + previewServer.httpServer.address().port
-  : producer === "production" ? notesOrigin : null;
+  : null;
+const producerOrigin = producer === "local" || producer === "production" ? notesOrigin : null;
 const fixtureId = "chrome-extension-copy-fixture";
 const first = `![First](${notesOrigin}/images/first.png)`;
 const second = `![Second](${notesOrigin}/images/second.png)`;
@@ -27,25 +28,27 @@ const context = await chromium.launchPersistentContext("", {
   args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
 });
 
-try {
-  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(draft).origin });
-  if (producerOrigin) {
-    await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: producerOrigin });
-    await context.addInitScript(({ origin, id, markdown }) => {
-      if (location.origin !== origin) return;
-      localStorage.setItem("notes.workspace.v1", JSON.stringify({
-        version: 1, activeNoteId: id, folders: [],
-        notes: [{
-          id, markdown, createdAt: 1, updatedAt: 1, normalOrder: 1,
-          pinnedAt: null, folderId: null, isStarred: false, deletedAt: null,
-        }],
-      }));
-    }, {
-      origin: producerOrigin, id: fixtureId,
-      markdown: producer === "production" ? article.replaceAll(notesOrigin, "") : article,
-    });
-  }
-  await context.route("**/*", async (route) => {
+async function prepareNotes(browserContext, markdown) {
+  await browserContext.grantPermissions(["clipboard-read", "clipboard-write"], { origin: producerOrigin });
+  await browserContext.addInitScript(({ origin, id, markdown }) => {
+    if (location.origin !== origin) return;
+    const testCase = new URL(location.href).searchParams.get("copyCase");
+    if (testCase === "mixed") markdown += "\n\n![External](https://example.com/image.png)";
+    if (testCase === "legacy-clipboard") {
+      navigator.clipboard.write = async () => { throw new Error("Test fallback copy"); };
+    }
+    localStorage.setItem("notes.workspace.v1", JSON.stringify({
+      version: 1, activeNoteId: id, folders: [],
+      notes: [{
+        id, markdown, createdAt: 1, updatedAt: 1, normalOrder: 1,
+        pinnedAt: null, folderId: null, isStarred: false, deletedAt: null,
+      }],
+    }));
+  }, { origin: producerOrigin, id: fixtureId, markdown });
+}
+
+async function routeRequests(browserContext) {
+  await browserContext.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     if (url.href === draft || url.href === "https://x.com/home") {
       await route.fulfill({ contentType: "text/html", body: editorFixture });
@@ -56,8 +59,11 @@ try {
         ? { status: 404 }
         : { contentType: "image/png", body: Buffer.concat([png, Buffer.from([index])]) });
     } else if (producerOrigin && url.origin === producerOrigin && route.request().method() === "GET") {
-      if (producer === "local" && url.pathname.startsWith("/api/")) {
+      if (previewOrigin && url.pathname.startsWith("/api/")) {
         await route.fulfill({ json: { requireLogin: false, user: null } });
+      } else if (previewOrigin) {
+        const response = await route.fetch({ url: new URL(url.pathname + url.search, previewOrigin).href });
+        await route.fulfill({ response });
       } else {
         await route.continue();
       }
@@ -65,17 +71,29 @@ try {
       await route.abort();
     }
   });
+}
+
+const notesArticle = article.replaceAll(notesOrigin, "");
+const photosDialog = (page) => page.getByRole("dialog", { name: "正文已复制" });
+
+async function copyFromNotes(page, testCase = "") {
+  await page.goto(producerOrigin + "/?copyCase=" + testCase + "#note=" + fixtureId + "&view=preview");
+  await page.getByRole("button", { name: "打开分享与导出", exact: true }).click();
+  await page.getByRole("button", { name: "复制到 X 文章", exact: true }).click();
+  await page.getByRole("button", { name: "已复制到 X", exact: true }).waitFor();
+}
+
+try {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(draft).origin });
+  if (producerOrigin) await prepareNotes(context, notesArticle);
+  await routeRequests(context);
 
   const page = context.pages()[0];
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   if (producerOrigin) {
-    await page.goto(producerOrigin + "/#note=" + fixtureId + "&view=preview");
-    await page.getByRole("button", { name: "打开分享与导出", exact: true }).click();
-    await page.getByRole("button", { name: "复制到 X 文章", exact: true }).click();
-    const photos = page.getByRole("dialog", { name: "正文已复制" });
-    await photos.waitFor();
-    assert.equal(await photos.getByRole("button", { name: "保存图片 1", exact: true }).count(), 1);
+    await copyFromNotes(page);
+    assert.equal(await photosDialog(page).count(), 0);
     const clipboard = await page.evaluate(async () => {
       const [item] = await navigator.clipboard.read();
       return {
@@ -128,6 +146,32 @@ try {
   await paste(first, page.getByRole("textbox", { name: "Article body" }));
   assert.match(await page.getByRole("textbox", { name: "Article body" }).textContent(), /!\[First\]/);
   assert.equal(await status.count(), 0);
+
+  if (producerOrigin) {
+    await copyFromNotes(page, "mixed");
+    await photosDialog(page).getByRole("button", { name: "保存图片 3", exact: true }).waitFor();
+
+    await copyFromNotes(page, "legacy-clipboard");
+    const fallbackHtml = await page.evaluate(async () => {
+      const [item] = await navigator.clipboard.read();
+      return (await item.getType("text/html")).text();
+    });
+    assert.ok(fallbackHtml.includes("data-notes-x-image-url="));
+    assert.equal(await photosDialog(page).count(), 0);
+
+    const browser = await chromium.launch();
+    try {
+      const withoutExtension = await browser.newContext();
+      await prepareNotes(withoutExtension, notesArticle);
+      await routeRequests(withoutExtension);
+      const manualCopy = await withoutExtension.newPage();
+      await copyFromNotes(manualCopy);
+      await photosDialog(manualCopy).getByRole("button", { name: "保存图片 1", exact: true }).waitFor();
+    } finally {
+      await browser.close();
+    }
+  }
+
   assert.deepEqual(errors, []);
   console.log("Chrome extension verified with one trusted paste, ordered inline images, repeat and failure recovery, and composer scoping.");
   if (producerOrigin) console.log(`The ${producer} Notes rich-copy action supplied the actual clipboard payload.`);

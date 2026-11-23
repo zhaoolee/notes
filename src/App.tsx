@@ -16,6 +16,7 @@ import { MoveNoteDialog } from "./components/MoveNoteDialog";
 import { NoteSidebar } from "./components/NoteSidebar";
 import { WechatImportDialog } from "./components/WechatImportDialog";
 import { XArticleImagesDialog } from "./components/XArticleImagesDialog";
+import { canPasteXArticleImages } from "./lib/x-article-extension";
 import { SitePublishPanel } from "./features/site-publishing/SitePublishPanel";
 import {
   getUrlAfterConsumingGitHubPublishRedirect,
@@ -1688,7 +1689,8 @@ export default function App() {
       );
       const { images } = await copyRichHtmlToClipboard(preparation);
       setXArticleCopyState("copied");
-      setXArticleImageExport(images.length > 0 ? { noteId: activeNoteId, images } : null);
+      const showImages = images.length > 0 && !canPasteXArticleImages(images.map(({ url }) => url));
+      setXArticleImageExport(showImages ? { noteId: activeNoteId, images } : null);
     } catch (error) {
       console.error("X Article rich-text copy failed", error);
       setXArticleCopyState("failed");
