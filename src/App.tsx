@@ -295,6 +295,8 @@ export default function App() {
     useState(false);
   const [isDesktopFocusMode, setIsDesktopFocusMode] = useState(false);
   const [isDesktopSharePreview, setIsDesktopSharePreview] = useState(false);
+  const [isDesktopShareCopyMenuOpen, setIsDesktopShareCopyMenuOpen] =
+    useState(false);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [requireLogin, setRequireLogin] = useState(false);
   const [authStatus, setAuthStatus] = useState<"loading" | "ready">("loading");
@@ -349,6 +351,8 @@ export default function App() {
   const desktopSettingsContainerRef = useRef<HTMLButtonElement | null>(null);
   const settingsPanelHostRef = useRef<HTMLDivElement | null>(null);
   const shareContainerRef = useRef<HTMLDivElement | null>(null);
+  const desktopShareCopyMenuRef = useRef<HTMLDivElement | null>(null);
+  const desktopShareCopyTriggerRef = useRef<HTMLButtonElement | null>(null);
   const accountContainerRef = useRef<HTMLDivElement | null>(null);
   const desktopViewMenuRef = useRef<HTMLDivElement | null>(null);
   const desktopViewBeforeShareRef = useRef<DesktopWorkspaceView>("editor");
@@ -1220,6 +1224,52 @@ export default function App() {
   }, [isShareOpen]);
 
   useEffect(() => {
+    if (!isDesktopSharePreview) {
+      setIsDesktopShareCopyMenuOpen(false);
+    }
+  }, [isDesktopSharePreview]);
+
+  useEffect(() => {
+    if (!isDesktopShareCopyMenuOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+
+      if (
+        target instanceof Node &&
+        !desktopShareCopyMenuRef.current?.contains(target)
+      ) {
+        setIsDesktopShareCopyMenuOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsDesktopShareCopyMenuOpen(false);
+        desktopShareCopyTriggerRef.current?.focus();
+      }
+    }
+
+    function handleResize() {
+      if (!window.matchMedia("(min-width: 641px)").matches) {
+        setIsDesktopShareCopyMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [isDesktopShareCopyMenuOpen]);
+
+  useEffect(() => {
     if (!isNoteSidebarOpen) {
       return;
     }
@@ -1329,6 +1379,7 @@ export default function App() {
         isLoginOpen ||
         isChangePasswordOpen ||
         isShareOpen ||
+        isDesktopShareCopyMenuOpen ||
         isNoteSidebarOpen ||
         isDesktopViewMenuOpen ||
         isMoveDialogOpen ||
@@ -1378,6 +1429,7 @@ export default function App() {
     isCategorySidebarOpen,
     isChangePasswordOpen,
     isDesktopFocusMode,
+    isDesktopShareCopyMenuOpen,
     isDesktopSharePreview,
     isDesktopViewMenuOpen,
     isLoginOpen,
@@ -2574,61 +2626,89 @@ export default function App() {
                   >
                     取消
                   </button>
-                  <div className="desktop-share-export-actions">
-                    <button
-                      type="button"
-                      disabled={wechatCopyState === "preparing"}
-                      onClick={() => {
-                        void handleCopyWechat();
-                      }}
+                  <div className="desktop-share-action-group">
+                    <div
+                      className="desktop-share-copy-menu"
+                      ref={desktopShareCopyMenuRef}
                     >
-                      {getWechatCopyButtonText(wechatCopyState)}
-                    </button>
-                    {canPublishWechatDraft ? (
                       <button
                         type="button"
-                        disabled={wechatDraftState === "publishing"}
+                        className="desktop-share-copy-trigger"
+                        ref={desktopShareCopyTriggerRef}
+                        aria-controls="desktop-share-copy-options"
+                        aria-expanded={isDesktopShareCopyMenuOpen}
                         onClick={() => {
-                          void handlePublishWechatDraft();
+                          setIsDesktopShareCopyMenuOpen((isOpen) => !isOpen);
                         }}
                       >
-                        {getWechatDraftButtonText(wechatDraftState)}
+                        复制到...
                       </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      title="复制富文本，在 X 文章编辑器中粘贴"
-                      disabled={xArticleCopyState === "copying"}
-                      onClick={handleCopyXArticle}
-                    >
-                      {X_ARTICLE_COPY_LABELS[xArticleCopyState]}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void handleCopyMarkdown();
-                      }}
-                    >
-                      {getCopyButtonText(copyState)}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isArchiving}
-                      onClick={() => {
-                        void handleArchiveDownload();
-                      }}
-                    >
-                      {isArchiving ? "归档中..." : "下载归档"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isExporting}
-                      onClick={() => {
-                        void handleExport();
-                      }}
-                    >
-                      {isExporting ? "导出中..." : "保存图片"}
-                    </button>
+                      {isDesktopShareCopyMenuOpen ? (
+                        <div
+                          className="desktop-share-copy-options"
+                          id="desktop-share-copy-options"
+                          role="group"
+                          aria-label="复制到..."
+                        >
+                          <button
+                            type="button"
+                            disabled={wechatCopyState === "preparing"}
+                            onClick={() => {
+                              void handleCopyWechat();
+                            }}
+                          >
+                            {getWechatCopyButtonText(wechatCopyState)}
+                          </button>
+                          <button
+                            type="button"
+                            title="复制富文本，在 X 文章编辑器中粘贴"
+                            disabled={xArticleCopyState === "copying"}
+                            onClick={handleCopyXArticle}
+                          >
+                            {X_ARTICLE_COPY_LABELS[xArticleCopyState]}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void handleCopyMarkdown();
+                            }}
+                          >
+                            {getCopyButtonText(copyState)}
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="desktop-share-export-actions">
+                      {canPublishWechatDraft ? (
+                        <button
+                          type="button"
+                          disabled={wechatDraftState === "publishing"}
+                          onClick={() => {
+                            void handlePublishWechatDraft();
+                          }}
+                        >
+                          {getWechatDraftButtonText(wechatDraftState)}
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        disabled={isArchiving}
+                        onClick={() => {
+                          void handleArchiveDownload();
+                        }}
+                      >
+                        {isArchiving ? "归档中..." : "下载归档"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isExporting}
+                        onClick={() => {
+                          void handleExport();
+                        }}
+                      >
+                        {isExporting ? "导出中..." : "保存图片"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               ) : null}

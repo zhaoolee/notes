@@ -668,7 +668,9 @@ test("移动端锁定一倍视口并禁止双指缩放与输入框自动放大",
 test("移动端采用便签列表、编辑和预览三态工作区", () => {
   const appSource = readFileSync("src/App.tsx", "utf8");
   const editorSource = readFileSync("src/components/EditorPanel.tsx", "utf8");
+  const sheetSource = readFileSync("src/components/NoteSheet.tsx", "utf8");
   const styles = readFileSync("src/styles.css", "utf8");
+  const archiveSource = readFileSync("server/index.ts", "utf8");
 
   assert.match(
     appSource,
@@ -870,20 +872,24 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
     /\.preview-stage \.note-sheet\s*\{[^}]*width:\s*100%;[^}]*min-height:\s*100%;/s,
   );
   assert.match(
-    styles,
-    /\.sheet-corner-top-left\s*\{[^}]*left:\s*calc\(7\.6667px \* var\(--note-scale\)\);[^}]*top:\s*calc\(15px \* var\(--note-scale\)\);/s,
+    sheetSource,
+    /<div className="sheet-frame sheet-frame-outer">[\s\S]*?<span className="sheet-corner sheet-corner-top-left" \s*\/>[\s\S]*?<span className="sheet-corner sheet-corner-top-right" \s*\/>[\s\S]*?<span className="sheet-corner sheet-corner-bottom-left" \s*\/>[\s\S]*?<span className="sheet-corner sheet-corner-bottom-right" \s*\/>[\s\S]*?<\/div>\s*<div className="sheet-frame sheet-frame-inner" \s*\/>/,
   );
-  assert.match(
-    styles,
-    /\.sheet-corner-top-right\s*\{[^}]*right:\s*calc\(7\.6667px \* var\(--note-scale\)\);[^}]*top:\s*calc\(15px \* var\(--note-scale\)\);/s,
-  );
-  assert.match(
-    styles,
-    /\.sheet-corner-bottom-left\s*\{[^}]*left:\s*calc\(7\.6667px \* var\(--note-scale\)\);[^}]*bottom:\s*calc\(55\.1667px \* var\(--note-scale\)\);/s,
-  );
-  assert.match(
-    styles,
-    /\.sheet-corner-bottom-right\s*\{[^}]*right:\s*calc\(7\.6667px \* var\(--note-scale\)\);[^}]*bottom:\s*calc\(55\.1667px \* var\(--note-scale\)\);/s,
+  for (const pattern of [
+    /\.sheet-frame-outer\s*\{[^}]*--sheet-corner-size:\s*calc\(3px \* var\(--note-scale\)\);[^}]*inset:/,
+    /\.sheet-corner\s*\{[^}]*width:\s*var\(--sheet-corner-size\);[^}]*height:\s*var\(--sheet-corner-size\);/,
+    /\.sheet-corner-top-left\s*\{[^}]*left:\s*calc\(-1 \* var\(--sheet-corner-size\)\);[^}]*top:\s*calc\(-1 \* var\(--sheet-corner-size\)\);/,
+    /\.sheet-corner-top-right\s*\{[^}]*right:\s*calc\(-1 \* var\(--sheet-corner-size\)\);[^}]*top:\s*calc\(-1 \* var\(--sheet-corner-size\)\);/,
+    /\.sheet-corner-bottom-left\s*\{[^}]*left:\s*calc\(-1 \* var\(--sheet-corner-size\)\);[^}]*bottom:\s*calc\(-1 \* var\(--sheet-corner-size\)\);/,
+    /\.sheet-corner-bottom-right\s*\{[^}]*right:\s*calc\(-1 \* var\(--sheet-corner-size\)\);[^}]*bottom:\s*calc\(-1 \* var\(--sheet-corner-size\)\);/,
+  ]) {
+    assert.match(styles, pattern, "预览四角方格必须锚定外框并以 1px 相接");
+    assert.match(archiveSource, pattern, "归档 CSS 四角几何必须与预览一致");
+  }
+  assert.doesNotMatch(styles, /\.sheet-corner-(?:top|bottom)-(?:left|right)\s*\{[^}]*calc\((?:7\.6667px|15px|55\.1667px)/s);
+  assert.doesNotMatch(
+    archiveSource,
+    /\.sheet-corner-(?:top|bottom)-(?:left|right)\s*\{[^}]*calc\((?:7\.6667px|15px|55\.1667px)/s,
   );
   assert.doesNotMatch(styles, /:has\(\.markdown-editor:focus\)/);
 });

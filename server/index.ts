@@ -1263,6 +1263,7 @@ ${fontFaceCss}
       }
 
       .sheet-frame-outer {
+        --sheet-corner-size: calc(3px * var(--note-scale));
         inset:
           calc(16px * var(--note-scale))
           calc(9.6667px * var(--note-scale))
@@ -1278,31 +1279,31 @@ ${fontFaceCss}
 
       .sheet-corner {
         position: absolute;
-        width: calc(3px * var(--note-scale));
-        height: calc(3px * var(--note-scale));
+        width: var(--sheet-corner-size);
+        height: var(--sheet-corner-size);
         border: 1px solid var(--note-frame);
         background: var(--paper);
         pointer-events: none;
       }
 
       .sheet-corner-top-left {
-        left: calc(7.6667px * var(--note-scale));
-        top: calc(15px * var(--note-scale));
+        left: calc(-1 * var(--sheet-corner-size));
+        top: calc(-1 * var(--sheet-corner-size));
       }
 
       .sheet-corner-top-right {
-        right: calc(7.6667px * var(--note-scale));
-        top: calc(15px * var(--note-scale));
+        right: calc(-1 * var(--sheet-corner-size));
+        top: calc(-1 * var(--sheet-corner-size));
       }
 
       .sheet-corner-bottom-left {
-        left: calc(7.6667px * var(--note-scale));
-        bottom: calc(55.1667px * var(--note-scale));
+        left: calc(-1 * var(--sheet-corner-size));
+        bottom: calc(-1 * var(--sheet-corner-size));
       }
 
       .sheet-corner-bottom-right {
-        right: calc(7.6667px * var(--note-scale));
-        bottom: calc(55.1667px * var(--note-scale));
+        right: calc(-1 * var(--sheet-corner-size));
+        bottom: calc(-1 * var(--sheet-corner-size));
       }
 
       .sheet-inner {

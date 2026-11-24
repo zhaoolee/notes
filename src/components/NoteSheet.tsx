@@ -28,12 +28,13 @@ export function NoteSheet({
 
   return (
     <div className="note-sheet">
-      <div className="sheet-frame sheet-frame-outer" />
+      <div className="sheet-frame sheet-frame-outer">
+        <span className="sheet-corner sheet-corner-top-left" />
+        <span className="sheet-corner sheet-corner-top-right" />
+        <span className="sheet-corner sheet-corner-bottom-left" />
+        <span className="sheet-corner sheet-corner-bottom-right" />
+      </div>
       <div className="sheet-frame sheet-frame-inner" />
-      <span className="sheet-corner sheet-corner-top-left" />
-      <span className="sheet-corner sheet-corner-top-right" />
-      <span className="sheet-corner sheet-corner-bottom-left" />
-      <span className="sheet-corner sheet-corner-bottom-right" />
 
       <div className="note-apple-toolbar" aria-hidden="true">
         <span className="note-apple-back">
