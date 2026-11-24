@@ -173,6 +173,12 @@ test("changelog 解析器保留便签分节并解析版本比较链接", () => {
     content: RegExp[];
   }> = [
     {
+      version: "1.20.5",
+      heading:
+        "[1.20.5](https://github.com/zhaoolee/notes/compare/1.20.4...1.20.5) - 2026-11-24",
+      content: [/「发布为\.\.\.」/, /「发布为公众号草稿」/],
+    },
+    {
       version: "1.20.4",
       heading:
         "[1.20.4](https://github.com/zhaoolee/notes/compare/1.20.3...1.20.4) - 2026-11-24",

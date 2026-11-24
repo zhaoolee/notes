@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.20.5] - 2026-11-24
+
+### 变更
+
+- 桌面分享预览在「复制到...」旁新增「发布为...」。登录后可从这里打开网站发布面板，已连接公众号时可选择「发布为公众号草稿」并查看进度和结果。两个下拉菜单可通过点击外部或按 `Escape` 收起。窄桌面的分享操作排在全宽的第二行。
+
 ## [1.20.4] - 2026-11-24
 
 ### 变更
@@ -557,6 +563,7 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.20.5]: https://github.com/zhaoolee/notes/compare/1.20.4...1.20.5
 [1.20.4]: https://github.com/zhaoolee/notes/compare/1.20.3...1.20.4
 [1.20.3]: https://github.com/zhaoolee/notes/compare/1.20.2...1.20.3
 [1.20.2]: https://github.com/zhaoolee/notes/compare/1.20.1...1.20.2

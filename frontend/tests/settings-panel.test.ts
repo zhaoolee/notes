@@ -321,6 +321,20 @@ test("分享面板承接存图、复制和归档", () => {
   );
 });
 
+test("桌面分享预览把网站与公众号草稿合并为发布为...下拉", () => {
+  const appSource = readFileSync("src/App.tsx", "utf8");
+  const publishOptionsSource = appSource.slice(
+    appSource.indexOf('id="desktop-share-publish-options"'),
+    appSource.indexOf("desktop-share-export-actions"),
+  );
+  assert.match(publishOptionsSource, /aria-label="发布为\.\.\."/);
+  assert.match(publishOptionsSource, /handleOpenSitePublishing\(\)[\s\S]*发布为网站/);
+  assert.match(
+    publishOptionsSource,
+    /canPublishWechatDraft \? \([\s\S]*handlePublishWechatDraft\(\)[\s\S]*getWechatDraftButtonText\(wechatDraftState\)/,
+  );
+});
+
 test("移动分享面板复现原版贴底操作层", () => {
   const styles = readFileSync("src/styles.css", "utf8");
   const mobileStyles = styles.slice(

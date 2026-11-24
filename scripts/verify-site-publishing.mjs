@@ -32,6 +32,19 @@ async function stop(server) {
 async function freePort() { const server = createServer(); const port = await start(server); await stop(server); return port; }
 async function exists(filename) { try { await fs.access(filename); return true; } catch { return false; } }
 
+async function openPublishOptions(targetPage) {
+  const trigger = targetPage.getByRole("button", { name: "发布为...", exact: true });
+  if (!(await trigger.isVisible())) {
+    await targetPage.getByRole("button", { name: "打开分享与导出" }).click();
+  }
+  await trigger.click();
+  return targetPage.getByRole("group", { name: "发布为...", exact: true });
+}
+async function openSitePublishingFromShare(targetPage) {
+  const options = await openPublishOptions(targetPage);
+  await options.getByRole("button", { name: "发布为网站", exact: true }).click();
+}
+
 try {
   await fs.access(path.join(root, "dist/index.html"));
   let publicDirectory = "";
@@ -101,9 +114,15 @@ try {
   await page.getByRole("button", { name: "账号：hugo-feedback" }).click();
   const menu = page.getByRole("menu");
   const menuText = await menu.innerText();
-  check(menuText.indexOf("发布为网站") < menuText.indexOf("进入管理后台"), "menu entry is above admin");
+  check(!menuText.includes("发布为网站"), "desktop account menu has no publishing entry");
+  check(menuText.includes("进入管理后台"), "account menu still includes admin entry");
   await page.screenshot({ path: path.join(temporary, "menu.png") });
-  await page.getByRole("menuitem", { name: "发布为网站" }).click();
+  await page.keyboard.press("Escape");
+  const publishOptions = await openPublishOptions(page);
+  const website = publishOptions.getByRole("button", { name: "发布为网站", exact: true });
+  await website.waitFor();
+  await page.screenshot({ path: path.join(temporary, "share-publish-menu.png") });
+  await website.click();
   const panel = page.getByRole("dialog", { name: "生成网站" });
   await panel.waitFor();
   await panel.getByText("已保存到账号", { exact: true }).waitFor();
@@ -321,8 +340,7 @@ try {
   await panel.getByRole("button", { name: "关闭网站发布面板" }).click();
   await panel.waitFor({ state: "detached" });
   check(await panel.count() === 0, "close button dismisses panel");
-  await page.getByRole("button", { name: "账号：hugo-feedback" }).click();
-  await page.getByRole("menuitem", { name: "发布为网站" }).click();
+  await openSitePublishingFromShare(page);
   await panel.getByText("已保存到账号", { exact: true }).waitFor();
   check(await panel.locator("details.site-publish-advanced").evaluate((element) => element.open) === false, "reopened panel collapses advanced settings");
   check(await panel.locator(".site-publish-group-note").count() === 1, "selected note survives reopening");
@@ -337,8 +355,7 @@ try {
   await panel.waitFor({state:"detached"});
   check(await panel.count() === 0, "Escape closes panel");
   await page.reload();
-  await page.getByRole("button", { name: "账号：hugo-feedback" }).click();
-  await page.getByRole("menuitem", { name: "发布为网站" }).click();
+  await openSitePublishingFromShare(page);
   await panel.waitFor();
   await panel.getByText("已保存到账号", { exact: true }).waitFor();
   check(await panel.locator("details.site-publish-advanced").evaluate((element) => element.open) === false, "reloaded panel still defaults to collapsed advanced settings");
@@ -352,8 +369,7 @@ try {
   check(otherLogin.ok(), "second independent browser signs in to same account");
   const otherPage = await otherContext.newPage();
   await otherPage.goto(baseURL);
-  await otherPage.getByRole("button", { name: "账号：hugo-feedback" }).click();
-  await otherPage.getByRole("menuitem", { name: "发布为网站" }).click();
+  await openSitePublishingFromShare(otherPage);
   const otherPanel = otherPage.getByRole("dialog", { name: "生成网站" });
   await otherPanel.getByText("已保存到账号", { exact: true }).waitFor();
   check(await otherPanel.locator("details.site-publish-advanced").evaluate((element) => element.open) === false, "fresh browser also starts with collapsed advanced settings");
@@ -502,8 +518,7 @@ try {
       check(Array.isArray(body?.categories) && body.categories.some((category) => category.slug === "life"), `${prefix}: ${label} keeps the custom category`);
     };
     const openPublishingPanel = async () => {
-      await page.getByRole("button", { name: "账号：hugo-feedback" }).click();
-      await page.getByRole("menuitem", { name: "发布为网站" }).click();
+      await openSitePublishingFromShare(page);
       await panel.waitFor();
       await panel.getByText("已保存到账号", { exact: true }).waitFor();
     };

@@ -297,6 +297,8 @@ export default function App() {
   const [isDesktopSharePreview, setIsDesktopSharePreview] = useState(false);
   const [isDesktopShareCopyMenuOpen, setIsDesktopShareCopyMenuOpen] =
     useState(false);
+  const [isDesktopSharePublishMenuOpen, setIsDesktopSharePublishMenuOpen] =
+    useState(false);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [requireLogin, setRequireLogin] = useState(false);
   const [authStatus, setAuthStatus] = useState<"loading" | "ready">("loading");
@@ -353,6 +355,8 @@ export default function App() {
   const shareContainerRef = useRef<HTMLDivElement | null>(null);
   const desktopShareCopyMenuRef = useRef<HTMLDivElement | null>(null);
   const desktopShareCopyTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const desktopSharePublishMenuRef = useRef<HTMLDivElement | null>(null);
+  const desktopSharePublishTriggerRef = useRef<HTMLButtonElement | null>(null);
   const accountContainerRef = useRef<HTMLDivElement | null>(null);
   const desktopViewMenuRef = useRef<HTMLDivElement | null>(null);
   const desktopViewBeforeShareRef = useRef<DesktopWorkspaceView>("editor");
@@ -1226,35 +1230,56 @@ export default function App() {
   useEffect(() => {
     if (!isDesktopSharePreview) {
       setIsDesktopShareCopyMenuOpen(false);
+      setIsDesktopSharePublishMenuOpen(false);
     }
   }, [isDesktopSharePreview]);
 
   useEffect(() => {
-    if (!isDesktopShareCopyMenuOpen) {
+    if (!isDesktopShareCopyMenuOpen && !isDesktopSharePublishMenuOpen) {
       return;
     }
 
     function handlePointerDown(event: PointerEvent) {
       const target = event.target;
 
+      if (!(target instanceof Node)) {
+        return;
+      }
+
       if (
-        target instanceof Node &&
+        isDesktopShareCopyMenuOpen &&
         !desktopShareCopyMenuRef.current?.contains(target)
       ) {
         setIsDesktopShareCopyMenuOpen(false);
       }
+
+      if (
+        isDesktopSharePublishMenuOpen &&
+        !desktopSharePublishMenuRef.current?.contains(target)
+      ) {
+        setIsDesktopSharePublishMenuOpen(false);
+      }
     }
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      if (isDesktopShareCopyMenuOpen) {
         setIsDesktopShareCopyMenuOpen(false);
         desktopShareCopyTriggerRef.current?.focus();
+        return;
       }
+
+      setIsDesktopSharePublishMenuOpen(false);
+      desktopSharePublishTriggerRef.current?.focus();
     }
 
     function handleResize() {
       if (!window.matchMedia("(min-width: 641px)").matches) {
         setIsDesktopShareCopyMenuOpen(false);
+        setIsDesktopSharePublishMenuOpen(false);
       }
     }
 
@@ -1267,7 +1292,7 @@ export default function App() {
       document.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("resize", handleResize);
     };
-  }, [isDesktopShareCopyMenuOpen]);
+  }, [isDesktopShareCopyMenuOpen, isDesktopSharePublishMenuOpen]);
 
   useEffect(() => {
     if (!isNoteSidebarOpen) {
@@ -1380,6 +1405,7 @@ export default function App() {
         isChangePasswordOpen ||
         isShareOpen ||
         isDesktopShareCopyMenuOpen ||
+        isDesktopSharePublishMenuOpen ||
         isNoteSidebarOpen ||
         isDesktopViewMenuOpen ||
         isMoveDialogOpen ||
@@ -1431,6 +1457,7 @@ export default function App() {
     isDesktopFocusMode,
     isDesktopShareCopyMenuOpen,
     isDesktopSharePreview,
+    isDesktopSharePublishMenuOpen,
     isDesktopViewMenuOpen,
     isLoginOpen,
     isMoveDialogOpen,
@@ -2165,9 +2192,17 @@ export default function App() {
   }
 
   function handleOpenSitePublishing() {
+    const isDesktopShare = isDesktopSharePreview && !isMobileLayout;
     if (authUser && cloudHydratedUserIdRef.current !== authUser.id) {
-      setCloudSyncError("便签尚未同步完成，请同步便签后再打开网站发布。");
+      const message = "便签尚未同步完成，请同步便签后再打开网站发布。";
+      setCloudSyncError(message);
+      if (isDesktopShare) {
+        setExportError(message);
+      }
       return;
+    }
+    if (isDesktopShare) {
+      setExportError("");
     }
     setIsAccountMenuOpen(false);
     setIsSettingsOpen(false);
@@ -2229,14 +2264,6 @@ export default function App() {
             </span>
           </div>
           {cloudSyncError ? <p role="alert">{cloudSyncError}</p> : null}
-          <button
-            type="button"
-            className="account-menu-item"
-            role="menuitem"
-            onClick={handleOpenSitePublishing}
-          >
-            发布为网站
-          </button>
           {authUser.role === "superadmin" ? (
             <a
               className="account-menu-item"
@@ -2638,6 +2665,7 @@ export default function App() {
                         aria-controls="desktop-share-copy-options"
                         aria-expanded={isDesktopShareCopyMenuOpen}
                         onClick={() => {
+                          setIsDesktopSharePublishMenuOpen(false);
                           setIsDesktopShareCopyMenuOpen((isOpen) => !isOpen);
                         }}
                       >
@@ -2678,18 +2706,60 @@ export default function App() {
                         </div>
                       ) : null}
                     </div>
-                    <div className="desktop-share-export-actions">
-                      {canPublishWechatDraft ? (
+                    {authUser ? (
+                      <div
+                        className="desktop-share-copy-menu desktop-share-publish-menu"
+                        ref={desktopSharePublishMenuRef}
+                      >
                         <button
                           type="button"
-                          disabled={wechatDraftState === "publishing"}
+                          className="desktop-share-copy-trigger"
+                          ref={desktopSharePublishTriggerRef}
+                          aria-controls="desktop-share-publish-options"
+                          aria-expanded={isDesktopSharePublishMenuOpen}
                           onClick={() => {
-                            void handlePublishWechatDraft();
+                            setIsDesktopShareCopyMenuOpen(false);
+                            setIsDesktopSharePublishMenuOpen(
+                              (isOpen) => !isOpen,
+                            );
                           }}
                         >
-                          {getWechatDraftButtonText(wechatDraftState)}
+                          发布为...
                         </button>
-                      ) : null}
+                        {isDesktopSharePublishMenuOpen ? (
+                          <div
+                            className="desktop-share-copy-options"
+                            id="desktop-share-publish-options"
+                            role="group"
+                            aria-label="发布为..."
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                // 先把焦点交回触发按钮，面板打开后关闭时才能回到它。
+                                desktopSharePublishTriggerRef.current?.focus();
+                                setIsDesktopSharePublishMenuOpen(false);
+                                handleOpenSitePublishing();
+                              }}
+                            >
+                              发布为网站
+                            </button>
+                            {canPublishWechatDraft ? (
+                              <button
+                                type="button"
+                                disabled={wechatDraftState === "publishing"}
+                                onClick={() => {
+                                  void handlePublishWechatDraft();
+                                }}
+                              >
+                                {getWechatDraftButtonText(wechatDraftState)}
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <div className="desktop-share-export-actions">
                       <button
                         type="button"
                         disabled={isArchiving}
@@ -2975,6 +3045,9 @@ export default function App() {
 
           <div className="category-empty-workspace" role="status">
             <p>{activeCategoryId === "trash" ? "回收站为空" : "这个分类还没有便签"}</p>
+            {!hasActiveCategoryNote && isDesktopSharePreview && !isMobileLayout && exportError ? (
+              <p className="export-status">{exportError}</p>
+            ) : null}
             {activeCategoryId !== "trash" ? (
               <>
                 <button type="button" onClick={handleCreateNote}>
