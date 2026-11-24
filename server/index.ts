@@ -1257,24 +1257,22 @@ ${fontFaceCss}
       }
 
       .sheet-frame {
+        --sheet-frame-offset: 0px;
         position: absolute;
         pointer-events: none;
         border: 1px solid var(--note-frame);
+        inset:
+          calc(16px * var(--note-scale) + var(--sheet-frame-offset))
+          calc(9.6667px * var(--note-scale) + var(--sheet-frame-offset))
+          calc(58px * var(--note-scale) + var(--sheet-frame-offset));
       }
 
       .sheet-frame-outer {
         --sheet-corner-size: calc(3px * var(--note-scale));
-        inset:
-          calc(16px * var(--note-scale))
-          calc(9.6667px * var(--note-scale))
-          calc(58px * var(--note-scale));
       }
 
       .sheet-frame-inner {
-        inset:
-          calc(18.6667px * var(--note-scale))
-          calc(11.6667px * var(--note-scale))
-          calc(59.6667px * var(--note-scale));
+        --sheet-frame-offset: calc(2px * var(--note-scale));
       }
 
       .sheet-corner {

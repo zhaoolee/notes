@@ -2,6 +2,12 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.20.6] - 2026-11-24
+
+### 修复
+
+- 统一锤子便签双层边框四边的线间距。预览、PNG 长图和离线归档使用相同的间距。
+
 ## [1.20.5] - 2026-11-24
 
 ### 变更
@@ -563,6 +569,7 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.20.6]: https://github.com/zhaoolee/notes/compare/1.20.5...1.20.6
 [1.20.5]: https://github.com/zhaoolee/notes/compare/1.20.4...1.20.5
 [1.20.4]: https://github.com/zhaoolee/notes/compare/1.20.3...1.20.4
 [1.20.3]: https://github.com/zhaoolee/notes/compare/1.20.2...1.20.3

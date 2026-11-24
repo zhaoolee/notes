@@ -876,7 +876,7 @@ test("移动端采用便签列表、编辑和预览三态工作区", () => {
     /<div className="sheet-frame sheet-frame-outer">[\s\S]*?<span className="sheet-corner sheet-corner-top-left" \s*\/>[\s\S]*?<span className="sheet-corner sheet-corner-top-right" \s*\/>[\s\S]*?<span className="sheet-corner sheet-corner-bottom-left" \s*\/>[\s\S]*?<span className="sheet-corner sheet-corner-bottom-right" \s*\/>[\s\S]*?<\/div>\s*<div className="sheet-frame sheet-frame-inner" \s*\/>/,
   );
   for (const pattern of [
-    /\.sheet-frame-outer\s*\{[^}]*--sheet-corner-size:\s*calc\(3px \* var\(--note-scale\)\);[^}]*inset:/,
+    /\.sheet-frame-outer\s*\{[^}]*--sheet-corner-size:\s*calc\(3px \* var\(--note-scale\)\);/,
     /\.sheet-corner\s*\{[^}]*width:\s*var\(--sheet-corner-size\);[^}]*height:\s*var\(--sheet-corner-size\);/,
     /\.sheet-corner-top-left\s*\{[^}]*left:\s*calc\(-1 \* var\(--sheet-corner-size\)\);[^}]*top:\s*calc\(-1 \* var\(--sheet-corner-size\)\);/,
     /\.sheet-corner-top-right\s*\{[^}]*right:\s*calc\(-1 \* var\(--sheet-corner-size\)\);[^}]*top:\s*calc\(-1 \* var\(--sheet-corner-size\)\);/,

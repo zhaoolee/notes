@@ -310,8 +310,8 @@ test("成品便签锁定官方短便签的正文、边框与署名比例", () =>
   assert.match(archiveSource, /buildNoteCardThemeCssVariables\(theme\)/);
 
   for (const pattern of [
-    /\.sheet-frame-outer\s*\{[^}]*calc\(16px \* var\(--note-scale\)\)[^}]*calc\(9\.6667px \* var\(--note-scale\)\)[^}]*calc\(58px \* var\(--note-scale\)\);/s,
-    /\.sheet-frame-inner\s*\{[^}]*calc\(18\.6667px \* var\(--note-scale\)\)[^}]*calc\(11\.6667px \* var\(--note-scale\)\)[^}]*calc\(59\.6667px \* var\(--note-scale\)\);/s,
+    /\.sheet-frame\s*\{[^}]*--sheet-frame-offset:\s*0px;[^}]*inset:[^}]*calc\(16px \* var\(--note-scale\) \+ var\(--sheet-frame-offset\)\)[^}]*calc\(9\.6667px \* var\(--note-scale\) \+ var\(--sheet-frame-offset\)\)[^}]*calc\(58px \* var\(--note-scale\) \+ var\(--sheet-frame-offset\)\);/s,
+    /\.sheet-frame-inner\s*\{[^}]*--sheet-frame-offset:\s*calc\(2px \* var\(--note-scale\)\);/s,
     /\.sheet-inner\s*\{[^}]*calc\(34px \* var\(--note-scale\)\)[^}]*calc\(16px \* var\(--note-scale\)\)[^}]*calc\(14px \* var\(--note-scale\)\);/s,
     /\.note-copy\s*\{[^}]*font-size:\s*calc\(0\.76rem \* var\(--note-scale\)\);[^}]*font-weight:\s*400;[^}]*line-height:\s*1\.8;[^}]*letter-spacing:\s*0\.03em;[^}]*-webkit-text-stroke:\s*calc\(0\.15px \* var\(--note-scale\)\)\s*color-mix\(in srgb, currentColor 62%, transparent\);/s,
     /\.note-copy blockquote\s*\{[^}]*margin:\s*calc\(8px \* var\(--note-scale\)\)\s*0\s*calc\(8px \* var\(--note-scale\)\);/s,
