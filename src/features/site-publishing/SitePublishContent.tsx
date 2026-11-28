@@ -93,11 +93,6 @@ export function SitePublishContent({
     setSearch("");
   }
 
-  function closePicker() {
-    setPickerCategoryId(null);
-    setSearch("");
-  }
-
   function submitCategory() {
     if (!canSubmitCategory) {
       return;
@@ -112,9 +107,9 @@ export function SitePublishContent({
     <div className="site-publish-content">
       <div className="site-publish-group-grid">
         {draft.categories.map((category) => {
-          const selections = draft.selections.filter(
-            (selection) => selection.categoryId === category.id,
-          );
+          const selections = draft.selections
+            .filter((selection) => selection.categoryId === category.id)
+            .reverse();
           const pickerOpen = pickerCategoryId === category.id;
 
           return (
@@ -132,10 +127,14 @@ export function SitePublishContent({
                   type="button"
                   className="site-publish-secondary site-publish-group-add"
                   aria-expanded={pickerOpen}
-                  aria-label={`为「${category.name}」添加便签`}
+                  aria-label={
+                    pickerOpen
+                      ? `收起便签列表：${category.name}`
+                      : `为「${category.name}」添加便签`
+                  }
                   onClick={() => togglePicker(category.id)}
                 >
-                  添加便签
+                  {pickerOpen ? "收起便签列表" : "添加便签"}
                 </button>
               </header>
 
@@ -174,30 +173,21 @@ export function SitePublishContent({
 
               {pickerOpen ? (
                 <div className="site-publish-group-picker">
-                  <div className="site-publish-note-tools">
-                    <label className="site-publish-search">
-                      <span className="site-publish-visually-hidden">
-                        搜索便签
-                      </span>
-                      <input
-                        type="search"
-                        value={search}
-                        placeholder="搜索标题或正文"
-                        aria-label={`搜索可添加到「${category.name}」的便签`}
-                        autoFocus
-                        onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                          setSearch(event.target.value)
-                        }
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="site-publish-secondary"
-                      onClick={closePicker}
-                    >
-                      完成
-                    </button>
-                  </div>
+                  <label className="site-publish-search">
+                    <span className="site-publish-visually-hidden">
+                      搜索便签
+                    </span>
+                    <input
+                      type="search"
+                      value={search}
+                      placeholder="搜索标题或正文"
+                      aria-label={`搜索可添加到「${category.name}」的便签`}
+                      autoFocus
+                      onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                        setSearch(event.target.value)
+                      }
+                    />
+                  </label>
 
                   {liveNotes.length === 0 ? (
                     <p className="site-publish-empty">

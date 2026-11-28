@@ -13,6 +13,7 @@ import sharp from "sharp";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const noOrigin = process.env.SITE_PUBLISH_NO_ORIGIN === "1";
+const githubUi = process.env.SITE_PUBLISH_GITHUB_UI === "1";
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "notes-site-browser-"));
 const execFileAsync = promisify(execFile);
 let browser;
@@ -31,10 +32,15 @@ async function stop(server) {
 async function freePort() { const server = createServer(); const port = await start(server); await stop(server); return port; }
 async function exists(filename) { try { await fs.access(filename); return true; } catch { return false; } }
 
+async function openSitePublishingFromAccount(targetPage) {
+  await targetPage.getByRole("button", { name: "账号：hugo-feedback" }).click();
+  await targetPage.getByRole("menuitem", { name: "发布为网站", exact: true }).click();
+}
+
 try {
   await fs.access(path.join(root, "dist/index.html"));
   let publicDirectory = "";
-  const mime = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".json": "application/json", ".xml": "application/xml", ".png": "image/png", ".jpg": "image/jpeg", ".woff2": "font/woff2" };
+  const mime = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".json": "application/json", ".xml": "application/xml", ".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".woff2": "font/woff2" };
   const missingResources = [];
   staticServer = createServer(async (request, response) => {
     try {
@@ -88,7 +94,7 @@ try {
   check(login.ok(), "isolated login works");
   const now = Date.now() - 1000;
   const makeNote = (id, markdown, deletedAt = null) => ({ id, markdown, createdAt: now, updatedAt: now, normalOrder: 0, pinnedAt: null, isStarred: false, folderId: null, deletedAt });
-  const notes = [makeNote("selected", "## 示例网站发布\n\n这是用于验证子路径部署的图文便签。\n\n![验证图片](/images/pixel.png)\n\n## 操作步骤\n\n- [x] 选择便签\n- [x] 生成网站\n\n```js\nconsole.log('hello');\n```"), makeNote("private", "## 不公开的便签\n\nPRIVATEONLYMARKER"), makeNote("trash", "## 回收站不可发布\n\nTRASHONLYMARKER", now)];
+  const notes = [makeNote("selected", "## 示例网站发布\n\n这是用于验证子路径部署的图文便签。\n\n图前文字![验证图片](/images/pixel.png)图后文字\n\n## 操作步骤\n\n- [x] 选择便签\n- [x] 生成网站\n\n```js\nconsole.log('hello');\n```"), makeNote("private", "## 不公开的便签\n\nPRIVATEONLYMARKER"), makeNote("trash", "## 回收站不可发布\n\nTRASHONLYMARKER", now)];
   const save = await context.request.put(`${baseURL}/api/workspace`, { data: { workspace: { activeNoteId: "selected", version: 1, folders: [], notes } } });
   check(save.ok(), "isolated workspace seeded");
   check((await context.request.post(`${baseURL}/api/site-publishing/export`, { data: {}, headers: { Origin: "https://outside.example.test" } })).status() === 403, "cross-origin export rejected");
@@ -98,11 +104,11 @@ try {
   page.on("pageerror", (error) => consoleErrors.push(error.message));
   await page.goto(baseURL);
   await page.getByRole("button", { name: "账号：hugo-feedback" }).click();
-  const menu = page.getByRole("menu");
-  const menuText = await menu.innerText();
-  check(menuText.indexOf("发布为网站") < menuText.indexOf("进入管理后台"), "menu entry is above admin");
+  const menuText = await page.getByRole("menu").innerText();
+  const publishingEntry = menuText.indexOf("发布为网站");
+  check(publishingEntry >= 0 && publishingEntry < menuText.indexOf("进入管理后台"), "publishing entry is above admin");
   await page.screenshot({ path: path.join(temporary, "menu.png") });
-  await page.getByRole("menuitem", { name: "发布为网站" }).click();
+  await page.getByRole("menuitem", { name: "发布为网站", exact: true }).click();
   const panel = page.getByRole("dialog", { name: "生成网站" });
   await panel.waitFor();
   await panel.getByText("已保存到账号", { exact: true }).waitFor();
@@ -120,13 +126,17 @@ try {
   check(await advanced.locator("summary").evaluate((element) => document.activeElement === element), "keyboard skips collapsed advanced fields when wrapping backwards");
   await page.keyboard.press("Tab");
   check(await panel.getByRole("button", { name: "关闭网站发布面板" }).evaluate((element) => document.activeElement === element), "keyboard focus stays inside the collapsed panel");
-  check(await panel.locator('input[type="radio"]').count() === 0, "single theme renders no style radio");
+  check(await panel.locator(".site-publish-theme").isVisible() === false, "advanced settings hides the style picker initially");
   check(!(await panel.innerText()).includes("返回编辑") && !(await panel.innerText()).includes("已选便签（"), "no back-to-editor or legacy selected table");
   check(!(await panel.innerText()).includes("这些信息只写入") && !(await panel.innerText()).includes("最多 200"), "redundant guidance and artificial count limit absent");
   await page.screenshot({ path: path.join(temporary, "panel-default.png") });
 
   await advanced.locator("summary").click();
   check(await advanced.evaluate((element) => element.open) === true, "advanced settings expands on demand");
+  const rootInput = panel.getByRole("textbox", { name: /^部署子路径/ });
+  check(await rootInput.inputValue() === "/notes/", "fresh draft defaults to /notes/");
+  check((await panel.locator(".site-publish-address").innerText()).includes("部署路径：/notes/"), "fresh default previews /notes/ without a domain");
+  await page.screenshot({ path: path.join(temporary, "panel-default-basepath.png") });
   const logoPreview = panel.locator(".site-publish-logo img");
   const logoInput = panel.locator('input[type="file"]');
   check(await logoPreview.getAttribute("src") === "/smartisan/web/smartisan_hammer_footer.png", "default hammer logo preview");
@@ -156,7 +166,16 @@ try {
   if (!noOrigin) {
     await domainInput.fill(`http://127.0.0.1:${staticPort}`);
   }
-  const rootInput = panel.getByRole("textbox", { name: /^部署子路径/ });
+  await rootInput.fill("/nested/blog");
+  const normalizedAddressText = await panel.locator(".site-publish-address").innerText();
+  if (noOrigin) {
+    check(normalizedAddressText.includes("部署路径：/nested/blog/"), "basePath normalization adds the trailing slash");
+  } else {
+    check(normalizedAddressText.includes(`http://127.0.0.1:${staticPort}/nested/blog/`), "normalized basePath previews under the domain");
+  }
+  await rootInput.fill("/blog/");
+  const replacedAddressText = await panel.locator(".site-publish-address").innerText();
+  check(!replacedAddressText.includes("/notes/blog/") && replacedAddressText.includes("/blog/"), "custom basePath replaces the default /notes/");
   await rootInput.fill("/../invalid");
   check(await panel.getByText(/basePath 只能包含/).count() > 0, "invalid basePath explained");
   await rootInput.fill("/nested/blog/");
@@ -193,39 +212,48 @@ try {
   const lifeGroup = panel.getByRole("article", { name: "生活分类" });
   check(await lifeGroup.getByRole("button", { name: "为「生活」添加便签" }).isVisible(), "new group offers its own add entry");
 
-  await guidesGroup.getByRole("button", { name: "为「做法」添加便签" }).click();
+  const guidesToggle = guidesGroup.getByRole("button", { name: "为「做法」添加便签" });
+  await guidesToggle.click();
   const guidesPicker = guidesGroup.locator(".site-publish-group-picker");
   check(await panel.locator(".site-publish-group-picker").count() === 1, "only the operated group expands its picker");
+  const guidesCollapse = guidesGroup.getByRole("button", { name: "收起便签列表：做法" });
+  check(await guidesCollapse.innerText() === "收起便签列表", "open picker header shows 收起便签列表");
+  check(await guidesCollapse.getAttribute("aria-expanded") === "true", "open picker header reports expanded state");
+  check(await guidesPicker.getByRole("button", { name: "完成", exact: true }).count() === 0, "picker has no redundant 完成 button");
   check(await guidesPicker.getByRole("searchbox", { name: /搜索可添加到「做法」的便签/ }).isVisible(), "group picker has its own search");
   check((await guidesPicker.innerText()).includes("回收站不可发布") === false, "trash absent from picker");
   check((await guidesPicker.innerText()).includes("不公开的便签"), "all non-trash notes are available in the picker");
   check(await panel.locator(".site-publish-selected-list").count() === 0, "no separate selected table is rendered");
   await guidesPicker.getByRole("checkbox", { name: /示例网站发布/ }).check();
-  await guidesPicker.getByRole("button", { name: "完成", exact: true }).click();
-  check(await panel.locator(".site-publish-group-picker").count() === 0, "done closes the picker");
+  await guidesCollapse.click();
+  check(await panel.locator(".site-publish-group-picker").count() === 0, "category header closes the picker");
+  check(await guidesToggle.innerText() === "添加便签", "collapsed category header restores the add action label");
+  check(await guidesToggle.getAttribute("aria-expanded") === "false", "collapsed category header reports collapsed state");
   check(await guidesGroup.locator(".site-publish-group-note").count() === 1, "selected note appears inside its category group");
   check(await guidesGroup.getByRole("button", { name: "从「做法」移除示例网站发布" }).isVisible(), "group note exposes an accessible remove action");
 
-  await lifeGroup.getByRole("button", { name: "为「生活」添加便签" }).click();
+  const lifeToggle = lifeGroup.getByRole("button", { name: "为「生活」添加便签" });
+  await lifeToggle.click();
   const lifePicker = lifeGroup.locator(".site-publish-group-picker");
+  const lifeCollapse = lifeGroup.getByRole("button", { name: "收起便签列表：生活" });
   const lifeCheckbox = lifePicker.getByRole("checkbox", { name: /示例网站发布/ });
   check(await lifeCheckbox.isChecked() === false, "note assigned to another group is unchecked here");
   check((await lifePicker.innerText()).includes("原分类：做法"), "picker badges the original category");
   await lifeCheckbox.check();
-  await lifePicker.getByRole("button", { name: "完成", exact: true }).click();
+  await lifeCollapse.click();
   check(await guidesGroup.locator(".site-publish-group-note").count() === 0, "moving a note clears the previous group");
   check(await lifeGroup.locator(".site-publish-group-note").count() === 1, "moved note appears in the target group");
   await lifeGroup.getByRole("button", { name: "从「生活」移除示例网站发布" }).click();
   check(await lifeGroup.locator(".site-publish-group-note").count() === 0, "small remove action empties the group");
   check(await panel.getByRole("button", { name: "生成网站 ZIP" }).isDisabled(), "export disabled after removing the only note");
-  await lifeGroup.getByRole("button", { name: "为「生活」添加便签" }).click();
+  await lifeToggle.click();
   await lifeGroup.getByRole("checkbox", { name: /示例网站发布/ }).check();
-  await lifeGroup.getByRole("button", { name: "完成", exact: true }).click();
+  await lifeCollapse.click();
   check(await lifeGroup.locator(".site-publish-group-note").count() === 1, "note can be added back to the target group");
 
   await panel.getByRole("button", { name: "移除分类：生活" }).click();
   check(await panel.getByRole("alert").filter({ hasText: /还有 1 张已选便签/ }).isVisible(), "used category cannot disappear");
-  check(await panel.getByText("网站样式", { exact: true }).count() === 0, "single theme hides the site style picker");
+  check(await panel.getByRole("radio", { name: "经典便签博客" }).isChecked() && await panel.getByRole("radio", { name: "简书2016" }).isVisible(), "publishing exposes both default styles");
   const groupGridLayout = await panel.locator(".site-publish-group-grid").evaluate((grid) => {
     const boxes = Array.from(grid.children).map((element) => element.getBoundingClientRect());
     const firstTop = boxes[0].top;
@@ -298,8 +326,7 @@ try {
   await panel.getByRole("button", { name: "关闭网站发布面板" }).click();
   await panel.waitFor({ state: "detached" });
   check(await panel.count() === 0, "close button dismisses panel");
-  await page.getByRole("button", { name: "账号：hugo-feedback" }).click();
-  await page.getByRole("menuitem", { name: "发布为网站" }).click();
+  await openSitePublishingFromAccount(page);
   await panel.getByText("已保存到账号", { exact: true }).waitFor();
   check(await panel.locator("details.site-publish-advanced").evaluate((element) => element.open) === false, "reopened panel collapses advanced settings");
   check(await panel.locator(".site-publish-group-note").count() === 1, "selected note survives reopening");
@@ -314,8 +341,7 @@ try {
   await panel.waitFor({state:"detached"});
   check(await panel.count() === 0, "Escape closes panel");
   await page.reload();
-  await page.getByRole("button", { name: "账号：hugo-feedback" }).click();
-  await page.getByRole("menuitem", { name: "发布为网站" }).click();
+  await openSitePublishingFromAccount(page);
   await panel.waitFor();
   await panel.getByText("已保存到账号", { exact: true }).waitFor();
   check(await panel.locator("details.site-publish-advanced").evaluate((element) => element.open) === false, "reloaded panel still defaults to collapsed advanced settings");
@@ -329,8 +355,7 @@ try {
   check(otherLogin.ok(), "second independent browser signs in to same account");
   const otherPage = await otherContext.newPage();
   await otherPage.goto(baseURL);
-  await otherPage.getByRole("button", { name: "账号：hugo-feedback" }).click();
-  await otherPage.getByRole("menuitem", { name: "发布为网站" }).click();
+  await openSitePublishingFromAccount(otherPage);
   const otherPanel = otherPage.getByRole("dialog", { name: "生成网站" });
   await otherPanel.getByText("已保存到账号", { exact: true }).waitFor();
   check(await otherPanel.locator("details.site-publish-advanced").evaluate((element) => element.open) === false, "fresh browser also starts with collapsed advanced settings");
@@ -351,23 +376,525 @@ try {
   await panel.getByRole("textbox", { name: /^网站标题/ }).press("Escape");
   const workspace = await context.request.get(`${baseURL}/api/workspace`);
   check(JSON.stringify((await workspace.json()).workspace.notes) === JSON.stringify(notes), "export leaves notes and folders unchanged");
-  await page.goto(`http://127.0.0.1:${staticPort}/nested/blog/`);
+  const publishedHomeURL = `http://127.0.0.1:${staticPort}/nested/blog/`;
+  const appearanceToggle = (target = page) => target.locator('summary[aria-label="外观设置"]:visible');
+  async function openAppearance(target = page) {
+    const toggle = appearanceToggle(target);
+    await toggle.waitFor();
+    if (!await toggle.evaluate((element) => element.parentElement.open)) await toggle.click();
+  }
+  const siteStyle = page.getByRole("combobox", { name: "网站样式" });
+  const themeSelect = page.getByRole("combobox", { name: "网站主题" });
+  const colorScheme = () => page.locator("html").evaluate((element) => getComputedStyle(element).colorScheme);
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto(publishedHomeURL);
+  await appearanceToggle().waitFor();
+  check(await siteStyle.count() === 0 && await themeSelect.count() === 0, "both appearance controls start hidden behind the settings icon");
+  await appearanceToggle().press("Enter");
+  check(await siteStyle.isVisible() && await themeSelect.isVisible(), "the settings icon opens both controls with the keyboard");
+  await themeSelect.press("Escape");
+  check(await siteStyle.count() === 0 && await appearanceToggle().evaluate((element) => document.activeElement === element), "Escape closes settings and restores focus");
+  await openAppearance();
+  await page.locator(".article-header h1:visible").click();
+  check(await siteStyle.count() === 0, "clicking outside closes appearance settings");
+  await openAppearance();
+  check(await siteStyle.inputValue() === "smartisan-blog", "fresh visitors start on the published default layout");
+  check(await page.locator(".sidebar").isVisible() && !await page.locator(".journal-header").isVisible(), "classic layout exposes only its own navigation");
+  check(await page.locator(".home-description:visible").count() === 1, "classic home shows a single description");
+  check(await themeSelect.inputValue() === "system" && await colorScheme() === "light", "published site defaults to the visitor's light system theme");
+  await page.emulateMedia({ colorScheme: "dark" });
+  check(await colorScheme() === "dark", "published system theme updates without a reload");
+  await themeSelect.selectOption("light");
+  check(await colorScheme() === "light", "published light theme overrides a dark system");
+  await themeSelect.selectOption("dark");
+  await page.emulateMedia({ colorScheme: "light" });
   await page.locator(".home-post-list a").click();
+  await openAppearance();
+  check(await themeSelect.inputValue() === "dark" && await colorScheme() === "dark", "published dark theme persists across navigation and overrides a light system");
+  check(await page.locator(".reader-sheet").evaluate((element) => getComputedStyle(element).backgroundColor) === "rgb(28, 26, 28)", "published reader uses the editor's dark paper color");
+  check(await page.locator("body").evaluate((element) => getComputedStyle(element).backgroundImage.includes("bg-dark.webp")), "published reader uses the editor's dark texture");
+  check(await page.locator(".article-content pre code").evaluate((element) => getComputedStyle(element).color) === "rgb(197, 195, 197)", "published code uses the editor's dark code text color");
   await page.evaluate(() => document.fonts.ready);
   check(await page.locator("article img").evaluateAll((images) => images.every((image) => image.complete && image.naturalWidth > 0)), "published images load at subpath");
+  check(await page.getByRole("img", { name: "验证图片", exact: true }).evaluate((image) => {
+    const before = image.previousSibling;
+    const after = image.nextSibling;
+    if (before?.textContent !== "图前文字" || after?.textContent !== "图后文字") return false;
+
+    const range = document.createRange();
+    range.selectNodeContents(before);
+    const beforeBottom = range.getBoundingClientRect().bottom;
+    range.selectNodeContents(after);
+    const afterTop = range.getBoundingClientRect().top;
+    const { top, bottom } = image.getBoundingClientRect();
+    return beforeBottom <= top && afterTop >= bottom;
+  }), "published article text sits above and below the image");
   check(await page.locator(".site-brand img").evaluate((image) => image.complete && image.naturalWidth === 256 && image.naturalHeight === 256), "published brand logo loads generated 256x256 image");
   await page.screenshot({ path: path.join(temporary, "website-desktop.png") });
+  const articleWithHash = new URL("?source=feedback#article-top", publishedArticleURL).href;
+  await page.goto(articleWithHash);
+  await openAppearance();
+  await siteStyle.selectOption("coastal-journal");
+  check(page.url() === articleWithHash, "changing layouts keeps the article URL, query string and anchor");
+  check(await siteStyle.count() === 0 && await appearanceToggle().evaluate((element) => document.activeElement === element), "changing layouts closes settings and focuses the destination icon");
+  await openAppearance();
+  check(await page.locator(".journal-header").isVisible() && !await page.locator(".sidebar").isVisible(), "journal layout exposes only its own navigation");
+  check(await themeSelect.inputValue() === "dark" && await colorScheme() === "dark", "layout switching preserves the visitor's color mode");
+  check(await page.locator("#article-top").count() === 1 && await page.getByRole("button", { name: "复制代码" }).count() > 0, "layout switching preserves the article and code controls");
+  await page.reload();
+  await openAppearance();
+  check(await siteStyle.inputValue() === "coastal-journal", "journal preference survives reload");
+  await page.goto(publishedHomeURL);
+  check(await page.locator(".journal-cover").isVisible() && await page.locator(".journal-feed").isVisible() && !await page.locator(".home-post-list").isVisible(), "journal home displays its cover and feed at the original URL");
+  check(await page.locator(".home-description:visible").count() === 1, "journal home shows a single description");
+  check(await page.locator(".journal-cover h1").count() === 0 && await page.locator(".journal-brand").isVisible(), "journal site name appears in the header without a duplicate cover title");
+  await page.screenshot({ path: path.join(temporary, "website-journal-desktop.png") });
+  await page.goto(new URL("../", publishedArticleURL).href);
+  check(await colorScheme() === "dark", "published category pages use the same saved theme");
+  await openAppearance();
+  check(await siteStyle.inputValue() === "coastal-journal" && await page.locator(".journal-topics [aria-current=page]").isVisible(), "published category pages use the saved layout");
   await page.goto(`http://127.0.0.1:${staticPort}/nested/blog/search/?q=图文`);
   await page.locator("#search-results a").first().waitFor();
   check((await page.locator("#search-results").innerText()).includes("示例网站发布"), "published static search works");
+  check(await colorScheme() === "dark", "published search uses the same saved theme");
+  const searchURL = page.url();
+  await openAppearance();
+  await siteStyle.selectOption("smartisan-blog");
+  check(page.url() === searchURL && await page.locator("#search-results a").first().isVisible(), "switching layouts keeps the search query and results");
+  await openAppearance();
+  await themeSelect.selectOption("system");
+  check(await colorScheme() === "light", "returning to the system theme clears the manual override");
+  await page.emulateMedia({ colorScheme: "dark" });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(publishedArticleURL);
+  check(await colorScheme() === "dark", "published mobile article follows the system theme");
   check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "published mobile page has no horizontal overflow");
   await page.screenshot({ path: path.join(temporary, "website-mobile.png") });
+  await page.keyboard.press("Tab");
+  check(await page.getByRole("checkbox", { name: "展开导航" }).evaluate((element) => document.activeElement === element), "classic mobile menu is reachable by keyboard");
+  await page.keyboard.press("Space");
+  await openAppearance();
+  await themeSelect.selectOption("light");
+  check(await colorScheme() === "light", "published mobile navigation can switch the theme");
+  const mobileArticleURL = page.url();
+  await siteStyle.selectOption("coastal-journal");
+  check(page.url() === mobileArticleURL && await page.locator("html").getAttribute("data-site-style") === "coastal-journal", "classic mobile menu can switch to the journal layout in place");
+  await page.setViewportSize({ width: 320, height: 740 });
+  await openAppearance();
+  const popup = await siteStyle.locator("xpath=ancestor::div[contains(@class, 'site-appearance-panel')]").boundingBox();
+  check(popup && popup.x >= 0 && popup.x + popup.width <= 320 && await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "appearance settings fit the narrow journal viewport");
+  await page.screenshot({ path: path.join(temporary, "website-journal-mobile.png") });
+  await siteStyle.selectOption("smartisan-blog");
+  check(await appearanceToggle().evaluate((element) => document.activeElement === element), "classic mobile menu opens and the settings icon receives focus on return");
+  await page.reload();
+  check(await colorScheme() === "light", "published mobile light theme persists on reload");
+  const shared = await browser.newPage({ colorScheme: "light" });
+  await shared.goto(publishedHomeURL + "?style=jianshu2016&theme=auto&source=shared");
+  await shared.locator(".journal-topics").getByRole("link", { name: "生活" }).click();
+  const categoryURL = new URL(shared.url());
+  check(categoryURL.pathname === new URL("../", publishedArticleURL).pathname && categoryURL.search === "?style=jianshu2016&theme=auto", "category navigation carries only the appearance parameters");
+  await shared.locator(".journal-feed article h2 a").first().click();
+  check(shared.url() === publishedArticleURL + "?style=jianshu2016&theme=auto", "opening an article preserves the shared journal layout and color mode");
+  check(await shared.locator("html").getAttribute("data-site-style") === "coastal-journal", "the article stays in the journal layout");
+  const headerSearch = shared.locator(".journal-search input[type=search]");
+  await headerSearch.fill("图文");
+  await headerSearch.press("Enter");
+  await shared.waitForURL((url) => url.pathname.endsWith("/search/"));
+  const searchParams = new URL(shared.url()).searchParams;
+  check(searchParams.get("q") === "图文" && searchParams.get("style") === "jianshu2016" && searchParams.get("theme") === "auto", "submitting site search keeps the appearance parameters");
+  await shared.locator("#search-results a").first().click();
+  check(shared.url() === publishedArticleURL + "?style=jianshu2016&theme=auto", "search results retain appearance when opening the article");
+  await shared.goto(publishedHomeURL);
+  check(await shared.locator("html").getAttribute("data-site-style") === "smartisan-blog", "navigation with shared appearance leaves the saved default available");
+  const sharedURL = new URL(publishedArticleURL);
+  sharedURL.search = "?style=jianshu2016&theme=dark&source=shared";
+  sharedURL.hash = "article-top";
+  await shared.goto(sharedURL.href);
+  const sharedStyle = shared.getByRole("combobox", { name: "网站样式" });
+  const sharedTheme = shared.getByRole("combobox", { name: "网站主题" });
+  await openAppearance(shared);
+  check(await sharedStyle.inputValue() === "coastal-journal" && await sharedTheme.inputValue() === "dark", "valid URL parameters override the default layout and system color");
+  check(await shared.evaluate(() => localStorage.getItem("notes-site-style:/nested/blog/") === null && localStorage.getItem("notes-site-color-mode:/nested/blog/") === null), "opening a shared URL leaves saved preferences alone");
+  await sharedStyle.selectOption("smartisan-blog");
+  await openAppearance(shared);
+  await sharedTheme.selectOption("light");
+  sharedURL.searchParams.set("style", "smartisan-blog");
+  sharedURL.searchParams.set("theme", "light");
+  check(shared.url() === sharedURL.href, "manual changes update existing appearance parameters while preserving the rest of the URL");
+  await shared.reload();
+  await openAppearance(shared);
+  check(await sharedStyle.inputValue() === "smartisan-blog" && await sharedTheme.inputValue() === "light", "updated URL parameters survive reload");
+  sharedURL.search = "?style=invalid&theme=invalid";
+  await shared.goto(sharedURL.href);
+  await openAppearance(shared);
+  check(await sharedStyle.inputValue() === "smartisan-blog" && await sharedTheme.inputValue() === "light", "invalid URL parameters fall back to saved preferences");
+  sharedURL.search = "?style=coastal-journal&theme=auto&source=legacy";
+  await shared.goto(sharedURL.href);
+  await openAppearance(shared);
+  sharedURL.searchParams.set("style", "jianshu2016");
+  check(shared.url() === sharedURL.href && await sharedStyle.inputValue() === "coastal-journal", "legacy journal links open the same layout and use its public URL name");
+  check(await sharedTheme.inputValue() === "system", "theme=auto overrides saved color with the system preference");
+  await sharedStyle.selectOption("smartisan-blog");
+  await openAppearance(shared);
+  await sharedStyle.selectOption("coastal-journal");
+  check(shared.url() === sharedURL.href, "switching back to the journal uses its public URL name");
+  await shared.close();
+  const noScript = await browser.newPage({ javaScriptEnabled: false, colorScheme: "dark" });
+  await noScript.goto(publishedHomeURL);
+  check(await noScript.locator("html").evaluate((element) => getComputedStyle(element).colorScheme) === "dark", "published site follows the system theme with JavaScript disabled");
+  check(await appearanceToggle(noScript).count() === 0 && await noScript.getByRole("combobox", { name: "网站主题" }).count() === 0, "published site hides the unavailable theme control with JavaScript disabled");
+  check(await noScript.getByRole("combobox", { name: "网站样式" }).count() === 0 && await noScript.locator(".home-post-list").isVisible(), "JavaScript-disabled visitors can read the published default layout");
+  await noScript.close();
+  const noStorage = await browser.newPage();
+  noStorage.on("pageerror", (error) => consoleErrors.push(error.message));
+  await noStorage.addInitScript(() => {
+    for (const key of ["localStorage", "sessionStorage"]) {
+      Object.defineProperty(window, key, { get() { throw new DOMException("Storage blocked", "SecurityError"); } });
+    }
+  });
+  await noStorage.goto(publishedArticleURL);
+  const noStorageStyle = noStorage.getByRole("combobox", { name: "网站样式" });
+  await openAppearance(noStorage);
+  await noStorageStyle.selectOption("coastal-journal");
+  await openAppearance(noStorage);
+  check(await noStorageStyle.inputValue() === "coastal-journal" && await noStorage.getByRole("button", { name: "复制代码" }).count() > 0, "layout and article controls work when browser storage is blocked");
+  await noStorage.close();
   check(missingResources.length === 0, `all generated browser resources load: ${missingResources.join(", ")}`);
   check(consoleErrors.length === 0, `no browser errors: ${consoleErrors.join(", ")}`);
-  await fs.writeFile(path.join(temporary, "report.json"), JSON.stringify({ success: true, noOrigin, assertions, screenshots: ["menu.png", "panel-desktop.png", "panel-mobile.png", "website-desktop.png", "website-mobile.png"] }, null, 2));
-  console.log(JSON.stringify({ success: true, noOrigin, assertions: assertions.length, artifacts: temporary }, null, 2));
+
+  const screenshots = ["menu.png", "panel-default-basepath.png", "panel-desktop.png", "panel-mobile.png", "website-desktop.png", "website-mobile.png", "website-journal-desktop.png", "website-journal-mobile.png"];
+  let simulatedProviderReport = null;
+  if (githubUi) {
+    // 这一段只验证前端 UI 状态机。所有 GitHub 发布接口都在第一个浏览器上下文里
+    // 由内存响应拦截，第二个上下文保持未配置；不会创建真实安装、仓库或提交。
+    simulatedProviderReport = { provider: "in-memory Playwright route", liveGitHub: false, mode: "simulated" };
+    const prefix = "simulated GitHub provider (not live github.com)";
+    const consoleErrorsBeforeGithubUi = consoleErrors.length;
+    const simulatedRepository = { id: 42, installationId: 77, owner: "octo", name: "notes-site", fullName: "octo/notes-site", defaultBranch: "main" };
+    let acknowledgeFirstPublish;
+    const firstPublishAcknowledgement = new Promise((resolve) => { acknowledgeFirstPublish = resolve; });
+    const simulated = {
+      repository: null,
+      job: null,
+      nextPublishPhase: "queued",
+      nextPublishMessage: "",
+      calls: { status: 0, repositories: 0, repository: 0, publish: 0, unhandled: 0 },
+      repositoryBodies: [],
+      publishBodies: [],
+      publishTargets: [],
+    };
+    const simulatedJob = (phase, overrides = {}) => ({ id: "ui-feedback-job", phase, message: "", startedAt: now, updatedAt: Date.now(), ...overrides });
+    const simulatedStatus = () => ({ enabled: true, connected: true, localSiteEnabled: true, githubLogin: "ui-feedback", repository: simulated.repository, job: simulated.job });
+    const realGitHubRequests = [];
+    page.on("request", (request) => {
+      const hostname = new URL(request.url()).hostname;
+      if (hostname === "github.com" || hostname.endsWith(".github.com")) realGitHubRequests.push(request.url());
+    });
+    await context.route("**/api/site-publishing/github/**", async (route) => {
+      const request = route.request();
+      const pathname = new URL(request.url()).pathname;
+      const method = request.method();
+      const respond = (status, payload) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(payload) });
+      const readBody = () => { try { return JSON.parse(request.postData() ?? "{}"); } catch { return null; } };
+      if (method === "GET" && pathname.endsWith("/api/site-publishing/github/status")) { simulated.calls.status += 1; return respond(200, simulatedStatus()); }
+      if (method === "GET" && pathname.endsWith("/api/site-publishing/github/repositories")) { simulated.calls.repositories += 1; return respond(200, { repositories: [simulatedRepository] }); }
+      if (method === "PUT" && pathname.endsWith("/api/site-publishing/github/repository")) {
+        simulated.calls.repository += 1;
+        const body = readBody();
+        simulated.repositoryBodies.push(body);
+        if (!body || body.repositoryId !== simulatedRepository.id || body.installationId !== simulatedRepository.installationId) return respond(400, { error: "simulated provider rejected an unverified repository" });
+        simulated.repository = simulatedRepository;
+        return respond(200, simulatedStatus());
+      }
+      if (method === "POST" && pathname.endsWith("/api/site-publishing/github/publish")) {
+        simulated.calls.publish += 1;
+        const body = readBody();
+        simulated.publishBodies.push(body);
+        simulated.publishTargets.push(request.headers()["x-notes-github-repository-id"]);
+        if (simulated.calls.publish === 1) await firstPublishAcknowledgement;
+        const phase = simulated.nextPublishPhase;
+        simulated.nextPublishPhase = "queued";
+        simulated.job = simulatedJob(phase, phase === "failed" ? { message: simulated.nextPublishMessage } : {});
+        return respond(202, { job: simulated.job });
+      }
+      // 授权/回调/断开等接口一律拒绝，避免流程落到真实 GitHub。
+      simulated.calls.unhandled += 1;
+      return respond(501, { error: `simulated provider has no handler for ${method} ${pathname}` });
+    });
+    const checkSimulatedSelection = (body, label) => {
+      check(Boolean(body) && typeof body === "object", `${prefix}: ${label} sends a JSON export request`);
+      check(Array.isArray(body?.notes) && body.notes.length === 1 && body.notes[0]?.id === "selected", `${prefix}: ${label} contains exactly the selected note`);
+      check(Array.isArray(body?.notes) && body.notes.every((note) => !/PRIVATEONLYMARKER|TRASHONLYMARKER/.test(note.markdown)), `${prefix}: ${label} excludes unselected note bodies`);
+      check(body?.settings?.basePath === "/nested/blog/", `${prefix}: ${label} keeps the saved deployment basePath`);
+      check(Array.isArray(body?.categories) && body.categories.some((category) => category.slug === "life"), `${prefix}: ${label} keeps the custom category`);
+    };
+    const openPublishingPanel = async () => {
+      await openSitePublishingFromAccount(page);
+      await panel.waitFor();
+      await panel.getByText("已保存到账号", { exact: true }).waitFor();
+    };
+
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(baseURL);
+    await openPublishingPanel();
+    const githubDetails = panel.locator("details.site-publish-github");
+    const githubSummary = githubDetails.locator("summary");
+    await panel.locator('[data-site-publish-github="connected"]').waitFor();
+    check(await githubDetails.evaluate((element) => element.open) === false, `${prefix}: GitHub Pages card starts collapsed`);
+    check(await panel.getByText("已连接 GitHub：@ui-feedback", { exact: true }).isVisible() === false, `${prefix}: connected GitHub settings stay hidden while collapsed`);
+    check(await githubSummary.isVisible(), `${prefix}: collapsed GitHub Pages summary stays visible`);
+    const footer = panel.locator(".site-publish-footer");
+    const publishButton = footer.getByRole("button", { name: "发布到网站" });
+    const zipButton = footer.getByRole("button", { name: "生成网站 ZIP" });
+    check(await publishButton.isVisible(), `${prefix}: footer publish action stays visible while the GitHub card is collapsed`);
+    check(await publishButton.isDisabled(), `${prefix}: footer publish action waits for a repository`);
+    await githubDetails.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(temporary, "github-collapsed-desktop.png") });
+    screenshots.push("github-collapsed-desktop.png");
+
+    await githubSummary.click();
+    check(await githubDetails.evaluate((element) => element.open) === true, `${prefix}: GitHub Pages card expands on demand`);
+    check(await panel.getByText("已连接 GitHub：@ui-feedback", { exact: true }).isVisible(), `${prefix}: connected feedback account is visibly simulated`);
+    check(await panel.locator('[data-local-site-enabled="true"]').isVisible(), `${prefix}: configured account explains the simulated local /notes/ mirror`);
+    const repositorySelect = panel.locator(".site-publish-github select");
+    await repositorySelect.waitFor();
+    await panel.locator('select option[value="42"]').waitFor({ state: "attached" });
+    check(await repositorySelect.inputValue() === "", `${prefix}: no repository is bound initially`);
+    await repositorySelect.selectOption({ label: "octo/notes-site" });
+    await panel.getByText("已选择发布仓库：octo/notes-site", { exact: true }).waitFor();
+    check(simulated.calls.repository === 1, `${prefix}: binding repository sends one PUT`);
+    check(JSON.stringify(simulated.repositoryBodies[0]) === JSON.stringify({ repositoryId: 42, installationId: 77 }), `${prefix}: binding uses the verified repository and installation ids`);
+    check(await repositorySelect.inputValue() === "42", `${prefix}: selected repository stays bound in the dropdown`);
+
+    await githubSummary.press("Enter");
+    check(await githubDetails.evaluate((element) => element.open) === false, `${prefix}: keyboard collapses the GitHub Pages card`);
+    check(await repositorySelect.evaluate((element) => element.value) === "42", `${prefix}: collapsed card keeps the selected repository`);
+    await githubSummary.press("Space");
+    check(await githubDetails.evaluate((element) => element.open) === true, `${prefix}: keyboard expands the GitHub Pages card`);
+    check(await repositorySelect.inputValue() === "42", `${prefix}: expanded card keeps the selected repository`);
+
+    check(await publishButton.count() === 1, `${prefix}: footer renders exactly one publish action`);
+    check(await panel.locator(".site-publish-github").getByRole("button", { name: "发布到网站" }).count() === 0, `${prefix}: repository card no longer holds the publish action`);
+    const footerOrder = await footer.evaluate((element) => {
+      const buttons = Array.from(element.querySelectorAll("button"));
+      const publish = buttons.find((button) => button.textContent?.trim() === "发布到网站");
+      const zip = buttons.find((button) => button.textContent?.trim() === "生成网站 ZIP");
+      return Boolean(publish && zip && (publish.compareDocumentPosition(zip) & Node.DOCUMENT_POSITION_FOLLOWING));
+    });
+    check(footerOrder, `${prefix}: publish action is ordered before ZIP in the footer`);
+    check(await publishButton.isEnabled(), `${prefix}: publish action enabled after repository selection`);
+    check(await zipButton.isVisible(), `${prefix}: ZIP action stays beside the publish action`);
+    await panel.locator("details.site-publish-advanced summary").click();
+    const bodyScrolled = await panel.locator(".site-publish-body").evaluate((element) => { element.scrollTop = element.scrollHeight; return element.scrollTop; });
+    check(bodyScrolled > 0, `${prefix}: panel body scrolls independently of the footer`);
+    const desktopFooter = await footer.evaluate((element) => {
+      const box = (button) => { const rect = button.getBoundingClientRect(); return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom }; };
+      const buttons = Array.from(element.querySelectorAll("button"));
+      const publish = buttons.find((button) => button.textContent?.trim() === "发布到网站");
+      const zip = buttons.find((button) => button.textContent?.trim() === "生成网站 ZIP");
+      return { publish: box(publish), zip: box(zip), viewport: { width: window.innerWidth, height: window.innerHeight }, overflows: element.scrollWidth > element.clientWidth + 1 };
+    });
+    const desktopSameRow = Math.abs((desktopFooter.publish.top + desktopFooter.publish.bottom) / 2 - (desktopFooter.zip.top + desktopFooter.zip.bottom) / 2) <= 2;
+    check(desktopFooter.publish.right <= desktopFooter.zip.left && desktopSameRow, `${prefix}: desktop footer keeps publish beside ZIP`);
+    check(desktopFooter.publish.top >= 0 && desktopFooter.publish.left >= 0 && desktopFooter.zip.bottom <= desktopFooter.viewport.height && desktopFooter.zip.right <= desktopFooter.viewport.width, `${prefix}: desktop footer actions stay visible after scrolling the body`);
+    check(!desktopFooter.overflows, `${prefix}: desktop footer actions fit without horizontal overflow`);
+    await page.screenshot({ path: path.join(temporary, "footer-desktop.png") });
+    screenshots.push("footer-desktop.png");
+    await page.setViewportSize({ width: 390, height: 844 });
+    const mobileFooter = await footer.evaluate((element) => {
+      const box = (button) => { const rect = button.getBoundingClientRect(); return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, visible: rect.width > 0 && rect.height > 0 }; };
+      const buttons = Array.from(element.querySelectorAll("button"));
+      const publish = buttons.find((button) => button.textContent?.trim() === "发布到网站");
+      const zip = buttons.find((button) => button.textContent?.trim() === "生成网站 ZIP");
+      return { publish: box(publish), zip: box(zip), viewport: { width: window.innerWidth, height: window.innerHeight }, overflows: element.scrollWidth > element.clientWidth + 1 };
+    });
+    const mobilePanelFits = await panel.evaluate((element) => element.scrollWidth <= element.clientWidth + 1);
+    check(mobileFooter.publish.visible && mobileFooter.zip.visible, `${prefix}: mobile footer keeps both actions visible`);
+    check(mobileFooter.publish.top >= 0 && mobileFooter.publish.bottom <= mobileFooter.viewport.height && mobileFooter.zip.top >= 0 && mobileFooter.zip.bottom <= mobileFooter.viewport.height, `${prefix}: mobile footer actions stay within the viewport height`);
+    check(mobileFooter.publish.left >= 0 && mobileFooter.publish.right <= mobileFooter.viewport.width && mobileFooter.zip.left >= 0 && mobileFooter.zip.right <= mobileFooter.viewport.width, `${prefix}: mobile footer actions fit the viewport width`);
+    check(!mobileFooter.overflows && mobilePanelFits, `${prefix}: mobile footer has no horizontal overflow`);
+    await page.screenshot({ path: path.join(temporary, "footer-mobile.png") });
+    screenshots.push("footer-mobile.png");
+    await githubSummary.click();
+    check(await githubDetails.evaluate((element) => element.open) === false, `${prefix}: GitHub Pages card collapses after mobile footer checks`);
+    await githubDetails.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(temporary, "github-collapsed-mobile.png") });
+    screenshots.push("github-collapsed-mobile.png");
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    check(await githubDetails.evaluate((element) => element.open) === false, `${prefix}: GitHub Pages card stays collapsed before publishing`);
+    await publishButton.click();
+    const mainProgress = panel.locator("[data-site-publish-progress]");
+    await mainProgress.getByText("正在提交发布请求", { exact: true }).waitFor();
+    try {
+      await panel.getByRole("button", { name: "关闭网站发布面板" }).click();
+      await panel.waitFor({ state: "detached" });
+      await openPublishingPanel();
+      check(await mainProgress.getByText("正在提交发布请求", { exact: true }).isVisible(), `${prefix}: reopened panel resumes the request before the server acknowledges it`);
+      check(simulated.calls.publish === 1, `${prefix}: reopening during submission does not send another POST`);
+    } finally {
+      acknowledgeFirstPublish();
+    }
+    const queuedJob = panel.locator('[data-github-publish-phase="queued"]');
+    await queuedJob.waitFor({ state: "attached", timeout: 15_000 });
+    check(simulated.calls.publish === 1, `${prefix}: first publish sends exactly one POST`);
+    check(simulated.publishTargets[0] === "42", `${prefix}: publish confirms the repository shown in the panel`);
+    checkSimulatedSelection(simulated.publishBodies[0], "first publish");
+    const activePublishButton = footer.getByRole("button", { name: /^正在发布/ });
+    check(await activePublishButton.isDisabled(), `${prefix}: active job disables the footer publish action`);
+    check(await mainProgress.getByText("已排队，等待生成站点", { exact: true }).isVisible(), `${prefix}: queued progress is visible above the content with the GitHub card collapsed`);
+    check(await mainProgress.getByText(/发布会在后台继续/).isVisible(), `${prefix}: accepted jobs explain that the window can be closed`);
+    const publishSpinner = mainProgress.locator(".site-publish-spinner");
+    check(await publishSpinner.getAttribute("aria-hidden") === "true", `${prefix}: active publish spinner is decorative only`);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    check(await publishSpinner.evaluate((element) => getComputedStyle(element).animationName) === "site-publish-spin", `${prefix}: active publish spinner animates`);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    check(await publishSpinner.evaluate((element) => getComputedStyle(element).animationName) === "none", `${prefix}: reduced motion keeps the publish spinner static`);
+    await page.emulateMedia({ reducedMotion: null });
+    const parseElapsed = (text) => {
+      const match = /^(\d{2,}):([0-5]\d)$/.exec(text.trim());
+      return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+    };
+    const publishTimer = mainProgress.locator('[role="timer"]');
+    check(await publishTimer.getAttribute("aria-live") === "off", `${prefix}: active publish timer is not announced continuously`);
+    const initialTimerText = await publishTimer.innerText();
+    const firstElapsed = parseElapsed(initialTimerText);
+    check(Number.isInteger(firstElapsed), `${prefix}: active publish timer uses minute:second digits`);
+    await page.waitForFunction((initial) => {
+      const timer = document.querySelector('[data-site-publish-progress] [role="timer"]');
+      return timer && timer.textContent.trim() !== initial;
+    }, initialTimerText, { timeout: 5_000 });
+    check(parseElapsed(await publishTimer.innerText()) > firstElapsed, `${prefix}: active publish timer advances while the job runs`);
+    await page.screenshot({ path: path.join(temporary, "github-progress-desktop.png") });
+    screenshots.push("github-progress-desktop.png");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await panel.locator(".site-publish-body").evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    check(await mainProgress.evaluate((element) => {
+      const { top, bottom, left, right } = element.getBoundingClientRect();
+      return top >= 0 && bottom <= window.innerHeight && left >= 0 && right <= window.innerWidth;
+    }), `${prefix}: mobile progress remains visible while the content scrolls`);
+    await page.screenshot({ path: path.join(temporary, "github-progress-mobile.png") });
+    screenshots.push("github-progress-mobile.png");
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await githubSummary.click();
+    check(await githubDetails.evaluate((element) => element.open) === true, `${prefix}: expanding the collapsed card shows the publish result`);
+    await queuedJob.waitFor({ state: "visible", timeout: 15_000 });
+    await page.screenshot({ path: path.join(temporary, "github-expanded.png") });
+    screenshots.push("github-expanded.png");
+
+    // 远程状态显式切换，只等待 4 秒轮询把新 phase 拉回界面。
+    simulated.job = simulatedJob("deploying", { message: "网站已提交，正在等待 GitHub Pages 发布…", commitSha: "abc1234", commitUrl: "https://github.com/octo/notes-site/commit/abc1234", siteUrl: "https://octo.github.io/notes-site/", localSite: { phase: "building", url: "https://notes-ui.example.test/notes/", message: "GitHub Pages 已成功，正在构建模拟的本站镜像。" } });
+    const deployingJob = panel.locator('[data-github-publish-phase="deploying"]');
+    await deployingJob.waitFor({ timeout: 15_000 });
+    check(await deployingJob.getAttribute("data-github-publish-live") === "false", `${prefix}: deploying phase never reports live before Pages succeeds`);
+    check((await deployingJob.innerText()).includes("GitHub Pages 已上线，正在更新本站"), `${prefix}: local building after Pages success no longer claims Pages is still deploying`);
+    check(await deployingJob.locator('[data-local-site-phase="building"]').isVisible(), `${prefix}: local mirror building is shown separately`);
+    check(await deployingJob.getByRole("link", { name: "访问本站网站" }).count() === 0, `${prefix}: local mirror has no link before it succeeds`);
+    check(await panel.getByText("已发布，站点已上线", { exact: true }).count() === 0, `${prefix}: no premature success message while deploying`);
+    check(await panel.locator('.site-publish-github-links a[href="https://octo.github.io/notes-site/"]').isVisible(), `${prefix}: deploying phase exposes the commit and site links`);
+
+    const elapsedBeforeReopen = parseElapsed(await publishTimer.innerText());
+    check(Number.isInteger(elapsedBeforeReopen), `${prefix}: active timer reads before reopening the panel`);
+    await panel.getByRole("button", { name: "关闭网站发布面板" }).click();
+    await panel.waitFor({ state: "detached" });
+    await openPublishingPanel();
+    await panel.locator('[data-site-publish-github="connected"]').waitFor();
+    check(await githubDetails.evaluate((element) => element.open) === false, `${prefix}: reopened panel starts with the GitHub Pages card collapsed`);
+    check(await panel.getByText("已连接 GitHub：@ui-feedback", { exact: true }).isVisible() === false, `${prefix}: reopened panel hides GitHub settings until expanded`);
+    const reopenedDeploying = panel.locator('[data-github-publish-phase="deploying"]');
+    await reopenedDeploying.waitFor({ state: "attached" });
+    check(await mainProgress.getByText("GitHub Pages 已上线，正在更新本站", { exact: true }).isVisible(), `${prefix}: reopening restores the server phase above the collapsed card`);
+    const elapsedAfterReopen = parseElapsed(await publishTimer.innerText());
+    const expectedElapsed = Math.floor((Date.now() - now) / 1_000);
+    check(Number.isInteger(elapsedAfterReopen) && elapsedAfterReopen >= elapsedBeforeReopen, `${prefix}: reopened timer continues from the same job start`);
+    check(Math.abs(elapsedAfterReopen - expectedElapsed) <= 2, `${prefix}: reopened timer uses the saved job startedAt`);
+    check(await repositorySelect.evaluate((element) => element.value) === "42", `${prefix}: reopened panel restores the bound repository`);
+    await githubSummary.click();
+    await reopenedDeploying.waitFor();
+    check(await reopenedDeploying.getAttribute("data-github-publish-live") === "false", `${prefix}: reopened panel restores the deploying job without claiming success`);
+
+    simulated.job = simulatedJob("published", { message: "网站已发布。", commitSha: "abc1234", commitUrl: "https://github.com/octo/notes-site/commit/abc1234", siteUrl: "https://octo.github.io/notes-site/", localSite: { phase: "published", url: "https://notes-ui.example.test/notes/", message: "模拟的本站 /notes/ 镜像已更新。" } });
+    const publishedJob = panel.locator('[data-github-publish-phase="published"]');
+    await publishedJob.waitFor({ timeout: 15_000 });
+    check(await publishedJob.getAttribute("data-github-publish-live") === "true", `${prefix}: published phase is the only live state`);
+    check(await mainProgress.count() === 0, `${prefix}: published terminal job removes the in-progress display`);
+    check(await footer.getByRole("button", { name: "发布到网站" }).isEnabled(), `${prefix}: published terminal job restores the action label`);
+    const publishedLocal = publishedJob.locator('[data-local-site-phase="published"]');
+    await publishedLocal.waitFor();
+    check(await publishedLocal.getAttribute("data-local-site-live") === "true", `${prefix}: simulated local mirror reports its own success`);
+    check(await publishedLocal.getByRole("link", { name: "访问本站网站" }).isVisible(), `${prefix}: local success exposes the separately labelled local link`);
+    await publishedJob.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(temporary, "github-publishing-ui.png") });
+    screenshots.push("github-publishing-ui.png");
+
+    // GitHub 已发布但本站失败：必须分别展示，不能把本站失败伪装成成功或影响 GitHub 结果。
+    simulated.job = simulatedJob("published", { message: "GitHub Pages 已发布；模拟的本站镜像更新失败。", commitSha: "abc1234", commitUrl: "https://github.com/octo/notes-site/commit/abc1234", siteUrl: "https://octo.github.io/notes-site/", localSite: { phase: "failed", url: "https://notes-ui.example.test/notes/", message: "模拟的本站构建失败，已有站点不会被替换。" } });
+    // 终态任务不会继续轮询；关闭并重新打开面板，显式刷新已发布任务的最终本站状态。
+    const statusCallsBeforeLocalFailureRefresh = simulated.calls.status;
+    await panel.getByRole("button", { name: "关闭网站发布面板" }).click();
+    await panel.waitFor({ state: "detached" });
+    await openPublishingPanel();
+    await panel.locator('[data-site-publish-github="connected"]').waitFor();
+    check(await githubDetails.evaluate((element) => element.open) === false, `${prefix}: reopened panel starts collapsed before refreshing a terminal local failure`);
+    await githubSummary.click();
+    check(simulated.calls.status > statusCallsBeforeLocalFailureRefresh, `${prefix}: reopening explicitly refreshes the terminal job without polling`);
+    check(await githubDetails.evaluate((element) => element.open) === true, `${prefix}: expanding the refreshed terminal job shows its final local failure`);
+    const localFailed = panel.locator('[data-github-publish-phase="published"] [data-local-site-phase="failed"]');
+    await localFailed.waitFor();
+    check(await localFailed.getAttribute("data-local-site-live") === "false", `${prefix}: local failure is not marked live`);
+    check((await localFailed.innerText()).includes("已有站点不会被替换"), `${prefix}: local failure says the existing site is not replaced`);
+    check(await localFailed.getByRole("link", { name: "访问本站网站" }).count() === 0, `${prefix}: local failure hides the local success link`);
+    check(await panel.locator('.site-publish-github-links a[href="https://octo.github.io/notes-site/"]').isVisible(), `${prefix}: local failure keeps the separate GitHub Pages link`);
+
+    simulated.nextPublishPhase = "failed";
+    simulated.nextPublishMessage = "模拟的部署失败：GitHub Pages 构建未通过。";
+    const retryButton = panel.getByRole("button", { name: "发布到网站" });
+    check(await retryButton.isEnabled(), `${prefix}: published job re-enables the publish action`);
+    await retryButton.click();
+    const failedJob = panel.locator('[data-github-publish-phase="failed"]');
+    await failedJob.waitFor({ timeout: 15_000 });
+    check((await failedJob.innerText()).includes("模拟的部署失败"), `${prefix}: failed publish shows the provider message`);
+    check(await failedJob.getAttribute("data-github-publish-live") === "false", `${prefix}: failed publish is not live`);
+    check(simulated.calls.publish === 2, `${prefix}: second publish sends exactly one additional POST`);
+    checkSimulatedSelection(simulated.publishBodies[1], "second publish");
+    check(await panel.getByRole("button", { name: "发布到网站" }).isEnabled(), `${prefix}: failed publish re-enables the retry button`);
+    check(realGitHubRequests.length === 0, `${prefix}: no request reached github.com`);
+    check(new URL(page.url()).origin === baseURL, `${prefix}: no navigation left the Notes app`);
+    check(simulated.calls.unhandled === 0, `${prefix}: no real GitHub endpoint was attempted`);
+    check(consoleErrors.length === consoleErrorsBeforeGithubUi, `${prefix}: no new browser errors during the simulated flow`);
+    // OAuth 返回的新浏览器没有本机缓存，必须等账号工作区恢复后再清理发布选择。
+    const beforeCallback = await (await context.request.get(`${baseURL}/api/site-publishing/config`)).json();
+    const callbackContext = await browser.newContext({ storageState: { cookies: await context.cookies(), origins: [] } });
+    let releaseWorkspace;
+    let enteredWorkspace;
+    const workspaceGate = new Promise((resolve) => { releaseWorkspace = resolve; });
+    const workspaceEntered = new Promise((resolve) => { enteredWorkspace = resolve; });
+    let earlyConfigurationReads = 0;
+    try {
+      await callbackContext.route("**/api/workspace", async (route) => {
+        if (route.request().method() === "GET") { enteredWorkspace(); await workspaceGate; }
+        await route.continue();
+      });
+      const callbackPage = await callbackContext.newPage();
+      callbackPage.on("request", (request) => { if (request.url().endsWith("/api/site-publishing/config")) earlyConfigurationReads++; });
+      await callbackPage.goto(`${baseURL}/?keep=1&githubPublish=connected#note=selected&view=preview`);
+      await workspaceEntered;
+      check(await callbackPage.getByRole("dialog", { name: "生成网站" }).count() === 0, `${prefix}: OAuth return waits for the account workspace`);
+      check(earlyConfigurationReads === 0, `${prefix}: slow workspace does not load or prune saved publication selections early`);
+      releaseWorkspace();
+      const callbackPanel = callbackPage.getByRole("dialog", { name: "生成网站" });
+      await callbackPanel.waitFor();
+      await callbackPanel.getByText("已保存到账号", { exact: true }).waitFor();
+      check(new URL(callbackPage.url()).searchParams.get("keep") === "1" && !new URL(callbackPage.url()).searchParams.has("githubPublish"), `${prefix}: OAuth consumes only its return parameter`);
+      const afterCallback = await (await callbackContext.request.get(`${baseURL}/api/site-publishing/config`)).json();
+      check(JSON.stringify(afterCallback.draft.selections) === JSON.stringify(beforeCallback.draft.selections), `${prefix}: OAuth return restores selections without empty-workspace data loss`);
+    } finally { releaseWorkspace(); await callbackContext.close(); }
+    simulatedProviderReport = { provider: "in-memory Playwright route", liveGitHub: false, mode: "simulated", calls: simulated.calls, assertions: assertions.filter((name) => name.startsWith(prefix)).length };
+  }
+
+  const report = { success: true, noOrigin, assertions, screenshots };
+  if (simulatedProviderReport) report.githubUi = simulatedProviderReport;
+  await fs.writeFile(path.join(temporary, "report.json"), JSON.stringify(report, null, 2));
+  console.log(JSON.stringify({ success: true, noOrigin, githubUi, assertions: assertions.length, artifacts: temporary }, null, 2));
 } catch (error) {
   const failedPage = browser?.contexts()[0]?.pages()[0];
   if (failedPage) {

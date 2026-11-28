@@ -6,7 +6,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import sharp from "sharp";
 import { SITE_LOGO_MAX_BYTES } from "../../src/features/site-publishing/logo.js";
-import { getSiteNoteTitle, normalizeSiteSettings, validateSiteCategories, type SiteExportRequest } from "../../src/features/site-publishing/model.js";
+import { SITE_THEMES, getSiteNoteTitle, normalizeSiteSettings, validateSiteCategories, type SiteExportRequest } from "../../src/features/site-publishing/model.js";
 import { localizeSiteMarkdown, removeDuplicateSiteTitle } from "./markdown.js";
 import { getSiteThemeFiles } from "./theme.js";
 
@@ -124,6 +124,13 @@ export async function buildSiteEntries(request: SiteExportRequest, options: Site
   const deploymentDescription = hasDomain
     ? `将 public/ 内的全部文件部署到网站的 ${settings.basePath} 路径。例如当前配置 ${settings.basePath} 时，public/index.html 应能从 ${baseURL} 访问。不要把整个 ZIP 作为 public/ 再多嵌套一层。静态文件不依赖 notes 后端。`
     : `将 public/ 内的全部文件部署到当前网站域名的 ${settings.basePath} 路径。例如当前配置 ${settings.basePath} 时，public/index.html 应能从当前网站域名的 ${settings.basePath} 访问。未填写站点域名，因此不生成 canonical、RSS 或 sitemap。不要把整个 ZIP 作为 public/ 再多嵌套一层。静态文件不依赖 notes 后端。`;
+  // 默认 Logo 使用已着色的暖色的 PNG；带内容哈希的共享地址用于刷新 favicon 与页头缓存。
+  const logo = settings.logoPath
+    ? await buildSiteLogo(settings.logoPath, options)
+    : await fs.readFile(path.join(options.rootDirectory, "public", "smartisan", "web", "smartisan_hammer_site.png"));
+  const logoUrl = settings.logoPath
+    ? "logo.png"
+    : `logo.png?v=${createHash("sha256").update(logo).digest("hex").slice(0, 12)}`;
   const files = new Map<string, Buffer>();
   let totalBytes = 0;
   const add = (filename: string, data: string | Buffer) => {
@@ -133,10 +140,11 @@ export async function buildSiteEntries(request: SiteExportRequest, options: Site
     files.set(filename, buffer);
   };
   for (const [filename, source] of Object.entries(getSiteThemeFiles())) add(filename, source);
+  const themeLabel = SITE_THEMES.find((theme) => theme.id === settings.themeId)!.label;
   add("hugo.json", JSON.stringify({
     baseURL, title: settings.title, locale: "zh-CN", defaultContentLanguage: "zh", hasCJKLanguage: true,
     enableRobotsTXT: true, summaryLength: 120, timeZone: "Asia/Taipei",
-    params: { description: settings.description, author: settings.author, notesTheme: settings.themeId, notesHasDomain: hasDomain },
+    params: { description: settings.description, author: settings.author, notesTheme: settings.themeId, notesHasDomain: hasDomain, logo: logoUrl },
     outputs: { home: hasDomain ? ["HTML", "RSS", "JSON"] : ["HTML", "JSON"] },
     ...(hasDomain ? {} : { disableKinds: ["RSS", "sitemap"] }),
     markup: { goldmark: { renderer: { unsafe: false } }, highlight: { noClasses: false }, tableOfContents: { startLevel: 2, endLevel: 3 } },
@@ -156,6 +164,7 @@ export async function buildSiteEntries(request: SiteExportRequest, options: Site
     const publicationId = `p-${createHash("sha256").update(note.id).digest("hex").slice(0, 24)}`;
     const directory = `content/${category.slug}/${publicationId}`;
     let body: string;
+    let coverImage: string | undefined;
     try {
       body = await localizeSiteMarkdown(removeDuplicateSiteTitle(note.markdown, getSiteNoteTitle(note.markdown)), async (source) => {
         options.signal.throwIfAborted();
@@ -168,6 +177,7 @@ export async function buildSiteEntries(request: SiteExportRequest, options: Site
           loadedImages.set(source, image);
         }
         const filename = `index.assets/${createHash("sha256").update(image.buffer).digest("hex")}.${image.extension}`;
+        coverImage ??= filename;
         if (!files.has(`${directory}/${filename}`)) add(`${directory}/${filename}`, image.buffer);
         return filename;
       });
@@ -175,20 +185,17 @@ export async function buildSiteEntries(request: SiteExportRequest, options: Site
       if (options.signal.aborted) throw error;
       throw new Error(`便签「${getSiteNoteTitle(note.markdown).slice(0, 60)}」无法导出：${error instanceof Error ? error.message : "图片处理失败。"}`);
     }
-    add(`${directory}/index.md`, frontMatter({ title: getSiteNoteTitle(note.markdown), date: new Date(Math.min(note.createdAt, Date.now())).toISOString(), lastmod: new Date(Math.min(note.updatedAt, Date.now())).toISOString(), draft: false, categories: [category.name] }, body));
+    add(`${directory}/index.md`, frontMatter({ title: getSiteNoteTitle(note.markdown), date: new Date(Math.min(note.createdAt, Date.now())).toISOString(), lastmod: new Date(Math.min(note.updatedAt, Date.now())).toISOString(), draft: false, categories: [category.name], ...(coverImage ? { coverImage } : {}) }, body));
   }
-  for (const weight of ["R", "M", "B"]) add(`static/assets/fonts/OPPOSans-${weight}.woff2`, await fs.readFile(path.join(options.rootDirectory, "src", "assets", "fonts", `OPPOSans-${weight}.woff2`)));
   add("static/assets/bg.jpg", await fs.readFile(path.join(options.rootDirectory, "public", "bg.jpg")));
-  add(
-    "static/logo.png",
-    settings.logoPath
-      ? await buildSiteLogo(settings.logoPath, options)
-      : await fs.readFile(path.join(options.rootDirectory, "public", "smartisan", "web", "smartisan_hammer_footer.png")),
-  );
+  add("static/assets/bg-dark.webp", await fs.readFile(path.join(options.rootDirectory, "public", "smartisan", "mobile", "dark", "note_background.webp")));
+  const cover = "coastal-journal-cover.webp";
+  add(`static/assets/${cover}`, await fs.readFile(path.join(options.rootDirectory, "public", "site-themes", cover)));
+  add("static/logo.png", logo);
   add("static/.nojekyll", "");
   add(".github/workflows/pages.yml", githubWorkflow());
   add(".gitignore", "/public/\n/resources/\n/.hugo_build.lock\n");
-  add("README.md", `# ${settings.title.replace(/[\r\n]/g, " ")}\n\n使用 notes 生成的 Hugo 网站，样式：经典便签博客。\n\n站点地址：${siteAddress}\n\n## 直接部署静态文件\n\n${deploymentDescription}\n\n## 修改后重新构建\n\n安装 Hugo Extended 0.162.1 或兼容版本，在本目录运行 hugo。运行 hugo server 可本地预览。站点域名或子路径变化时，先修改 hugo.json 的 baseURL（未填写域名时它是部署根路径）并重新构建，不能只移动旧的 public/。文章与图片位于 content/<栏目>/<文章ID>/。\n\n## GitHub Pages\n\n将源码提交到独立仓库，在 Settings → Pages 中将 Source 设置为 GitHub Actions。包内工作流会构建并发布。项目站点 basePath 通常应为 /仓库名/，自定义域名按实际路径配置。上传文件时请包含隐藏的 .github/ 目录。已有网站的子路径部署需要由现有主机或主站发布流程合并 public/，不能直接用本包覆盖主站。\n\n## 内容与模板\n\n仅导出本次勾选的便签。原始 HTML 以文字保留；Hugo shortcode 按原文展示，不执行。网站分类独立于便签文件夹。搜索使用本地索引，无需外部服务。模板参考 https://github.com/zhaoolee/zhaoolee.github.io，个人统计、广告与域名未携带。\n`);
+  add("README.md", `# ${settings.title.replace(/[\r\n]/g, " ")}\n\n使用 notes 生成的 Hugo 网站，默认样式：${themeLabel}。访客可通过外观设置图标切换「经典便签博客」与「简书2016」，浏览器会为当前站点保存选择。链接可用 style（smartisan-blog 或 jianshu2016）与 theme（system、auto、light 或 dark）指定外观，站内导航会沿用这些参数。\n\n站点地址：${siteAddress}\n\n## 直接部署静态文件\n\n${deploymentDescription}\n\n## 修改后重新构建\n\n安装 Hugo Extended 0.162.1 或兼容版本，在本目录运行 hugo。运行 hugo server 可本地预览。站点域名或子路径变化时，先修改 hugo.json 的 baseURL（未填写域名时它是部署根路径）并重新构建，不能只移动旧的 public/。文章与图片位于 content/<栏目>/<文章ID>/。\n\n## GitHub Pages\n\n将源码提交到独立仓库，在 Settings → Pages 中将 Source 设置为 GitHub Actions。包内工作流会构建并发布。项目站点 basePath 通常应为 /仓库名/，自定义域名按实际路径配置。上传文件时请包含隐藏的 .github/ 目录。已有网站的子路径部署需要由现有主机或主站发布流程合并 public/，不能直接用本包覆盖主站。\n\n## 内容与模板\n\n仅导出本次勾选的便签。原始 HTML 以文字保留；Hugo shortcode 按原文展示，不执行。网站分类独立于便签文件夹。搜索使用本地索引，无需外部服务。经典便签博客的模板参考 https://github.com/zhaoolee/zhaoolee.github.io。简书2016 的封面与文章列表布局受到 2016 年简书首页启发。\n`);
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "notes-hugo-build-"));
   try {
     for (const [filename, data] of files) {

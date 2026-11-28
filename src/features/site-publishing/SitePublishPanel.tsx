@@ -9,6 +9,8 @@ import {
 import { importImageFile } from "../../lib/images.js";
 import type { NoteDocument } from "../../types/app.js";
 import { SitePublishingAccountSync, type AccountSyncState } from "./account-sync.js";
+import { GitHubPublishControls } from "./GitHubPublishControls.js";
+import type { GitHubPublishRedirect } from "./github-client.js";
 import { SitePublishContent } from "./SitePublishContent.js";
 import {
   downloadSiteExport,
@@ -28,9 +30,9 @@ import {
   validateSiteLogoFile,
 } from "./logo.js";
 import {
+  DEFAULT_SITE_BASE_PATH,
   DEFAULT_SITE_CATEGORIES,
   SITE_THEMES,
-  SITE_THEME_ID,
   normalizeBasePath,
   normalizeSiteSettings,
   validateSiteCategories,
@@ -42,6 +44,7 @@ import {
 interface SitePublishPanelProps {
   notes: NoteDocument[];
   storageScope: string;
+  githubPublishRedirect?: GitHubPublishRedirect | null;
   onClose: () => void;
 }
 
@@ -63,7 +66,6 @@ function getSiteAddressPreview(settings: SiteSettings): {
       ...settings,
       // 地址预览只关心域名和子路径；空标题会由导出按钮统一报错。
       title: settings.title.trim() || "站点",
-      themeId: SITE_THEME_ID,
     });
     const hasOrigin = normalized.origin.length > 0;
 
@@ -158,6 +160,7 @@ function focusableElements(root: HTMLElement | null): HTMLElement[] {
 export function SitePublishPanel({
   notes,
   storageScope,
+  githubPublishRedirect = null,
   onClose,
 }: SitePublishPanelProps) {
   const titleId = useId();
@@ -198,6 +201,10 @@ export function SitePublishPanel({
   const [newCategorySlug, setNewCategorySlug] = useState("");
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoPreviewError, setLogoPreviewError] = useState(false);
+  const [githubConfigured, setGithubConfigured] = useState(false);
+  // 页脚动作挂载点由 ref 回调写入；null 表示目标尚未挂载，发布按钮此时不渲染副本。
+  const [footerActionsTarget, setFooterActionsTarget] = useState<HTMLElement | null>(null);
+  const [progressTarget, setProgressTarget] = useState<HTMLElement | null>(null);
 
   const addressPreview = getSiteAddressPreview(draft.settings);
   const basePathError = getBasePathError(draft.settings.basePath);
@@ -664,6 +671,7 @@ export function SitePublishPanel({
           </button>
         </header>
 
+        <div className="site-publish-progress-slot" ref={setProgressTarget} />
         <div
           className="site-publish-body"
           data-site-publish-autofocus
@@ -681,6 +689,22 @@ export function SitePublishPanel({
             onAddCategory={addCategory}
             onAssignNote={assignNoteToCategory}
             onRemoveNote={removeSelection}
+          />
+
+          <GitHubPublishControls
+            draft={draft}
+            notes={notes}
+            storageScope={storageScope}
+            disabled={
+              busy ||
+              logoUploading ||
+              closing ||
+              accountState.status === "loading"
+            }
+            redirectNotice={githubPublishRedirect}
+            onConfiguredChange={setGithubConfigured}
+            actionTarget={footerActionsTarget}
+            progressTarget={progressTarget}
           />
 
           <details className="site-publish-advanced">
@@ -807,13 +831,13 @@ export function SitePublishPanel({
                   <input
                     type="text"
                     value={draft.settings.basePath}
-                    placeholder="/blog/"
+                    placeholder={DEFAULT_SITE_BASE_PATH}
                     aria-invalid={Boolean(basePathError)}
                     onChange={(event: ChangeEvent<HTMLInputElement>) =>
                       updateSettings({ basePath: event.target.value })
                     }
                   />
-                  <small>例如部署到 /blog/ 时填写 /blog/；根域名填写 /。</small>
+                  <small>默认 {DEFAULT_SITE_BASE_PATH}；自定义子路径如 /blog/，根域名填写 /。</small>
                   {basePathError ? (
                     <small className="site-publish-field-error" role="alert">
                       {basePathError}
@@ -836,7 +860,7 @@ export function SitePublishPanel({
 
               {SITE_THEMES.length > 1 ? (
                 <fieldset className="site-publish-theme">
-                  <legend>网站样式</legend>
+                  <legend>默认网站样式</legend>
                   {SITE_THEMES.map((theme) => {
                     const optionId = `${themeId}-${theme.id}`;
 
@@ -846,16 +870,17 @@ export function SitePublishPanel({
                           id={optionId}
                           type="radio"
                           name="site-publish-theme"
+                          aria-describedby={`${optionId}-description`}
                           value={theme.id}
                           checked={draft.settings.themeId === theme.id}
                           onChange={() =>
                             updateSettings({
-                              themeId: theme.id as SiteSettings["themeId"],
+                              themeId: theme.id,
                             })
                           }
                         />
                         <label htmlFor={optionId}>{theme.label}</label>
-                        <span>{theme.description}</span>
+                        <span id={`${optionId}-description`}>{theme.description}</span>
                       </div>
                     );
                   })}
@@ -952,9 +977,14 @@ export function SitePublishPanel({
             </div> : null}
           </div>
           <div className="site-publish-actions">
+            <div
+              ref={setFooterActionsTarget}
+              className="site-publish-footer-github"
+              data-site-publish-footer-github
+            />
             <button
               type="button"
-              className="site-publish-primary"
+              className={githubConfigured ? "site-publish-secondary" : "site-publish-primary"}
               disabled={!canExport}
               onClick={() => void handleExport()}
             >
