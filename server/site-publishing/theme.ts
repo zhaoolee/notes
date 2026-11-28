@@ -1,8 +1,11 @@
+import { JOURNAL_SITE_THEME_ID, SITE_THEMES, SITE_THEME_ID } from "../../src/features/site-publishing/model.js";
+import { JOURNAL_THEME_FILES } from "./journal-theme.js";
+
 /**
  * 静态网站主题文件。
  *
  * 由服务端在生成 Hugo 站点时写入磁盘，再由 Hugo Extended 0.162.1 构建。
- * 主题只有一个稳定标识 smartisan-blog；文件表的键均为 Hugo 项目内的相对路径，
+ * 文件表的键均为 Hugo 项目内的相对路径，
  * 所有站内链接都通过 relURL、RelPermalink 或模板注入生成，因此同一份主题
  * 既可用于根路径（basePath=/），也可用于 /nested/blog/ 这类子路径。
  *
@@ -15,18 +18,59 @@
  * - 搜索页内容来自 content/search/_index.md 或 content/search/index.md，
  *   由 layouts/_default/search.html 或 layouts/search/* 渲染，使用本地 JSON 索引，
  *   不依赖任何在线索引服务或额外的 npm 搜索依赖。
- * - 字体、背景和 logo 由调用方放在 static/assets/fonts/、static/assets/bg.jpg
- *   和 static/logo.png；CSS 位于 css/，故使用 ../assets/ 相对地址。
+ * - 浅色和深色背景由调用方放在 static/assets/；Logo 放在 static/logo.png，并在
+ *   hugo.json 的 params.logo 中提供页头与默认 favicon 共用的地址。默认 Logo 使用
+ *   已着色的暖色的 PNG，地址带内容哈希查询参数；自定义 Logo 使用 logo.png，
+ *   site.Params.favicon 仍可覆盖默认 favicon。
+ * - 侧栏品牌 Logo 固定 28×28。正文只使用系统字体栈，不打包字体文件；CSS 位于
+ *   css/，故使用 ../assets/ 相对地址。
  * - 分类菜单由 hugo.json 的 menu.main 提供，不在这里硬编码任何分类。
  * - 图片 render hook 只输出页面资源或经过协议白名单校验的地址，不引入 safeHTML。
  */
 
-const SITE_THEME_ID = "smartisan-blog";
+// 沿用编辑器锤子暗黑的纸面、正文和金色强调色，次要文字使用正文引用色。
+const DARK_SITE_COLORS = `  color-scheme: dark;
+  --bg: #131113;
+  --background-texture: url("../assets/bg-dark.webp") center top / 358px 720px repeat;
+  --paper: #1c1a1c;
+  --frame: #343134;
+  --ink: #cecece;
+  --muted: #9f9c9f;
+  --accent: #c99a1e;
+  --accent-strong: #d5ab36;
+  --sidebar: #1e1c1e;
+  --sidebar-line: #343134;
+  --sidebar-ink: #cecece;
+  --sidebar-muted: var(--muted);
+  --sheet-shadow: 0 24px 42px rgba(0, 0, 0, 0.42);
+  --sidebar-head-bg: var(--sidebar);
+  --sidebar-head-shadow: 0 10px 14px var(--sidebar);
+  --field-bg: #201e20;
+  --field-icon: var(--muted);
+  --field-placeholder: var(--muted);
+  --field-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.24);
+  --focus-border: #a68b75;
+  --focus-shadow: 0 0 0 2px rgba(201, 154, 30, 0.14);
+  --control-track: #161416;
+  --control-border: var(--sidebar-line);
+  --control-bg: #292629;
+  --hover-bg: #302c30;
+  --control-shadow: 0 1px 5px rgba(0, 0, 0, 0.26);
+  --section-bg: #242224;
+  --section-ink: var(--sidebar-ink);
+  --toc-bg: #1e1c1e;
+  --toc-shadow: 0 16px 32px rgba(0, 0, 0, 0.42);
+  --secondary-ink: var(--muted);
+  --table-head-bg: #242224;
+  --code-bg: #242224;
+  --code-text: #c5c3c5;
+  --success: #acd48f;
+  --failure: #efac94;
+  --accent-border: #8c6c20;`;
 
-const SITE_THEME_FILES: Record<string, Record<string, string>> = {
-  [SITE_THEME_ID]: {
+const SITE_THEME_FILES: Record<string, string> = {
     "layouts/_default/baseof.html": `<!doctype html>
-<html lang="{{ site.Language.Locale | default "zh-CN" }}">
+<html lang="{{ site.Language.Locale | default "zh-CN" }}" data-site-style="{{ if eq site.Params.notesTheme "${JOURNAL_SITE_THEME_ID}" }}${JOURNAL_SITE_THEME_ID}{{ else }}${SITE_THEME_ID}{{ end }}">
   <head>
     {{- $description := site.Params.description | default "" -}}
     {{- with .Description }}{{ $description = . }}{{ else }}{{ if not .IsHome }}{{ with .Summary }}{{ $description = . | plainify | htmlUnescape | chomp }}{{ end }}{{ end }}{{ end }}
@@ -40,14 +84,24 @@ const SITE_THEME_FILES: Record<string, Record<string, string>> = {
     {{- if site.Params.notesHasDomain }}
     <link rel="canonical" href="{{ .Permalink }}">
     {{- end }}
-    {{- $icon := "logo.png" | relURL -}}
+    {{- $icon := site.Params.logo | default "logo.png" | relURL -}}
     {{- with site.Params.favicon }}{{ $icon = . }}{{ if not (strings.HasPrefix $icon "http") }}{{ $icon = strings.TrimPrefix "/" $icon | relURL }}{{ end }}{{ end }}
     <link rel="icon" href="{{ $icon }}">
     {{- if site.Params.notesHasDomain }}{{ with .OutputFormats.Get "rss" }}
     <link rel="alternate" type="application/rss+xml" href="{{ .RelPermalink }}" title="{{ site.Title }}">
     {{- end }}{{- end }}
     {{- block "head" . }}{{ end }}
+    {{- with resources.Get "js/theme.js" }}
+      {{- with . | minify | fingerprint "sha256" }}
+    <script src="{{ .RelPermalink }}" integrity="{{ .Data.Integrity }}" crossorigin="anonymous" data-site-path="{{ site.Home.RelPermalink }}"></script>
+      {{- end }}
+    {{- end }}
     {{- with resources.Get "css/site.css" }}
+      {{- with . | minify | fingerprint "sha256" }}
+    <link rel="stylesheet" href="{{ .RelPermalink }}" integrity="{{ .Data.Integrity }}" crossorigin="anonymous">
+      {{- end }}
+    {{- end }}
+    {{- with resources.Get "css/journal.css" }}
       {{- with . | minify | fingerprint "sha256" }}
     <link rel="stylesheet" href="{{ .RelPermalink }}" integrity="{{ .Data.Integrity }}" crossorigin="anonymous">
       {{- end }}
@@ -58,14 +112,16 @@ const SITE_THEME_FILES: Record<string, Record<string, string>> = {
       {{- end }}
     {{- end }}
   </head>
-  <body>
-    <input class="site-nav-toggle" id="site-nav-toggle" type="checkbox" aria-label="展开导航">
-    <label class="site-nav-button" for="site-nav-toggle" aria-hidden="true">
+  <body{{ if .IsHome }} class="site-home"{{ end }}>
+    {{ partial "journal-header.html" . }}
+    <input class="site-nav-toggle" data-site-layout="${SITE_THEME_ID}" id="site-nav-toggle" type="checkbox" aria-label="展开导航">
+    <label class="site-nav-button" data-site-layout="${SITE_THEME_ID}" for="site-nav-toggle" aria-hidden="true">
       <span></span>
       <span></span>
       <span></span>
     </label>
     <div class="site-shell">
+      {{ if .IsHome }}{{ partial "journal-cover.html" . }}{{ end }}
       {{ partial "sidebar.html" . }}
       <main class="site-main">
         {{ block "main" . }}{{ end }}
@@ -75,7 +131,7 @@ const SITE_THEME_FILES: Record<string, Record<string, string>> = {
 </html>
 `,
     "layouts/_default/list.html": `{{ define "main" }}
-  <section class="reader-sheet">
+  <section class="reader-sheet site-index-sheet">
     <span class="reader-sheet-corner reader-sheet-corner-top-left" aria-hidden="true"></span>
     <span class="reader-sheet-corner reader-sheet-corner-top-right" aria-hidden="true"></span>
     <span class="reader-sheet-corner reader-sheet-corner-bottom-left" aria-hidden="true"></span>
@@ -83,12 +139,13 @@ const SITE_THEME_FILES: Record<string, Record<string, string>> = {
     <header class="article-header">
       <h1>{{ .Title }}</h1>
     </header>
+    {{ partial "journal-topics.html" . }}
     {{ with .Content }}
       <div class="article-content">{{ . }}</div>
     {{ end }}
     {{ $pages := where .RegularPages.ByDate.Reverse "Section" "ne" "search" }}
     {{ if $pages }}
-      <ol class="post-list">
+      <ol class="post-list" data-site-layout="${SITE_THEME_ID}">
         {{ range $pages }}
           <li>
             <a href="{{ .RelPermalink }}">{{ .Title }}</a>
@@ -97,6 +154,9 @@ const SITE_THEME_FILES: Record<string, Record<string, string>> = {
         {{ end }}
       </ol>
     {{ end }}
+    <div data-site-layout="${JOURNAL_SITE_THEME_ID}">
+      {{ partial "journal-feed.html" $pages }}
+    </div>
   </section>
 {{ end }}
 `,
@@ -171,10 +231,10 @@ Sitemap: {{ "sitemap.xml" | absURL }}
 {{- end -}}
 <a href="{{ $destination }}"{{ with .Title }} title="{{ . }}"{{ end }}>{{ .Text }}</a>
 `,
-    "layouts/partials/sidebar.html": `<aside class="sidebar" aria-label="站点导航">
+    "layouts/partials/sidebar.html": `<aside class="sidebar" data-site-layout="${SITE_THEME_ID}" aria-label="站点导航">
   <div class="sidebar-head">
     <a class="site-brand" href="{{ site.Home.RelPermalink }}" aria-label="{{ site.Title }}">
-      <img src="{{ "logo.png" | relURL }}" alt="" width="40" height="40">
+      <img class="site-brand-logo" src="{{ site.Params.logo | default "logo.png" | relURL }}" alt="" width="28" height="28">
       <span>{{ site.Title }}</span>
     </a>
     <form class="sidebar-search-form" action="{{ "search/" | relURL }}" method="get" role="search">
@@ -183,9 +243,12 @@ Sitemap: {{ "sitemap.xml" | absURL }}
         <input type="search" name="q" placeholder="快速搜索关键字" aria-label="搜索站内内容">
       </label>
     </form>
-    <div class="sidebar-mode-toggle" role="tablist" aria-label="导航模式">
-      <button class="sidebar-mode-button" type="button" data-sidebar-mode-button="latest" aria-selected="true">最新</button>
-      <button class="sidebar-mode-button" type="button" data-sidebar-mode-button="sections" aria-selected="false">专题</button>
+    <div class="sidebar-controls">
+      <div class="sidebar-mode-toggle" role="tablist" aria-label="导航模式">
+        <button class="sidebar-mode-button" type="button" data-sidebar-mode-button="latest" aria-selected="true">最新</button>
+        <button class="sidebar-mode-button" type="button" data-sidebar-mode-button="sections" aria-selected="false">专题</button>
+      </div>
+      {{ partial "appearance-settings.html" . }}
     </div>
   </div>
   <nav class="sidebar-nav sidebar-nav-latest" data-sidebar-panel="latest" aria-label="最新文章">
@@ -239,6 +302,31 @@ Sitemap: {{ "sitemap.xml" | absURL }}
   </nav>
 </aside>
 `,
+    "layouts/partials/appearance-settings.html": `<details class="site-appearance" hidden>
+  <summary class="site-appearance-toggle" aria-label="外观设置" title="外观设置">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true">
+      <path d="M10 3h4l.6 2.3 1.6.9 2.3-.6 2 3.5-1.7 1.7v1.9l1.7 1.7-2 3.5-2.3-.6-1.6.9-.6 2.3h-4l-.6-2.3-1.6-.9-2.3.6-2-3.5 1.7-1.7v-1.9L3.5 9.1l2-3.5 2.3.6 1.6-.9L10 3Z"></path>
+      <circle cx="12" cy="11.75" r="3"></circle>
+    </svg>
+  </summary>
+  <div class="site-appearance-panel">
+    <label>
+      <span>网站样式</span>
+      <select class="site-style-select">
+        ${SITE_THEMES.map(({ id, label }) => `<option value="${id}">${label}</option>`).join("\n        ")}
+      </select>
+    </label>
+    <label>
+      <span>网站主题</span>
+      <select class="site-theme-select">
+        <option value="system">自动</option>
+        <option value="light">浅色</option>
+        <option value="dark">深色</option>
+      </select>
+    </label>
+  </div>
+</details>
+`,
     "layouts/partials/search-page.html": `  <section class="reader-sheet search-sheet">
     <span class="reader-sheet-corner reader-sheet-corner-top-left" aria-hidden="true"></span>
     <span class="reader-sheet-corner reader-sheet-corner-top-right" aria-hidden="true"></span>
@@ -267,28 +355,29 @@ Sitemap: {{ "sitemap.xml" | absURL }}
   <script src="{{ "js/search.js" | relURL }}" data-search-index="{{ $searchIndex }}" defer></script>
 `,
     "layouts/index.html": `{{ define "main" }}
-  <section class="reader-sheet">
+  <section class="reader-sheet site-index-sheet">
     <span class="reader-sheet-corner reader-sheet-corner-top-left" aria-hidden="true"></span>
     <span class="reader-sheet-corner reader-sheet-corner-top-right" aria-hidden="true"></span>
     <span class="reader-sheet-corner reader-sheet-corner-bottom-left" aria-hidden="true"></span>
     <span class="reader-sheet-corner reader-sheet-corner-bottom-right" aria-hidden="true"></span>
-    <header class="article-header">
+    <header class="article-header" data-site-layout="${SITE_THEME_ID}">
       <h1>{{ site.Title }}</h1>
       {{ with site.Params.description }}<p class="home-description">{{ . }}</p>{{ end }}
     </header>
+    <h1 class="journal-list-title" data-site-layout="${JOURNAL_SITE_THEME_ID}">最新文章</h1>
+    {{ partial "journal-topics.html" . }}
     {{ with .Content }}
       <div class="article-content">{{ . }}</div>
     {{ end }}
-    {{ $pages := slice }}
-    {{ range site.RegularPages }}
-      {{ if and (ne .Section "search") (ne .Layout "search") (ne .Type "search") (ne .Params.searchExclude true) }}
-        {{ $pages = $pages | append . }}
-      {{ end }}
-    {{ end }}
+    {{ $pages := where site.RegularPages "Section" "ne" "search" }}
+    {{ $pages = where $pages "Layout" "ne" "search" }}
+    {{ $pages = where $pages "Type" "ne" "search" }}
+    {{ $pages = where $pages "Params.searchExclude" "ne" true }}
+    {{ $pages = $pages.ByDate.Reverse }}
     {{ if $pages }}
-      <h2 class="home-list-title">最新文章</h2>
-      <ol class="post-list home-post-list">
-        {{ range $pages.ByDate.Reverse }}
+      <h2 class="home-list-title" data-site-layout="${SITE_THEME_ID}">最新文章</h2>
+      <ol class="post-list home-post-list" data-site-layout="${SITE_THEME_ID}">
+        {{ range $pages }}
           <li>
             <a href="{{ .RelPermalink }}">{{ .Title }}</a>
             {{ if not .Date.IsZero }}<time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "2006-01-02" }}</time>{{ end }}
@@ -296,6 +385,9 @@ Sitemap: {{ "sitemap.xml" | absURL }}
         {{ end }}
       </ol>
     {{ end }}
+    <div data-site-layout="${JOURNAL_SITE_THEME_ID}">
+      {{ partial "journal-feed.html" $pages }}
+    </div>
   </section>
 {{ end }}
 `,
@@ -316,32 +408,10 @@ Sitemap: {{ "sitemap.xml" | absURL }}
 {{ partial "search-page.html" . }}
 {{ end }}
 `,
-    "assets/css/site.css": `@font-face {
-  font-family: "OPPOSans";
-  src: url("../assets/fonts/OPPOSans-R.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "OPPOSans";
-  src: url("../assets/fonts/OPPOSans-M.woff2") format("woff2");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "OPPOSans";
-  src: url("../assets/fonts/OPPOSans-B.woff2") format("woff2");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-:root {
+    "assets/css/site.css": `:root {
+  color-scheme: light;
   --bg: #ede1ce;
+  --background-texture: url("../assets/bg.jpg") left top / 420px auto repeat;
   --paper: #fefcf6;
   --frame: rgba(237, 233, 225, 0.92);
   --ink: #3f2f22;
@@ -353,9 +423,24 @@ Sitemap: {{ "sitemap.xml" | absURL }}
   --sidebar-ink: #5b4638;
   --sidebar-muted: #8a6847;
   --sheet-shadow: 0 24px 42px rgba(89, 65, 34, 0.12);
-  --base-font-family: "OPPOSans", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB",
-    "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --base-font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --mono-font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+:root[data-color-mode="dark"] {
+${DARK_SITE_COLORS}
+}
+
+:root[data-site-style="${SITE_THEME_ID}"] [data-site-layout="${JOURNAL_SITE_THEME_ID}"],
+:root[data-site-style="${JOURNAL_SITE_THEME_ID}"] [data-site-layout="${SITE_THEME_ID}"] {
+  display: none !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-mode="light"]) {
+${DARK_SITE_COLORS}
+  }
 }
 
 * {
@@ -370,7 +455,7 @@ html {
 body {
   min-height: 100vh;
   margin: 0;
-  background: url("../assets/bg.jpg") left top / 420px auto repeat;
+  background: var(--bg) var(--background-texture);
   color: var(--ink);
   font-family: var(--base-font-family);
   letter-spacing: 0;
@@ -433,21 +518,21 @@ a:hover {
   top: 0;
   z-index: 3;
   padding: 16px 12px 12px;
-  background:
+  background: var(--sidebar-head-bg,
     linear-gradient(
       180deg,
       var(--sidebar) 0%,
       rgba(251, 247, 237, 0.98) 78%,
       rgba(251, 247, 237, 0.94) 100%
-    );
-  box-shadow: 0 10px 14px rgba(251, 247, 237, 0.92);
+    ));
+  box-shadow: var(--sidebar-head-shadow, 0 10px 14px rgba(251, 247, 237, 0.92));
 }
 
 .site-brand {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   margin: 0 6px 12px;
   color: var(--accent-strong);
   font-size: 18px;
@@ -456,8 +541,8 @@ a:hover {
 }
 
 .site-brand img {
-  width: 40px;
-  height: 40px;
+  width: 28px;
+  height: 28px;
   flex: 0 0 auto;
   object-fit: contain;
   border-radius: 8px;
@@ -483,11 +568,10 @@ a:hover {
   align-items: center;
   gap: 9px;
   padding: 0 10px;
-  border: 1px solid rgb(228, 218, 209);
+  border: 1px solid var(--sidebar-line);
   border-radius: 16px;
-  background: rgb(252, 252, 252);
-  color: rgba(99, 87, 83, 0.68);
-  box-shadow: rgba(0, 0, 0, 0.12) 0 1px 4px inset;
+  background: var(--field-bg, rgb(252, 252, 252));
+  box-shadow: var(--field-shadow, rgba(0, 0, 0, 0.12) 0 1px 4px inset);
   transition:
     border-color 180ms ease,
     box-shadow 180ms ease,
@@ -495,18 +579,17 @@ a:hover {
 }
 
 .sidebar-search-field:focus-within {
-  border-color: rgb(218, 205, 193);
-  background: rgb(252, 252, 252);
+  border-color: var(--focus-border, rgb(218, 205, 193));
   box-shadow:
-    rgba(0, 0, 0, 0.12) 0 1px 4px inset,
-    0 0 0 2px rgba(145, 104, 71, 0.06);
+    var(--field-shadow, rgba(0, 0, 0, 0.12) 0 1px 4px inset),
+    var(--focus-shadow, 0 0 0 2px rgba(145, 104, 71, 0.06));
 }
 
 .sidebar-search-icon {
   width: 14px;
   height: 14px;
   flex: 0 0 14px;
-  border: 3px solid rgba(99, 87, 83, 0.58);
+  border: 3px solid var(--field-icon, rgba(99, 87, 83, 0.58));
   border-radius: 50%;
   position: relative;
 }
@@ -519,7 +602,7 @@ a:hover {
   right: -6px;
   bottom: -4px;
   border-radius: 999px;
-  background: rgba(99, 87, 83, 0.58);
+  background: var(--field-icon, rgba(99, 87, 83, 0.58));
   transform: rotate(45deg);
   transform-origin: center;
 }
@@ -540,7 +623,7 @@ a:hover {
 }
 
 .sidebar-search-field input::placeholder {
-  color: rgba(177, 166, 153, 0.58);
+  color: var(--field-placeholder, rgba(177, 166, 153, 0.58));
   font-weight: 400;
 }
 
@@ -550,15 +633,95 @@ a:hover {
   display: none;
 }
 
+.sidebar-controls {
+  display: flex;
+  gap: 6px;
+  margin: 0 6px;
+}
+
 .sidebar-mode-toggle {
   display: grid;
+  flex: 1;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 2px;
-  margin: 0 6px;
   padding: 2px;
-  border: 1px solid rgba(206, 190, 170, 0.78);
+  border: 1px solid var(--control-border, rgba(206, 190, 170, 0.78));
   border-radius: 8px;
-  background: rgba(245, 239, 228, 0.72);
+  background: var(--control-track, rgba(245, 239, 228, 0.72));
+}
+
+.site-appearance {
+  position: relative;
+  flex: none;
+  color: var(--sidebar-ink);
+}
+
+.site-appearance[hidden] {
+  display: none;
+}
+
+.site-appearance-toggle {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--control-border, rgba(206, 190, 170, 0.78));
+  border-radius: 8px;
+  background: var(--control-bg, rgb(255, 251, 245));
+  cursor: pointer;
+  list-style: none;
+}
+
+.site-appearance-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.site-appearance-toggle:hover,
+.site-appearance[open] .site-appearance-toggle {
+  background: var(--hover-bg, #f5ede2);
+}
+
+.site-appearance-panel {
+  position: absolute;
+  z-index: 4;
+  inset-block-start: calc(100% + 8px);
+  inset-inline-end: 0;
+  display: grid;
+  gap: 12px;
+  width: min(224px, calc(100vw - 32px));
+  padding: 12px;
+  border: 1px solid var(--control-border, rgba(206, 190, 170, 0.78));
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .16);
+}
+
+.site-appearance:not([open]) .site-appearance-panel {
+  display: none;
+}
+
+.site-appearance-panel label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.site-appearance-panel select {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--control-border, rgba(206, 190, 170, 0.78));
+  border-radius: 8px;
+  background: var(--control-bg, rgb(255, 251, 245));
+  color: var(--sidebar-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.site-appearance :is(summary, select):focus-visible {
+  outline: 2px solid var(--accent-border, rgba(143, 92, 44, 0.42));
+  outline-offset: 2px;
 }
 
 .sidebar-mode-button {
@@ -577,9 +740,9 @@ a:hover {
 
 .sidebar-mode-button:hover,
 .sidebar-mode-button[aria-selected="true"] {
-  background: rgb(255, 251, 245);
+  background: var(--control-bg, rgb(255, 251, 245));
   color: var(--accent-strong);
-  box-shadow: 0 1px 5px rgba(89, 65, 34, 0.1);
+  box-shadow: var(--control-shadow, 0 1px 5px rgba(89, 65, 34, 0.1));
 }
 
 .sidebar ul {
@@ -607,9 +770,9 @@ a:hover {
 
 .sidebar-nav li li a {
   min-height: 42px;
-  background: rgba(255, 251, 245, 0.38);
-  border-bottom-color: rgba(228, 218, 209, 0.78);
-  color: #655044;
+  background: var(--section-bg, rgba(255, 251, 245, 0.38));
+  border-bottom-color: var(--control-border, rgba(228, 218, 209, 0.78));
+  color: var(--section-ink, #655044);
   font-size: 14px;
   font-weight: 500;
   line-height: 1.5;
@@ -618,7 +781,7 @@ a:hover {
 
 .sidebar-nav-sections > ul > li > a {
   min-height: 48px;
-  color: #4f392b;
+  color: var(--section-ink, #4f392b);
   font-size: 15px;
   font-weight: 700;
 }
@@ -656,7 +819,7 @@ a:hover {
 
 .sidebar-nav a:hover,
 .sidebar-nav a.active {
-  background: rgb(241, 236, 225);
+  background: var(--hover-bg, rgb(241, 236, 225));
   color: var(--accent-strong);
   box-shadow: rgba(0, 0, 0, 0.03) 0 1px 4px 0 inset;
 }
@@ -689,10 +852,10 @@ a:hover {
   width: 236px;
   max-height: calc(100vh - 48px);
   overflow: auto;
-  border: 1px solid rgba(206, 190, 170, 0.78);
+  border: 1px solid var(--control-border, rgba(206, 190, 170, 0.78));
   border-radius: 8px;
-  background: rgba(255, 250, 242, 0.94);
-  box-shadow: 0 16px 32px rgba(89, 65, 34, 0.12);
+  background: var(--toc-bg, rgba(255, 250, 242, 0.94));
+  box-shadow: var(--toc-shadow, 0 16px 32px rgba(89, 65, 34, 0.12));
   padding: 14px 0 12px;
 }
 
@@ -719,7 +882,7 @@ a:hover {
 .article-toc a {
   display: block;
   border-left: 2px solid transparent;
-  color: rgba(99, 87, 83, 0.78);
+  color: var(--secondary-ink, rgba(99, 87, 83, 0.78));
   font-size: 13px;
   font-weight: 500;
   line-height: 1.45;
@@ -735,21 +898,21 @@ a:hover {
 }
 
 .article-toc li li a {
-  color: rgba(99, 87, 83, 0.62);
+  color: var(--secondary-ink, rgba(99, 87, 83, 0.62));
   font-size: 12px;
   font-weight: 400;
   padding-left: 30px;
 }
 
 .article-toc a:hover {
-  border-left-color: rgba(143, 92, 44, 0.42);
-  background: rgba(241, 236, 225, 0.64);
+  border-left-color: var(--accent-border, rgba(143, 92, 44, 0.42));
+  background: var(--hover-bg, rgba(241, 236, 225, 0.64));
   color: var(--accent-strong);
 }
 
 .article-toc a.is-active {
   border-left-color: var(--accent);
-  background: rgba(241, 236, 225, 0.82);
+  background: var(--hover-bg, rgba(241, 236, 225, 0.82));
   color: var(--accent-strong);
   font-weight: 700;
 }
@@ -774,7 +937,7 @@ a:hover {
   position: absolute;
   width: 5px;
   height: 5px;
-  border: 1px solid rgba(237, 233, 225, 0.76);
+  border: 1px solid var(--control-border, rgba(237, 233, 225, 0.76));
   pointer-events: none;
 }
 
@@ -864,13 +1027,18 @@ a:hover {
 
 .article-content th,
 .article-content td {
-  border-bottom: 1px solid rgba(206, 190, 170, 0.62);
+  border-bottom: 1px solid var(--control-border, rgba(206, 190, 170, 0.62));
   padding: 8px 10px;
   text-align: left;
   vertical-align: top;
 }
 
+.article-content th {
+  background: var(--table-head-bg, transparent);
+}
+
 .article-content img {
+  display: block;
   max-width: 100%;
   height: auto;
   border-radius: 7px;
@@ -878,8 +1046,8 @@ a:hover {
 
 .article-content code {
   border-radius: 4px;
-  background: rgba(102, 76, 49, 0.08);
-  color: #69451f;
+  background: var(--code-bg, rgba(102, 76, 49, 0.08));
+  color: var(--code-text, #69451f);
   font-family: var(--mono-font-family);
   font-size: 0.92em;
   padding: 0.15em 0.35em;
@@ -889,7 +1057,7 @@ a:hover {
   position: relative;
   overflow-x: auto;
   border-radius: 7px;
-  background: rgba(102, 76, 49, 0.08);
+  background: var(--code-bg, rgba(102, 76, 49, 0.08));
   padding: 46px 18px 18px;
 }
 
@@ -904,9 +1072,9 @@ a:hover {
   right: 10px;
   z-index: 2;
   min-height: 28px;
-  border: 1px solid rgba(206, 190, 170, 0.78);
+  border: 1px solid var(--control-border, rgba(206, 190, 170, 0.78));
   border-radius: 6px;
-  background: rgb(255, 251, 245);
+  background: var(--control-bg, rgb(255, 251, 245));
   color: var(--accent-strong);
   cursor: pointer;
   font-family: var(--base-font-family);
@@ -914,9 +1082,9 @@ a:hover {
   font-weight: 700;
   line-height: 1;
   padding: 0 10px;
-  box-shadow:
+  box-shadow: var(--control-shadow,
     inset 0 1px 0 rgba(255, 255, 255, 0.72),
-    0 1px 4px rgba(89, 65, 34, 0.08);
+    0 1px 4px rgba(89, 65, 34, 0.08));
   transition:
     background 140ms ease,
     border-color 140ms ease,
@@ -924,22 +1092,22 @@ a:hover {
 }
 
 .code-copy-button:hover {
-  border-color: rgba(143, 92, 44, 0.34);
-  background: rgb(250, 246, 238);
+  border-color: var(--accent-border, rgba(143, 92, 44, 0.34));
+  background: var(--hover-bg, rgb(250, 246, 238));
 }
 
 .code-copy-button.is-copied {
-  color: #4f7a32;
+  color: var(--success, #4f7a32);
 }
 
 .code-copy-button.is-failed {
-  color: #9a4f2f;
+  color: var(--failure, #9a4f2f);
 }
 
 .article-content blockquote {
   margin-left: 0;
-  border-left: 4px solid rgba(143, 92, 44, 0.28);
-  color: rgba(63, 47, 34, 0.8);
+  border-left: 4px solid var(--accent-border, rgba(143, 92, 44, 0.28));
+  color: var(--secondary-ink, rgba(63, 47, 34, 0.8));
   padding-left: 18px;
 }
 
@@ -955,7 +1123,7 @@ a:hover {
   display: flex;
   gap: 16px;
   justify-content: space-between;
-  border-bottom: 1px solid rgba(206, 190, 170, 0.72);
+  border-bottom: 1px solid var(--control-border, rgba(206, 190, 170, 0.72));
   padding: 14px 0;
 }
 
@@ -996,29 +1164,28 @@ a:hover {
   align-items: center;
   gap: 10px;
   padding: 0 12px;
-  border: 1px solid rgb(228, 218, 209);
+  border: 1px solid var(--sidebar-line);
   border-radius: 8px;
-  background: rgb(255, 253, 248);
-  color: rgba(99, 87, 83, 0.68);
-  box-shadow:
+  background: var(--field-bg, rgb(255, 253, 248));
+  box-shadow: var(--field-shadow,
     rgba(89, 65, 34, 0.06) 0 1px 3px inset,
-    rgba(255, 255, 255, 0.72) 0 1px 0;
+    rgba(255, 255, 255, 0.72) 0 1px 0);
 }
 
 .search-page-field:focus-within {
-  border-color: rgb(218, 205, 193);
+  border-color: var(--focus-border, rgb(218, 205, 193));
   box-shadow:
-    rgba(89, 65, 34, 0.08) 0 1px 4px inset,
-    0 0 0 2px rgba(145, 104, 71, 0.06);
+    var(--field-shadow, rgba(89, 65, 34, 0.08) 0 1px 4px inset),
+    var(--focus-shadow, 0 0 0 2px rgba(145, 104, 71, 0.06));
 }
 
 .search-page-icon {
   width: 13px;
   height: 13px;
   flex: 0 0 13px;
-  border: 2px solid rgba(99, 87, 83, 0.5);
+  border: 2px solid var(--field-icon, rgba(99, 87, 83, 0.5));
   border-radius: 50%;
-  box-shadow: 5px 5px 0 -4px rgba(99, 87, 83, 0.5);
+  box-shadow: 5px 5px 0 -4px var(--field-icon, rgba(99, 87, 83, 0.5));
   transform: rotate(-8deg);
 }
 
@@ -1038,7 +1205,7 @@ a:hover {
 }
 
 .search-page-field input::placeholder {
-  color: rgba(177, 166, 153, 0.58);
+  color: var(--field-placeholder, rgba(177, 166, 153, 0.58));
   font-weight: 400;
 }
 
@@ -1052,8 +1219,8 @@ a:hover {
   min-height: 42px;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid rgba(206, 190, 170, 0.64);
-  color: rgba(99, 87, 83, 0.72);
+  border-bottom: 1px solid var(--control-border, rgba(206, 190, 170, 0.64));
+  color: var(--secondary-ink, rgba(99, 87, 83, 0.72));
   font-size: 14px;
   font-weight: 700;
   margin: 0 0 4px;
@@ -1067,12 +1234,8 @@ a:hover {
 }
 
 .search-result {
-  border-bottom: 1px solid rgba(206, 190, 170, 0.64);
+  border-bottom: 1px solid var(--control-border, rgba(206, 190, 170, 0.64));
   padding: 22px 0;
-}
-
-.search-result:last-child {
-  border-bottom: 1px solid rgba(206, 190, 170, 0.64);
 }
 
 .search-result-title {
@@ -1084,7 +1247,7 @@ a:hover {
 }
 
 .search-result-excerpt {
-  color: rgba(63, 47, 34, 0.82);
+  color: var(--secondary-ink, rgba(63, 47, 34, 0.82));
   font-size: 15px;
   line-height: 1.8;
   margin: 8px 0 0;
@@ -1123,7 +1286,7 @@ a:hover {
 
 .image-unavailable {
   display: inline-block;
-  border: 1px dashed rgba(143, 92, 44, 0.42);
+  border: 1px dashed var(--accent-border, rgba(143, 92, 44, 0.42));
   border-radius: 6px;
   color: var(--muted);
   font-size: 14px;
@@ -1140,6 +1303,19 @@ a:hover {
     display: block;
   }
 
+  .site-nav-toggle {
+    position: absolute;
+    display: block;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
+  }
+
+  .site-nav-toggle:focus-visible + .site-nav-button {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
   .site-nav-button {
     position: fixed;
     z-index: 40;
@@ -1151,11 +1327,11 @@ a:hover {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    border: 1px solid rgba(82, 63, 47, 0.52);
-    background: rgb(255, 250, 243);
-    box-shadow:
+    border: 1px solid var(--control-border, rgba(82, 63, 47, 0.52));
+    background: var(--control-bg, rgb(255, 250, 243));
+    box-shadow: var(--control-shadow,
       inset 0 1px 0 rgba(255, 255, 255, 0.28),
-      0 2px 10px rgba(42, 29, 19, 0.2);
+      0 2px 10px rgba(42, 29, 19, 0.2));
     cursor: pointer;
     gap: 5px;
     transition:
@@ -1169,7 +1345,7 @@ a:hover {
     width: 18px;
     height: 2px;
     border-radius: 999px;
-    background: #5a3214;
+    background: var(--section-ink, #5a3214);
     transition:
       opacity 160ms ease,
       transform 180ms ease;
@@ -1178,8 +1354,8 @@ a:hover {
 
   .site-nav-toggle:checked + .site-nav-button {
     left: 248px;
-    border-color: rgba(143, 92, 44, 0.68);
-    background: rgb(255, 247, 235);
+    border-color: var(--accent-border, rgba(143, 92, 44, 0.68));
+    background: var(--hover-bg, rgb(255, 247, 235));
   }
 
   .site-nav-toggle:checked + .site-nav-button span:nth-child(1) {
@@ -1198,11 +1374,13 @@ a:hover {
     position: fixed;
     left: -300px;
     width: 300px;
-    transition: left 180ms ease;
+    visibility: hidden;
+    transition: left 180ms ease, visibility 180ms;
   }
 
   .site-nav-toggle:checked ~ .site-shell .sidebar {
     left: 0;
+    visibility: visible;
   }
 
   .site-main {
@@ -1244,10 +1422,186 @@ a:hover {
   }
 }
 `,
+    "assets/js/theme.js": `(function () {
+  var root = document.documentElement;
+  var sitePath = document.currentScript.dataset.sitePath;
+  var colorKey = "notes-site-color-mode:" + sitePath;
+  var styleKey = "notes-site-style:" + sitePath;
+  var classic = "${SITE_THEME_ID}";
+  var journal = "${JOURNAL_SITE_THEME_ID}";
+  var journalParam = "jianshu2016";
+  var mode = "system";
+  var originalLinks = new WeakMap();
+
+  function applyMode(value) {
+    mode = value === "light" || value === "dark" ? value : "system";
+    if (mode === "system") {
+      delete root.dataset.colorMode;
+    } else {
+      root.dataset.colorMode = mode;
+    }
+  }
+
+  try {
+    applyMode(window.localStorage.getItem(colorKey));
+    var savedStyle = window.localStorage.getItem(styleKey);
+    if (savedStyle === classic || savedStyle === journal) {
+      root.dataset.siteStyle = savedStyle;
+    }
+  } catch {
+    // Use the published style and system colors when storage is unavailable.
+  }
+
+  function replaceAppearanceParam(parameter, value) {
+    var url = new URL(window.location.href);
+    if (url.searchParams.has(parameter) && url.searchParams.get(parameter) !== value) {
+      url.searchParams.set(parameter, value);
+      window.history.replaceState(window.history.state, "", url);
+      return true;
+    }
+    return false;
+  }
+
+  function sharedAppearance() {
+    var query = new URLSearchParams(window.location.search);
+    var appearance = new URLSearchParams();
+    var style = query.get("style");
+    var theme = query.get("theme");
+    if (style === journal || style === journalParam) appearance.set("style", journalParam);
+    if (style === classic) appearance.set("style", classic);
+    if (["auto", "system", "light", "dark"].includes(theme)) appearance.set("theme", theme);
+    return appearance;
+  }
+
+  var appearance = sharedAppearance();
+  if (appearance.has("style")) {
+    var sharedStyle = appearance.get("style");
+    root.dataset.siteStyle = sharedStyle === journalParam ? journal : classic;
+    replaceAppearanceParam("style", sharedStyle);
+  }
+  if (appearance.has("theme")) applyMode(appearance.get("theme"));
+
+  function updateLinks(container) {
+    if (!appearance.toString()) return;
+    container.querySelectorAll("a[href]:not([download])").forEach(function (link) {
+      var original = originalLinks.get(link) || link.getAttribute("href");
+      // In-page links already retain the current query string.
+      if (!original || original.startsWith("#")) return;
+      var target;
+      try {
+        target = new URL(original, document.baseURI);
+      } catch {
+        return;
+      }
+      if (target.origin !== window.location.origin || !target.pathname.startsWith(sitePath)) return;
+      var filename = target.pathname.split("/").pop();
+      if (filename.includes(".") && !filename.endsWith(".html")) return;
+
+      var originalSearch = target.search;
+      appearance.forEach(function (value, name) {
+        if (!target.searchParams.has(name)) target.searchParams.set(name, value);
+      });
+      if (target.search === originalSearch) return;
+      originalLinks.set(link, original);
+      link.setAttribute("href", target.pathname + target.search + target.hash);
+    });
+  }
+
+  function updateNavigation() {
+    updateLinks(document);
+    if (!appearance.toString()) return;
+    document.querySelectorAll(".sidebar-search-form, .search-page-form").forEach(function (form) {
+      appearance.forEach(function (value, name) {
+        var field = form.elements.namedItem(name);
+        if (!field) {
+          field = document.createElement("input");
+          field.type = "hidden";
+          field.name = name;
+          form.appendChild(field);
+        }
+        field.value = value;
+      });
+    });
+  }
+
+  function bindSelects(selector, value, key, parameter, apply) {
+    var selects = Array.from(document.querySelectorAll(selector));
+    selects.forEach(function (select) {
+      select.value = value;
+      select.addEventListener("change", function () {
+        var selected = select.value;
+        selects.forEach(function (control) { control.value = selected; });
+        apply(selected);
+        if (replaceAppearanceParam(parameter, parameter === "style" && selected === journal ? journalParam : selected)) {
+          appearance = sharedAppearance();
+          updateNavigation();
+        }
+        try {
+          window.localStorage.setItem(key, selected);
+        } catch {
+          // The selection still applies to the current page.
+        }
+      });
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    updateNavigation();
+    var searchResults = document.getElementById("search-results");
+    if (searchResults) {
+      // The static search script fills this list after loading the index.
+      new MutationObserver(function () { updateLinks(searchResults); }).observe(searchResults, { childList: true });
+    }
+
+    var menus = Array.from(document.querySelectorAll(".site-appearance"));
+    menus.forEach(function (menu) { menu.hidden = false; });
+
+    function closeOutside(event) {
+      menus.forEach(function (menu) {
+        if (menu.open && !menu.contains(event.target)) menu.open = false;
+      });
+    }
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("focusin", closeOutside);
+    document.addEventListener("keydown", function (event) {
+      if (event.key !== "Escape") return;
+      var openMenu = menus.find(function (menu) { return menu.open; });
+      if (!openMenu) return;
+      openMenu.open = false;
+      openMenu.querySelector("summary").focus({ preventScroll: true });
+      event.preventDefault();
+    });
+
+    bindSelects(".site-theme-select", mode, colorKey, "theme", applyMode);
+    bindSelects(".site-style-select", root.dataset.siteStyle, styleKey, "style", function (style) {
+      menus.forEach(function (menu) { menu.open = false; });
+      root.dataset.siteStyle = style;
+      var toggle = document.getElementById("site-nav-toggle");
+      if (toggle) {
+        toggle.checked = style === classic && window.matchMedia("(max-width: 768px)").matches;
+      }
+      var active = menus.find(function (menu) {
+        return menu.closest("[data-site-layout]").dataset.siteLayout === style;
+      });
+      if (active) active.querySelector("summary").focus({ preventScroll: true });
+      document.dispatchEvent(new Event("notes-site-style-change"));
+    });
+  });
+})();
+`,
     "assets/js/sidebar.js": `(function () {
   var scrollStorageKey = "notes-site-sidebar-scroll";
   var modeStorageKey = "notes-site-sidebar-mode";
   var defaultMode = "latest";
+
+  function withStorage(action) {
+    try {
+      return action();
+    } catch {
+      // Navigation still works when browser storage is blocked.
+      return null;
+    }
+  }
 
   function isVisibleInside(container, element) {
     var containerRect = container.getBoundingClientRect();
@@ -1261,6 +1615,8 @@ a:hover {
   }
 
   function keepActiveLinkVisible(sidebar) {
+    if (!sidebar.getClientRects().length || getComputedStyle(sidebar).visibility === "hidden") return;
+
     var activeLink = Array.prototype.slice
       .call(sidebar.querySelectorAll(".sidebar-nav a.active"))
       .find(function (link) {
@@ -1271,10 +1627,9 @@ a:hover {
       return;
     }
 
-    activeLink.scrollIntoView({
-      block: "center",
-      inline: "nearest",
-    });
+    var linkRect = activeLink.getBoundingClientRect();
+    var sidebarRect = sidebar.getBoundingClientRect();
+    sidebar.scrollTop += linkRect.top + linkRect.height / 2 - sidebarRect.top - sidebarRect.height / 2;
   }
 
   function setupSidebarMode(sidebar) {
@@ -1304,7 +1659,7 @@ a:hover {
       });
 
       if (shouldSave) {
-        window.localStorage.setItem(modeStorageKey, nextMode);
+        withStorage(function () { window.localStorage.setItem(modeStorageKey, nextMode); });
       }
 
       window.requestAnimationFrame(function () {
@@ -1312,7 +1667,7 @@ a:hover {
       });
     }
 
-    var savedMode = window.localStorage.getItem(modeStorageKey);
+    var savedMode = withStorage(function () { return window.localStorage.getItem(modeStorageKey); });
     setMode(savedMode || defaultMode, false);
 
     buttons.forEach(function (button) {
@@ -1442,27 +1797,31 @@ a:hover {
   document.addEventListener("DOMContentLoaded", function () {
     var sidebar = document.querySelector(".sidebar");
 
-    if (!sidebar) {
-      return;
-    }
+    if (sidebar) {
+      setupSidebarMode(sidebar);
 
-    setupSidebarMode(sidebar);
-
-    var savedScroll = window.sessionStorage.getItem(scrollStorageKey);
-    if (savedScroll !== null) {
-      sidebar.scrollTop = parseInt(savedScroll, 10) || 0;
-      window.sessionStorage.removeItem(scrollStorageKey);
-    }
-
-    window.requestAnimationFrame(function () {
-      keepActiveLinkVisible(sidebar);
-    });
-
-    sidebar.querySelectorAll(".sidebar-nav a[href]").forEach(function (link) {
-      link.addEventListener("click", function () {
-        window.sessionStorage.setItem(scrollStorageKey, String(sidebar.scrollTop));
+      var savedScroll = withStorage(function () {
+        var scroll = window.sessionStorage.getItem(scrollStorageKey);
+        window.sessionStorage.removeItem(scrollStorageKey);
+        return scroll;
       });
-    });
+      if (savedScroll !== null) {
+        sidebar.scrollTop = parseInt(savedScroll, 10) || 0;
+      }
+
+      function syncActiveLink() {
+        keepActiveLinkVisible(sidebar);
+      }
+
+      document.addEventListener("notes-site-style-change", syncActiveLink);
+      var toggle = document.getElementById("site-nav-toggle");
+      if (toggle) toggle.addEventListener("change", syncActiveLink);
+      sidebar.querySelectorAll(".sidebar-nav a[href]").forEach(function (link) {
+        link.addEventListener("click", function () {
+          withStorage(function () { window.sessionStorage.setItem(scrollStorageKey, String(sidebar.scrollTop)); });
+        });
+      });
+    }
 
     setupArticleToc();
     setupCodeCopyButtons();
@@ -1729,11 +2088,8 @@ a:hover {
   start();
 })();
 `,
-  },
 };
 
-export function getSiteThemeFiles(themeId: string = SITE_THEME_ID): Record<string, string> {
-  const files = SITE_THEME_FILES[themeId];
-  if (!files) throw new Error(`不支持的网站样式：${themeId}`);
-  return { ...files };
+export function getSiteThemeFiles(): Record<string, string> {
+  return { ...SITE_THEME_FILES, ...JOURNAL_THEME_FILES };
 }

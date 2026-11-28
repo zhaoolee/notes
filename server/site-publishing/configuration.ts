@@ -1,6 +1,6 @@
 import { normalizeSiteLogoPath } from "../../src/features/site-publishing/logo.js";
 import {
-  SITE_THEME_ID,
+  isSiteThemeId,
   type SiteCategory,
   type SitePublishDraft,
   type SiteSelection,
@@ -125,7 +125,7 @@ function readSettings(value: unknown): SiteSettings {
 
   const themeId = value.themeId;
 
-  if (themeId !== SITE_THEME_ID) {
+  if (!isSiteThemeId(themeId)) {
     throw new InvalidSitePublishConfigurationError("不支持此网站样式。");
   }
 
@@ -141,7 +141,7 @@ function readSettings(value: unknown): SiteSettings {
     origin: readRequiredText(value, "origin", limits.origin, "站点域名"),
     basePath: readBasePath(value),
     logoPath: readLogoPath(value),
-    themeId: SITE_THEME_ID,
+    themeId,
   };
 }
 

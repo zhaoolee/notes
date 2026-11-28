@@ -21,8 +21,20 @@ export function removeDuplicateSiteTitle(markdown: string, title: string): strin
   const first = lines.findIndex((line) => line.trim());
   if (first < 0) return markdown;
   const heading = /^#{1,6}\s+(.+?)\s*$/.exec(lines[first]);
-  if (!heading || heading[1] !== title) return markdown;
-  return lines.slice(first + 1).join("\n").replace(/^\n/, "");
+  if (heading) {
+    if (heading[1] !== title) return markdown;
+    return lines.slice(first + 1).join("\n").replace(/^\n/, "");
+  }
+  if (lines[first].trim() !== title) return markdown;
+
+  // CommonMark 解析时，GFM 表头及其分隔行也会占用多行，不能作为独立标题删除。
+  const paragraph = fromMarkdown(markdown).children[0];
+  const lineNumber = first + 1;
+  if (paragraph?.type !== "paragraph" || paragraph.position?.start.line !== lineNumber || paragraph.position.end.line !== lineNumber) return markdown;
+  const [text] = paragraph.children;
+  const end = paragraph.position.end.offset;
+  if (paragraph.children.length !== 1 || text?.type !== "text" || text.value !== title || end === undefined) return markdown;
+  return markdown.slice(end).replace(/^\r?\n(?:[ \t]*(?:\r?\n|$))?/, "");
 }
 
 /** Hugo scans shortcodes before Markdown, including fenced code examples. */

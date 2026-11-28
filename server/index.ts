@@ -84,6 +84,9 @@ import {
 } from "./wechat-import/route.js";
 import { previewWechatArticle } from "./wechat-import/service.js";
 import { createSiteExportHandler } from "./site-publishing/route.js";
+import { loadGitHubAppConfig } from "./site-publishing/github-api.js";
+import { createGitHubPublishingRouter } from "./site-publishing/github-service.js";
+import { LocalSitePublisher } from "./site-publishing/local-site.js";
 import { createSitePublishingConfigHandlers } from "./site-publishing/config-route.js";
 import {
   addWechatDraft,
@@ -4089,6 +4092,9 @@ function assertWechatDraftContentLimits(html: string): void {
   }
 }
 
+const localSitePublisher = new LocalSitePublisher(path.join(dataDirectory, "published-site"), process.env.SITE_PUBLISH_LOCAL_OWNER_ID?.trim() || "superadmin");
+const localSitePublishingEnabled = ["1", "true", "yes", "on"].includes(process.env.SITE_PUBLISH_LOCAL_ENABLED?.trim().toLowerCase() ?? "");
+
 const app = express();
 app.set("trust proxy", 1);
 
@@ -4191,6 +4197,8 @@ app.use(
   },
 );
 app.use(express.json({ limit: "10mb" }));
+// The generated public website is separate from editor/API authentication and SPA fallback.
+app.use("/notes", localSitePublisher.router());
 app.use("/images", express.static(imagesDir, { fallthrough: false, immutable: true, maxAge: "1y" }));
 
 app.get("/api/auth/session", async (request: Request, response: Response) => {
@@ -4936,6 +4944,25 @@ app.post("/api/site-publishing/export", createSiteExportHandler({
   isSameOrigin: isSameOriginRequest,
   createZip,
 }));
+
+let githubAppConfig = null;
+try { githubAppConfig = await loadGitHubAppConfig(); }
+catch { console.warn("GitHub App 发布配置不可用；网站 ZIP 导出仍可使用。"); }
+try {
+  app.use("/api/site-publishing/github", await createGitHubPublishingRouter({
+    dataDirectory, rootDirectory: rootDir, imagesDirectory: imagesDir, publicDirectory: publicDir,
+    getUser: requireNoteServiceUser, isSameOrigin: isSameOriginRequest, publicOrigin: getPublicBaseUrl,
+    config: githubAppConfig,
+    localSitePublisher: localSitePublishingEnabled ? localSitePublisher : undefined,
+  }));
+} catch {
+  console.warn("GitHub 发布存储不可用；其他便签功能继续运行。");
+  app.use("/api/site-publishing/github", async (request: Request, response: Response) => {
+    response.setHeader("Cache-Control", "no-store");
+    if (!await requireNoteServiceUser(request, response)) return;
+    response.status(503).json({ error: "GitHub 发布存储不可用，请联系管理员检查数据目录。" });
+  });
+}
 
 const sitePublishingConfigHandlers = createSitePublishingConfigHandlers({
   getUser: requireNoteServiceUser,

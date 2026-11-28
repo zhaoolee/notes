@@ -2,6 +2,14 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [未发布]
+
+### 新增
+
+- 可从便签直接将选中的文章发布到 GitHub Pages，并在发布面板跟踪上线状态。
+- 管理员可为指定账号开启本站镜像。GitHub Pages 上线后，Notes 自动用同一份文章快照更新本站的 `/notes/`。
+- Hugo 站点提供「经典便签博客」与「简书2016」两种样式，访客可用外观设置切换样式和深浅配色。带外观参数的链接在打开文章、分类或搜索结果时会保留所选样式和配色。
+
 ## [1.15.1] - 2026-10-31
 
 ### 修复
@@ -399,5 +407,6 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[未发布]: https://github.com/zhaoolee/notes/compare/1.15.1...HEAD
 [1.15.1]: https://github.com/zhaoolee/notes/compare/1.15.0...1.15.1
 [1.15.0]: https://github.com/zhaoolee/notes/compare/1.14.1...1.15.0

@@ -208,7 +208,8 @@
   background: color-mix(in srgb, var(--paper) 55%, transparent);
 }
 
-.site-publish-advanced > summary {
+.site-publish-advanced > summary,
+.site-publish-github > summary {
   min-width: 0;
   padding: 12px 15px;
   display: flex;
@@ -222,26 +223,31 @@
   list-style: none;
 }
 
-.site-publish-advanced > summary::-webkit-details-marker {
+.site-publish-advanced > summary::-webkit-details-marker,
+.site-publish-github > summary::-webkit-details-marker {
   display: none;
 }
 
-.site-publish-advanced > summary::before {
+.site-publish-advanced > summary::before,
+.site-publish-github > summary::before {
   content: "▸";
   color: var(--muted);
   font-size: 0.75rem;
   transition: transform 0.15s ease;
 }
 
-.site-publish-advanced[open] > summary {
+.site-publish-advanced[open] > summary,
+.site-publish-github[open] > summary {
   border-bottom: 1px solid var(--panel-border);
 }
 
-.site-publish-advanced[open] > summary::before {
+.site-publish-advanced[open] > summary::before,
+.site-publish-github[open] > summary::before {
   transform: rotate(90deg);
 }
 
-.site-publish-advanced > summary:focus-visible {
+.site-publish-advanced > summary:focus-visible,
+.site-publish-github > summary:focus-visible {
   outline: 2px solid var(--accent-strong);
   outline-offset: -2px;
 }
@@ -259,6 +265,13 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
   align-items: start;
+}
+
+.site-publish-github-body {
+  min-width: 0;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
 }
 
 .site-publish-fields-root {
@@ -420,13 +433,17 @@
 }
 
 .site-publish-theme-option {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 15px minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   color: var(--ink);
   font-size: 0.8rem;
   font-weight: 600;
+}
+
+.site-publish-theme-option + .site-publish-theme-option {
+  margin-top: 10px;
 }
 
 .site-publish-theme-option input {
@@ -437,7 +454,7 @@
 }
 
 .site-publish-theme-option span {
-  flex: 1 1 100%;
+  grid-column: 2;
   color: var(--muted);
   font-size: 0.73rem;
   font-weight: 400;
@@ -641,21 +658,8 @@
   color: #a5483f;
 }
 
-.site-publish-note-tools {
-  min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
 .site-publish-search {
-  flex: 1 1 140px;
   min-width: 0;
-}
-
-.site-publish-note-tools .site-publish-secondary {
-  flex: 0 1 auto;
 }
 
 .site-publish-secondary,
@@ -812,6 +816,96 @@
   gap: 8px;
 }
 
+/* 发布按钮的 portal 宿主不生成盒子，让按钮直接参与页脚 flex 布局。 */
+.site-publish-footer-github {
+  display: contents;
+}
+
+.site-publish-github-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.site-publish-progress-slot {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.site-publish-progress-slot > * {
+  margin: 14px 22px 0;
+}
+
+.site-publish-progress {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--panel-border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--paper));
+}
+
+.site-publish-progress .site-publish-spinner {
+  width: 36px;
+  height: 36px;
+  flex-basis: 36px;
+  border-width: 3px;
+  color: var(--accent);
+}
+
+.site-publish-progress-copy {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.site-publish-progress-copy strong {
+  font-size: 0.92rem;
+}
+
+.site-publish-progress-copy p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.77rem;
+  line-height: 1.5;
+}
+
+.site-publish-progress .site-publish-elapsed {
+  color: var(--muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.site-publish-spinner {
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  border: 2px solid color-mix(in srgb, currentColor 34%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: site-publish-spin 0.75s linear infinite;
+}
+
+.site-publish-elapsed {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes site-publish-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-publish-spinner {
+    animation: none;
+  }
+}
+
 .site-publish-status,
 .site-publish-error,
 .site-publish-notice {
@@ -901,6 +995,21 @@
     padding: 12px 14px;
   }
 
+  .site-publish-progress-slot > * {
+    margin: 12px 14px 0;
+  }
+
+  .site-publish-progress {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .site-publish-progress .site-publish-spinner {
+    width: 28px;
+    height: 28px;
+    flex-basis: 28px;
+  }
+
   .site-publish-group-grid,
   .site-publish-advanced-body {
     grid-template-columns: minmax(0, 1fr);
@@ -908,6 +1017,10 @@
   }
 
   .site-publish-card {
+    padding: 13px;
+  }
+
+  .site-publish-github-body {
     padding: 13px;
   }
 
@@ -955,5 +1068,161 @@
     grid-column: 1 / -1;
     justify-self: start;
     width: auto;
+  }
+}
+
+/* GitHub Pages 发布卡片：仍只作用于 .site-publish-*，不覆盖全局控件。 */
+.site-publish-github {
+  container-type: inline-size;
+  margin-top: 16px;
+  padding: 0;
+  display: block;
+}
+
+.site-publish-github-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.site-publish-github-account {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.site-publish-github-repository {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.site-publish-github .site-publish-field select {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--ui-font);
+  font-size: 0.78rem;
+}
+
+.site-publish-github .site-publish-field select:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.site-publish-github-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.site-publish-github-actions > button {
+  flex: 0 1 auto;
+}
+
+.site-publish-github-job {
+  min-width: 0;
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--paper) 55%, transparent);
+  font-size: 0.78rem;
+}
+
+.site-publish-github-job > strong {
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.site-publish-github-job p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.site-publish-github-counts {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.site-publish-local-site {
+  display: grid;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.site-publish-local-site-label {
+  color: var(--ink);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.site-publish-local-site .site-publish-local-site-failed {
+  color: #b55345;
+}
+
+:root[data-theme="smartisan-dark"]
+  .site-publish-local-site
+  .site-publish-local-site-failed {
+  color: #e58a7f;
+}
+
+.site-publish-github-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.site-publish-github-links a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.site-publish-github-links a:hover {
+  text-decoration: underline;
+}
+
+.site-publish-github-live {
+  color: #2f7a4d;
+  font-weight: 600;
+}
+
+:root[data-theme="smartisan-dark"] .site-publish-github-live {
+  color: #7fc79d;
+}
+
+@container (max-width: 380px) {
+  .site-publish-github-repository {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .site-publish-github-repository > button {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 520px) {
+  .site-publish-github-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .site-publish-github-actions > button {
+    width: 100%;
   }
 }

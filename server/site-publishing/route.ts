@@ -1,3 +1,4 @@
+import { siteBuildGate } from "./build-gate.js";
 import type { Request, Response } from "express";
 import { buildSiteEntries, validateSiteExportRequest, type SiteZipEntry } from "./build.js";
 import { createSiteImageReader } from "./assets.js";
@@ -22,6 +23,8 @@ export function createSiteExportHandler(options: {
     try { parsed = validateSiteExportRequest(request.body); } catch (error) {
       response.status(400).json({ error: error instanceof Error ? error.message : "网站设置不正确。" }); return;
     }
+    const releaseBuild = siteBuildGate.tryAcquire(user.id);
+    if (!releaseBuild) { response.status(429).json({ error: "已有网站生成任务正在进行，请稍后重试。" }); return; }
     running.add(user.id);
     const controller = new AbortController();
     const deadline = setTimeout(() => controller.abort(), 120_000);
@@ -45,6 +48,7 @@ export function createSiteExportHandler(options: {
       clearTimeout(deadline);
       response.off("close", disconnect);
       running.delete(user.id);
+      releaseBuild();
     }
   };
 }

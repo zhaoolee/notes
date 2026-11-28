@@ -51,7 +51,10 @@ COPY --from=frontend-build /app/dist ./dist
 COPY --from=server-build /app/dist-server ./dist-server
 COPY --from=server-build /app/src/assets/fonts ./src/assets/fonts
 COPY public/bg.jpg ./public/bg.jpg
+COPY public/site-themes/coastal-journal-cover.webp ./public/site-themes/coastal-journal-cover.webp
+COPY public/smartisan/mobile/dark/note_background.webp ./public/smartisan/mobile/dark/note_background.webp
 COPY public/smartisan/web/smartisan_hammer_footer.png ./public/smartisan/web/smartisan_hammer_footer.png
+COPY public/smartisan/web/smartisan_hammer_site.png ./public/smartisan/web/smartisan_hammer_site.png
 COPY skills/notes-workspace-api ./skills/notes-workspace-api
 
 ENV NODE_ENV=production
