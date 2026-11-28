@@ -2,6 +2,17 @@
 
 本文件记录锤子便签中值得用户关注的变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.21.0] - 2026-11-28
+
+### 新增
+
+- 网站发布内置「经典便签博客」和「简书2016」。站长可选择默认样式，访客可通过外观设置切换布局和深浅配色。
+- 支持用 `style=jianshu2016` 和 `theme=auto` 分享外观，文章、分类和站内搜索会沿用链接指定的设置。
+
+### 修复
+
+- 通过 Notes 发布新文章时，生成的网站继续包含两种样式和外观设置。
+
 ## [1.20.6] - 2026-11-24
 
 ### 修复
@@ -569,6 +580,7 @@
 
 [1.14.1]: https://github.com/zhaoolee/notes/compare/1.14.0...1.14.1
 
+[1.21.0]: https://github.com/zhaoolee/notes/compare/1.20.6...1.21.0
 [1.20.6]: https://github.com/zhaoolee/notes/compare/1.20.5...1.20.6
 [1.20.5]: https://github.com/zhaoolee/notes/compare/1.20.4...1.20.5
 [1.20.4]: https://github.com/zhaoolee/notes/compare/1.20.3...1.20.4

@@ -591,12 +591,11 @@ test("面板 SSR 渲染独立对话框，默认按分类分组并折叠高级设
     assert.match(html, /正在读取账号设置/);
     assert.doesNotMatch(html, /最多 200|这些信息只写入|默认使用锤子图标/);
     assert.doesNotMatch(html, /连接 GitHub|部署到 GitHub|一键部署/);
-    // 目前只有一种站点模板，不渲染“网站样式”选择区；元数据列表仍保留默认主题。
-    assert.equal(SITE_THEMES.length, 1);
+    assert.equal(SITE_THEMES.length, 2);
     assert.equal(SITE_THEMES[0].id, SITE_THEME_ID);
-    assert.doesNotMatch(html, /网站样式/);
-    assert.doesNotMatch(html, /type="radio"/);
-    assert.doesNotMatch(html, /经典便签博客/);
+    assert.match(html, /<legend>默认网站样式<\/legend>/);
+    assert.match(html, /简书2016/);
+    assert.match(html, /经典便签博客/);
     assert.match(html, /data-site-publish-storage="saved"/);
   } finally {
     restore();

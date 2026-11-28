@@ -1,8 +1,11 @@
+import { JOURNAL_SITE_THEME_ID, SITE_THEMES, SITE_THEME_ID } from "../../src/features/site-publishing/model.js";
+import { JOURNAL_THEME_FILES } from "./journal-theme.js";
+
 /**
  * 静态网站主题文件。
  *
  * 由服务端在生成 Hugo 站点时写入磁盘，再由 Hugo Extended 0.162.1 构建。
- * 主题只有一个稳定标识 smartisan-blog；文件表的键均为 Hugo 项目内的相对路径，
+ * 文件表的键均为 Hugo 项目内的相对路径，
  * 所有站内链接都通过 relURL、RelPermalink 或模板注入生成，因此同一份主题
  * 既可用于根路径（basePath=/），也可用于 /nested/blog/ 这类子路径。
  *
@@ -24,8 +27,6 @@
  * - 分类菜单由 hugo.json 的 menu.main 提供，不在这里硬编码任何分类。
  * - 图片 render hook 只输出页面资源或经过协议白名单校验的地址，不引入 safeHTML。
  */
-
-const SITE_THEME_ID = "smartisan-blog";
 
 // 沿用编辑器锤子暗黑的纸面、正文和金色强调色，次要文字使用正文引用色。
 const DARK_SITE_COLORS = `  color-scheme: dark;
@@ -67,10 +68,9 @@ const DARK_SITE_COLORS = `  color-scheme: dark;
   --failure: #efac94;
   --accent-border: #8c6c20;`;
 
-const SITE_THEME_FILES: Record<string, Record<string, string>> = {
-  [SITE_THEME_ID]: {
+const SITE_THEME_FILES: Record<string, string> = {
     "layouts/_default/baseof.html": `<!doctype html>
-<html lang="{{ site.Language.Locale | default "zh-CN" }}">
+<html lang="{{ site.Language.Locale | default "zh-CN" }}" data-site-style="{{ if eq site.Params.notesTheme "${JOURNAL_SITE_THEME_ID}" }}${JOURNAL_SITE_THEME_ID}{{ else }}${SITE_THEME_ID}{{ end }}">
   <head>
     {{- $description := site.Params.description | default "" -}}
     {{- with .Description }}{{ $description = . }}{{ else }}{{ if not .IsHome }}{{ with .Summary }}{{ $description = . | plainify | htmlUnescape | chomp }}{{ end }}{{ end }}{{ end }}
@@ -101,20 +101,27 @@ const SITE_THEME_FILES: Record<string, Record<string, string>> = {
     <link rel="stylesheet" href="{{ .RelPermalink }}" integrity="{{ .Data.Integrity }}" crossorigin="anonymous">
       {{- end }}
     {{- end }}
+    {{- with resources.Get "css/journal.css" }}
+      {{- with . | minify | fingerprint "sha256" }}
+    <link rel="stylesheet" href="{{ .RelPermalink }}" integrity="{{ .Data.Integrity }}" crossorigin="anonymous">
+      {{- end }}
+    {{- end }}
     {{- with resources.Get "js/sidebar.js" }}
       {{- with . | minify | fingerprint "sha256" }}
     <script defer src="{{ .RelPermalink }}" integrity="{{ .Data.Integrity }}" crossorigin="anonymous"></script>
       {{- end }}
     {{- end }}
   </head>
-  <body>
-    <input class="site-nav-toggle" id="site-nav-toggle" type="checkbox" aria-label="展开导航">
-    <label class="site-nav-button" for="site-nav-toggle" aria-hidden="true">
+  <body{{ if .IsHome }} class="site-home"{{ end }}>
+    {{ partial "journal-header.html" . }}
+    <input class="site-nav-toggle" data-site-layout="${SITE_THEME_ID}" id="site-nav-toggle" type="checkbox" aria-label="展开导航">
+    <label class="site-nav-button" data-site-layout="${SITE_THEME_ID}" for="site-nav-toggle" aria-hidden="true">
       <span></span>
       <span></span>
       <span></span>
     </label>
     <div class="site-shell">
+      {{ if .IsHome }}{{ partial "journal-cover.html" . }}{{ end }}
       {{ partial "sidebar.html" . }}
       <main class="site-main">
         {{ block "main" . }}{{ end }}
@@ -124,7 +131,7 @@ const SITE_THEME_FILES: Record<string, Record<string, string>> = {
 </html>
 `,
     "layouts/_default/list.html": `{{ define "main" }}
-  <section class="reader-sheet">
+  <section class="reader-sheet site-index-sheet">
     <span class="reader-sheet-corner reader-sheet-corner-top-left" aria-hidden="true"></span>
     <span class="reader-sheet-corner reader-sheet-corner-top-right" aria-hidden="true"></span>
     <span class="reader-sheet-corner reader-sheet-corner-bottom-left" aria-hidden="true"></span>
@@ -132,12 +139,13 @@ const SITE_THEME_FILES: Record<string, Record<string, string>> = {
     <header class="article-header">
       <h1>{{ .Title }}</h1>
     </header>
+    {{ partial "journal-topics.html" . }}
     {{ with .Content }}
       <div class="article-content">{{ . }}</div>
     {{ end }}
     {{ $pages := where .RegularPages.ByDate.Reverse "Section" "ne" "search" }}
     {{ if $pages }}
-      <ol class="post-list">
+      <ol class="post-list" data-site-layout="${SITE_THEME_ID}">
         {{ range $pages }}
           <li>
             <a href="{{ .RelPermalink }}">{{ .Title }}</a>
@@ -146,6 +154,9 @@ const SITE_THEME_FILES: Record<string, Record<string, string>> = {
         {{ end }}
       </ol>
     {{ end }}
+    <div data-site-layout="${JOURNAL_SITE_THEME_ID}">
+      {{ partial "journal-feed.html" $pages }}
+    </div>
   </section>
 {{ end }}
 `,
@@ -220,7 +231,7 @@ Sitemap: {{ "sitemap.xml" | absURL }}
 {{- end -}}
 <a href="{{ $destination }}"{{ with .Title }} title="{{ . }}"{{ end }}>{{ .Text }}</a>
 `,
-    "layouts/partials/sidebar.html": `<aside class="sidebar" aria-label="站点导航">
+    "layouts/partials/sidebar.html": `<aside class="sidebar" data-site-layout="${SITE_THEME_ID}" aria-label="站点导航">
   <div class="sidebar-head">
     <a class="site-brand" href="{{ site.Home.RelPermalink }}" aria-label="{{ site.Title }}">
       <img class="site-brand-logo" src="{{ site.Params.logo | default "logo.png" | relURL }}" alt="" width="28" height="28">
@@ -237,13 +248,7 @@ Sitemap: {{ "sitemap.xml" | absURL }}
         <button class="sidebar-mode-button" type="button" data-sidebar-mode-button="latest" aria-selected="true">最新</button>
         <button class="sidebar-mode-button" type="button" data-sidebar-mode-button="sections" aria-selected="false">专题</button>
       </div>
-      <span class="site-theme-field" hidden>
-        <select class="site-theme-select" aria-label="网站主题">
-          <option value="system">自动</option>
-          <option value="light">浅色</option>
-          <option value="dark">深色</option>
-        </select>
-      </span>
+      {{ partial "appearance-settings.html" . }}
     </div>
   </div>
   <nav class="sidebar-nav sidebar-nav-latest" data-sidebar-panel="latest" aria-label="最新文章">
@@ -297,6 +302,31 @@ Sitemap: {{ "sitemap.xml" | absURL }}
   </nav>
 </aside>
 `,
+    "layouts/partials/appearance-settings.html": `<details class="site-appearance" hidden>
+  <summary class="site-appearance-toggle" aria-label="外观设置" title="外观设置">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true">
+      <path d="M10 3h4l.6 2.3 1.6.9 2.3-.6 2 3.5-1.7 1.7v1.9l1.7 1.7-2 3.5-2.3-.6-1.6.9-.6 2.3h-4l-.6-2.3-1.6-.9-2.3.6-2-3.5 1.7-1.7v-1.9L3.5 9.1l2-3.5 2.3.6 1.6-.9L10 3Z"></path>
+      <circle cx="12" cy="11.75" r="3"></circle>
+    </svg>
+  </summary>
+  <div class="site-appearance-panel">
+    <label>
+      <span>网站样式</span>
+      <select class="site-style-select">
+        ${SITE_THEMES.map(({ id, label }) => `<option value="${id}">${label}</option>`).join("\n        ")}
+      </select>
+    </label>
+    <label>
+      <span>网站主题</span>
+      <select class="site-theme-select">
+        <option value="system">自动</option>
+        <option value="light">浅色</option>
+        <option value="dark">深色</option>
+      </select>
+    </label>
+  </div>
+</details>
+`,
     "layouts/partials/search-page.html": `  <section class="reader-sheet search-sheet">
     <span class="reader-sheet-corner reader-sheet-corner-top-left" aria-hidden="true"></span>
     <span class="reader-sheet-corner reader-sheet-corner-top-right" aria-hidden="true"></span>
@@ -325,28 +355,29 @@ Sitemap: {{ "sitemap.xml" | absURL }}
   <script src="{{ "js/search.js" | relURL }}" data-search-index="{{ $searchIndex }}" defer></script>
 `,
     "layouts/index.html": `{{ define "main" }}
-  <section class="reader-sheet">
+  <section class="reader-sheet site-index-sheet">
     <span class="reader-sheet-corner reader-sheet-corner-top-left" aria-hidden="true"></span>
     <span class="reader-sheet-corner reader-sheet-corner-top-right" aria-hidden="true"></span>
     <span class="reader-sheet-corner reader-sheet-corner-bottom-left" aria-hidden="true"></span>
     <span class="reader-sheet-corner reader-sheet-corner-bottom-right" aria-hidden="true"></span>
-    <header class="article-header">
+    <header class="article-header" data-site-layout="${SITE_THEME_ID}">
       <h1>{{ site.Title }}</h1>
       {{ with site.Params.description }}<p class="home-description">{{ . }}</p>{{ end }}
     </header>
+    <h1 class="journal-list-title" data-site-layout="${JOURNAL_SITE_THEME_ID}">最新文章</h1>
+    {{ partial "journal-topics.html" . }}
     {{ with .Content }}
       <div class="article-content">{{ . }}</div>
     {{ end }}
-    {{ $pages := slice }}
-    {{ range site.RegularPages }}
-      {{ if and (ne .Section "search") (ne .Layout "search") (ne .Type "search") (ne .Params.searchExclude true) }}
-        {{ $pages = $pages | append . }}
-      {{ end }}
-    {{ end }}
+    {{ $pages := where site.RegularPages "Section" "ne" "search" }}
+    {{ $pages = where $pages "Layout" "ne" "search" }}
+    {{ $pages = where $pages "Type" "ne" "search" }}
+    {{ $pages = where $pages "Params.searchExclude" "ne" true }}
+    {{ $pages = $pages.ByDate.Reverse }}
     {{ if $pages }}
-      <h2 class="home-list-title">最新文章</h2>
-      <ol class="post-list home-post-list">
-        {{ range $pages.ByDate.Reverse }}
+      <h2 class="home-list-title" data-site-layout="${SITE_THEME_ID}">最新文章</h2>
+      <ol class="post-list home-post-list" data-site-layout="${SITE_THEME_ID}">
+        {{ range $pages }}
           <li>
             <a href="{{ .RelPermalink }}">{{ .Title }}</a>
             {{ if not .Date.IsZero }}<time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "2006-01-02" }}</time>{{ end }}
@@ -354,6 +385,9 @@ Sitemap: {{ "sitemap.xml" | absURL }}
         {{ end }}
       </ol>
     {{ end }}
+    <div data-site-layout="${JOURNAL_SITE_THEME_ID}">
+      {{ partial "journal-feed.html" $pages }}
+    </div>
   </section>
 {{ end }}
 `,
@@ -396,6 +430,11 @@ Sitemap: {{ "sitemap.xml" | absURL }}
 
 :root[data-color-mode="dark"] {
 ${DARK_SITE_COLORS}
+}
+
+:root[data-site-style="${SITE_THEME_ID}"] [data-site-layout="${JOURNAL_SITE_THEME_ID}"],
+:root[data-site-style="${JOURNAL_SITE_THEME_ID}"] [data-site-layout="${SITE_THEME_ID}"] {
+  display: none !important;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -611,62 +650,78 @@ a:hover {
   background: var(--control-track, rgba(245, 239, 228, 0.72));
 }
 
-.site-theme-field {
-  --theme-select-padding: 10px;
-  --theme-arrow-width: 8px;
-  --theme-arrow-gap: 6px;
+.site-appearance {
   position: relative;
-  display: flex;
   flex: none;
   color: var(--sidebar-ink);
 }
 
-/* 没有脚本时整组隐藏，与下拉框自身的原生隐藏行为一致。 */
-.site-theme-field[hidden] {
+.site-appearance[hidden] {
   display: none;
 }
 
-/* 去掉浏览器原生箭头后自行绘制，避免各浏览器箭头位置不一致。 */
-.site-theme-field::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  inset-inline-end: calc(var(--theme-select-padding) + 1px);
-  width: 0;
-  height: 0;
-  border-left: calc(var(--theme-arrow-width) / 2) solid transparent;
-  border-right: calc(var(--theme-arrow-width) / 2) solid transparent;
-  border-top: 5px solid currentColor;
-  transform: translateY(-50%);
-  pointer-events: none;
+.site-appearance-toggle {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--control-border, rgba(206, 190, 170, 0.78));
+  border-radius: 8px;
+  background: var(--control-bg, rgb(255, 251, 245));
+  cursor: pointer;
+  list-style: none;
 }
 
-.site-theme-select {
-  appearance: none;
-  -webkit-appearance: none;
-  /* Reserve space for the two-character labels even when the native control sizes itself more narrowly. */
-  min-inline-size: calc(2em + 2 * var(--theme-select-padding) + var(--theme-arrow-width) + var(--theme-arrow-gap) + 2px);
-  padding-block: 0;
-  padding-inline: var(--theme-select-padding) calc(var(--theme-select-padding) + var(--theme-arrow-width) + var(--theme-arrow-gap));
+.site-appearance-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.site-appearance-toggle:hover,
+.site-appearance[open] .site-appearance-toggle {
+  background: var(--hover-bg, #f5ede2);
+}
+
+.site-appearance-panel {
+  position: absolute;
+  z-index: 4;
+  inset-block-start: calc(100% + 8px);
+  inset-inline-end: 0;
+  display: grid;
+  gap: 12px;
+  width: min(224px, calc(100vw - 32px));
+  padding: 12px;
+  border: 1px solid var(--control-border, rgba(206, 190, 170, 0.78));
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .16);
+}
+
+.site-appearance:not([open]) .site-appearance-panel {
+  display: none;
+}
+
+.site-appearance-panel label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.site-appearance-panel select {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 8px;
   border: 1px solid var(--control-border, rgba(206, 190, 170, 0.78));
   border-radius: 8px;
   background: var(--control-bg, rgb(255, 251, 245));
   color: var(--sidebar-ink);
-  font: 600 13px var(--base-font-family);
-  line-height: 1.2;
-  text-align: start;
+  font: inherit;
   cursor: pointer;
 }
 
-.site-theme-select:focus-visible {
+.site-appearance :is(summary, select):focus-visible {
   outline: 2px solid var(--accent-border, rgba(143, 92, 44, 0.42));
   outline-offset: 2px;
-}
-
-@media (forced-colors: active) {
-  .site-theme-field::after {
-    border-top-color: CanvasText;
-  }
 }
 
 .sidebar-mode-button {
@@ -1248,6 +1303,19 @@ a:hover {
     display: block;
   }
 
+  .site-nav-toggle {
+    position: absolute;
+    display: block;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
+  }
+
+  .site-nav-toggle:focus-visible + .site-nav-button {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
   .site-nav-button {
     position: fixed;
     z-index: 40;
@@ -1306,11 +1374,13 @@ a:hover {
     position: fixed;
     left: -300px;
     width: 300px;
-    transition: left 180ms ease;
+    visibility: hidden;
+    transition: left 180ms ease, visibility 180ms;
   }
 
   .site-nav-toggle:checked ~ .site-shell .sidebar {
     left: 0;
+    visibility: visible;
   }
 
   .site-main {
@@ -1354,8 +1424,14 @@ a:hover {
 `,
     "assets/js/theme.js": `(function () {
   var root = document.documentElement;
-  var storageKey = "notes-site-color-mode:" + document.currentScript.dataset.sitePath;
+  var sitePath = document.currentScript.dataset.sitePath;
+  var colorKey = "notes-site-color-mode:" + sitePath;
+  var styleKey = "notes-site-style:" + sitePath;
+  var classic = "${SITE_THEME_ID}";
+  var journal = "${JOURNAL_SITE_THEME_ID}";
+  var journalParam = "jianshu2016";
   var mode = "system";
+  var originalLinks = new WeakMap();
 
   function applyMode(value) {
     mode = value === "light" || value === "dark" ? value : "system";
@@ -1367,24 +1443,148 @@ a:hover {
   }
 
   try {
-    applyMode(window.localStorage.getItem(storageKey));
+    applyMode(window.localStorage.getItem(colorKey));
+    var savedStyle = window.localStorage.getItem(styleKey);
+    if (savedStyle === classic || savedStyle === journal) {
+      root.dataset.siteStyle = savedStyle;
+    }
   } catch {
-    // The stylesheet follows the system when browser storage is unavailable.
+    // Use the published style and system colors when storage is unavailable.
+  }
+
+  function replaceAppearanceParam(parameter, value) {
+    var url = new URL(window.location.href);
+    if (url.searchParams.has(parameter) && url.searchParams.get(parameter) !== value) {
+      url.searchParams.set(parameter, value);
+      window.history.replaceState(window.history.state, "", url);
+      return true;
+    }
+    return false;
+  }
+
+  function sharedAppearance() {
+    var query = new URLSearchParams(window.location.search);
+    var appearance = new URLSearchParams();
+    var style = query.get("style");
+    var theme = query.get("theme");
+    if (style === journal || style === journalParam) appearance.set("style", journalParam);
+    if (style === classic) appearance.set("style", classic);
+    if (["auto", "system", "light", "dark"].includes(theme)) appearance.set("theme", theme);
+    return appearance;
+  }
+
+  var appearance = sharedAppearance();
+  if (appearance.has("style")) {
+    var sharedStyle = appearance.get("style");
+    root.dataset.siteStyle = sharedStyle === journalParam ? journal : classic;
+    replaceAppearanceParam("style", sharedStyle);
+  }
+  if (appearance.has("theme")) applyMode(appearance.get("theme"));
+
+  function updateLinks(container) {
+    if (!appearance.toString()) return;
+    container.querySelectorAll("a[href]:not([download])").forEach(function (link) {
+      var original = originalLinks.get(link) || link.getAttribute("href");
+      // In-page links already retain the current query string.
+      if (!original || original.startsWith("#")) return;
+      var target;
+      try {
+        target = new URL(original, document.baseURI);
+      } catch {
+        return;
+      }
+      if (target.origin !== window.location.origin || !target.pathname.startsWith(sitePath)) return;
+      var filename = target.pathname.split("/").pop();
+      if (filename.includes(".") && !filename.endsWith(".html")) return;
+
+      var originalSearch = target.search;
+      appearance.forEach(function (value, name) {
+        if (!target.searchParams.has(name)) target.searchParams.set(name, value);
+      });
+      if (target.search === originalSearch) return;
+      originalLinks.set(link, original);
+      link.setAttribute("href", target.pathname + target.search + target.hash);
+    });
+  }
+
+  function updateNavigation() {
+    updateLinks(document);
+    if (!appearance.toString()) return;
+    document.querySelectorAll(".sidebar-search-form, .search-page-form").forEach(function (form) {
+      appearance.forEach(function (value, name) {
+        var field = form.elements.namedItem(name);
+        if (!field) {
+          field = document.createElement("input");
+          field.type = "hidden";
+          field.name = name;
+          form.appendChild(field);
+        }
+        field.value = value;
+      });
+    });
+  }
+
+  function bindSelects(selector, value, key, parameter, apply) {
+    var selects = Array.from(document.querySelectorAll(selector));
+    selects.forEach(function (select) {
+      select.value = value;
+      select.addEventListener("change", function () {
+        var selected = select.value;
+        selects.forEach(function (control) { control.value = selected; });
+        apply(selected);
+        if (replaceAppearanceParam(parameter, parameter === "style" && selected === journal ? journalParam : selected)) {
+          appearance = sharedAppearance();
+          updateNavigation();
+        }
+        try {
+          window.localStorage.setItem(key, selected);
+        } catch {
+          // The selection still applies to the current page.
+        }
+      });
+    });
   }
 
   document.addEventListener("DOMContentLoaded", function () {
-    var select = document.querySelector(".site-theme-field > .site-theme-select");
-    if (!select) return;
+    updateNavigation();
+    var searchResults = document.getElementById("search-results");
+    if (searchResults) {
+      // The static search script fills this list after loading the index.
+      new MutationObserver(function () { updateLinks(searchResults); }).observe(searchResults, { childList: true });
+    }
 
-    select.value = mode;
-    select.parentElement.hidden = false;
-    select.addEventListener("change", function () {
-      applyMode(select.value);
-      try {
-        window.localStorage.setItem(storageKey, mode);
-      } catch {
-        // Keep the selected theme for this page even if it cannot be saved.
+    var menus = Array.from(document.querySelectorAll(".site-appearance"));
+    menus.forEach(function (menu) { menu.hidden = false; });
+
+    function closeOutside(event) {
+      menus.forEach(function (menu) {
+        if (menu.open && !menu.contains(event.target)) menu.open = false;
+      });
+    }
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("focusin", closeOutside);
+    document.addEventListener("keydown", function (event) {
+      if (event.key !== "Escape") return;
+      var openMenu = menus.find(function (menu) { return menu.open; });
+      if (!openMenu) return;
+      openMenu.open = false;
+      openMenu.querySelector("summary").focus({ preventScroll: true });
+      event.preventDefault();
+    });
+
+    bindSelects(".site-theme-select", mode, colorKey, "theme", applyMode);
+    bindSelects(".site-style-select", root.dataset.siteStyle, styleKey, "style", function (style) {
+      menus.forEach(function (menu) { menu.open = false; });
+      root.dataset.siteStyle = style;
+      var toggle = document.getElementById("site-nav-toggle");
+      if (toggle) {
+        toggle.checked = style === classic && window.matchMedia("(max-width: 768px)").matches;
       }
+      var active = menus.find(function (menu) {
+        return menu.closest("[data-site-layout]").dataset.siteLayout === style;
+      });
+      if (active) active.querySelector("summary").focus({ preventScroll: true });
+      document.dispatchEvent(new Event("notes-site-style-change"));
     });
   });
 })();
@@ -1393,6 +1593,15 @@ a:hover {
   var scrollStorageKey = "notes-site-sidebar-scroll";
   var modeStorageKey = "notes-site-sidebar-mode";
   var defaultMode = "latest";
+
+  function withStorage(action) {
+    try {
+      return action();
+    } catch {
+      // Navigation still works when browser storage is blocked.
+      return null;
+    }
+  }
 
   function isVisibleInside(container, element) {
     var containerRect = container.getBoundingClientRect();
@@ -1406,6 +1615,8 @@ a:hover {
   }
 
   function keepActiveLinkVisible(sidebar) {
+    if (!sidebar.getClientRects().length || getComputedStyle(sidebar).visibility === "hidden") return;
+
     var activeLink = Array.prototype.slice
       .call(sidebar.querySelectorAll(".sidebar-nav a.active"))
       .find(function (link) {
@@ -1416,10 +1627,9 @@ a:hover {
       return;
     }
 
-    activeLink.scrollIntoView({
-      block: "center",
-      inline: "nearest",
-    });
+    var linkRect = activeLink.getBoundingClientRect();
+    var sidebarRect = sidebar.getBoundingClientRect();
+    sidebar.scrollTop += linkRect.top + linkRect.height / 2 - sidebarRect.top - sidebarRect.height / 2;
   }
 
   function setupSidebarMode(sidebar) {
@@ -1449,7 +1659,7 @@ a:hover {
       });
 
       if (shouldSave) {
-        window.localStorage.setItem(modeStorageKey, nextMode);
+        withStorage(function () { window.localStorage.setItem(modeStorageKey, nextMode); });
       }
 
       window.requestAnimationFrame(function () {
@@ -1457,7 +1667,7 @@ a:hover {
       });
     }
 
-    var savedMode = window.localStorage.getItem(modeStorageKey);
+    var savedMode = withStorage(function () { return window.localStorage.getItem(modeStorageKey); });
     setMode(savedMode || defaultMode, false);
 
     buttons.forEach(function (button) {
@@ -1587,27 +1797,31 @@ a:hover {
   document.addEventListener("DOMContentLoaded", function () {
     var sidebar = document.querySelector(".sidebar");
 
-    if (!sidebar) {
-      return;
-    }
+    if (sidebar) {
+      setupSidebarMode(sidebar);
 
-    setupSidebarMode(sidebar);
-
-    var savedScroll = window.sessionStorage.getItem(scrollStorageKey);
-    if (savedScroll !== null) {
-      sidebar.scrollTop = parseInt(savedScroll, 10) || 0;
-      window.sessionStorage.removeItem(scrollStorageKey);
-    }
-
-    window.requestAnimationFrame(function () {
-      keepActiveLinkVisible(sidebar);
-    });
-
-    sidebar.querySelectorAll(".sidebar-nav a[href]").forEach(function (link) {
-      link.addEventListener("click", function () {
-        window.sessionStorage.setItem(scrollStorageKey, String(sidebar.scrollTop));
+      var savedScroll = withStorage(function () {
+        var scroll = window.sessionStorage.getItem(scrollStorageKey);
+        window.sessionStorage.removeItem(scrollStorageKey);
+        return scroll;
       });
-    });
+      if (savedScroll !== null) {
+        sidebar.scrollTop = parseInt(savedScroll, 10) || 0;
+      }
+
+      function syncActiveLink() {
+        keepActiveLinkVisible(sidebar);
+      }
+
+      document.addEventListener("notes-site-style-change", syncActiveLink);
+      var toggle = document.getElementById("site-nav-toggle");
+      if (toggle) toggle.addEventListener("change", syncActiveLink);
+      sidebar.querySelectorAll(".sidebar-nav a[href]").forEach(function (link) {
+        link.addEventListener("click", function () {
+          withStorage(function () { window.sessionStorage.setItem(scrollStorageKey, String(sidebar.scrollTop)); });
+        });
+      });
+    }
 
     setupArticleToc();
     setupCodeCopyButtons();
@@ -1874,11 +2088,8 @@ a:hover {
   start();
 })();
 `,
-  },
 };
 
-export function getSiteThemeFiles(themeId: string = SITE_THEME_ID): Record<string, string> {
-  const files = SITE_THEME_FILES[themeId];
-  if (!files) throw new Error(`不支持的网站样式：${themeId}`);
-  return { ...files };
+export function getSiteThemeFiles(): Record<string, string> {
+  return { ...SITE_THEME_FILES, ...JOURNAL_THEME_FILES };
 }

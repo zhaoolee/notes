@@ -33,7 +33,6 @@ import {
   DEFAULT_SITE_BASE_PATH,
   DEFAULT_SITE_CATEGORIES,
   SITE_THEMES,
-  SITE_THEME_ID,
   normalizeBasePath,
   normalizeSiteSettings,
   validateSiteCategories,
@@ -67,7 +66,6 @@ function getSiteAddressPreview(settings: SiteSettings): {
       ...settings,
       // 地址预览只关心域名和子路径；空标题会由导出按钮统一报错。
       title: settings.title.trim() || "站点",
-      themeId: SITE_THEME_ID,
     });
     const hasOrigin = normalized.origin.length > 0;
 
@@ -862,7 +860,7 @@ export function SitePublishPanel({
 
               {SITE_THEMES.length > 1 ? (
                 <fieldset className="site-publish-theme">
-                  <legend>网站样式</legend>
+                  <legend>默认网站样式</legend>
                   {SITE_THEMES.map((theme) => {
                     const optionId = `${themeId}-${theme.id}`;
 
@@ -872,16 +870,17 @@ export function SitePublishPanel({
                           id={optionId}
                           type="radio"
                           name="site-publish-theme"
+                          aria-describedby={`${optionId}-description`}
                           value={theme.id}
                           checked={draft.settings.themeId === theme.id}
                           onChange={() =>
                             updateSettings({
-                              themeId: theme.id as SiteSettings["themeId"],
+                              themeId: theme.id,
                             })
                           }
                         />
                         <label htmlFor={optionId}>{theme.label}</label>
-                        <span>{theme.description}</span>
+                        <span id={`${optionId}-description`}>{theme.description}</span>
                       </div>
                     );
                   })}

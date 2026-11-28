@@ -6,7 +6,7 @@ import os from "node:os";
 import test from "node:test";
 import { load } from "cheerio";
 import sharp from "sharp";
-import { createSitePublishDraft, buildSiteExportRequest, normalizeBasePath, validateSiteCategories } from "../../src/features/site-publishing/model.js";
+import { JOURNAL_SITE_THEME_ID, createSitePublishDraft, buildSiteExportRequest, normalizeBasePath, validateSiteCategories } from "../../src/features/site-publishing/model.js";
 import { buildSiteEntries, validateSiteExportRequest } from "../../server/site-publishing/build.js";
 import { localizeSiteMarkdown, removeDuplicateSiteTitle } from "../../server/site-publishing/markdown.js";
 import { createSiteImageReader, isAllowedSiteImageDnsAddress, isPublicSiteImageAddress, validateRemoteSiteImageUrl } from "../../server/site-publishing/assets.js";
@@ -15,6 +15,56 @@ const countOccurrences = (text: string, needle: string) => text.split(needle).le
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nWQAAAAASUVORK5CYII=", "base64");
 const customLogoPath = `/images/${"b".repeat(64)}.png`;
 const note = { id: "selected-one", markdown: "## 完整标题\n\n公开正文", createdAt: 1_600_000_000_000, updatedAt: 1_600_000_100_000, normalOrder: 0, pinnedAt: null, folderId: null, isStarred: false, deletedAt: null };
+
+test("真实 Hugo 构建以简书2016为默认样式，同时导出经典布局、分类与搜索", async () => {
+  const draft = createSitePublishDraft("https://example.test");
+  draft.settings.themeId = JOURNAL_SITE_THEME_ID;
+  draft.selections = [
+    { noteId: note.id, categoryId: "guides" },
+    { noteId: "with-image", categoryId: "software" },
+  ];
+  const withImage = {
+    ...note,
+    id: "with-image",
+    createdAt: note.createdAt + 1_000,
+    markdown: "# 有图文章\n\n![封面](first.png)\n\n独立的文章摘要与 & 符号。\n\n![后续配图](second.png)\n\n后续段落正文。",
+  };
+  const secondImage = await sharp({ create: { width: 2, height: 2, channels: 3, background: "#ff0000" } }).png().toBuffer();
+  const request = validateSiteExportRequest(buildSiteExportRequest(draft, [note, withImage]));
+  const entries = await buildSiteEntries(request, {
+    rootDirectory: process.cwd(),
+    signal: new AbortController().signal,
+    readImage: async (source) => ({ buffer: source === "first.png" ? png : secondImage, extension: "png" }),
+  });
+  const files = new Map(entries.map(({ path, data }) => [path.replace("notes-hugo-site/", ""), data]));
+  const html = (filename: string) => load(files.get(`public/${filename}`)!.toString());
+
+  const home = html("index.html");
+  assert.equal(home("html").attr("data-site-style"), JOURNAL_SITE_THEME_ID);
+  assert.equal(home(".journal-header .site-appearance[hidden] summary[aria-label='外观设置']").length, 1);
+  assert.deepEqual(home(".sidebar .site-style-select option").map((_index, element) => home(element).text()).get(), ["经典便签博客", "简书2016"]);
+  assert.ok(home(".home-post-list").length);
+  assert.equal(home(".journal-cover h1").length, 0);
+  assert.equal(home(".journal-brand span").text(), draft.settings.title);
+  assert.equal(home(".journal-list-title").text(), "最新文章");
+  assert.equal(home(".journal-cover .home-description").text(), draft.settings.description);
+  assert.equal(home(".journal-search").attr("action"), "/notes/search/");
+  assert.equal(home(".journal-topics [aria-current=page]").attr("href"), "/notes/");
+  assert.deepEqual(home(".journal-feed h2").map((_index, element) => home(element).text()).get(), ["有图文章", "完整标题"]);
+  assert.equal(home(".journal-entry p").first().text(), "独立的文章摘要与 & 符号。");
+  const thumbnail = home(".journal-thumb").attr("src")!;
+  assert.equal(home(".journal-thumb").length, 1);
+  assert.match(thumbnail, /^\/notes\/software\//);
+  assert.deepEqual(files.get(`public/${thumbnail.slice("/notes/".length)}`), png);
+  const article = home(".journal-feed h2 a").first().attr("href")!;
+  const articlePage = html(`${article.slice("/notes/".length)}index.html`);
+  assert.equal(articlePage(".article-content").length, 1);
+  assert.equal(articlePage(".article-content img").length, 2);
+  assert.equal(html("software/index.html")(".journal-topics [aria-current=page]").attr("href"), "/notes/software/");
+  assert.equal(html("search/index.html")("script[data-search-index]").attr("data-search-index"), "/notes/index.json");
+  assert.ok(files.has("public/assets/coastal-journal-cover.webp"));
+  assert.match(files.get("README.md")!.toString(), /默认样式：简书2016。访客可通过外观设置图标切换/);
+});
 
 test("网站导出验证 basePath、保留分类路径、回收站和显式选择", () => {
   assert.equal(normalizeBasePath(" nested/blog "), "/nested/blog/");
@@ -296,9 +346,8 @@ test("真实 Hugo 构建有/无域名与根/嵌套路径，所有站内资源可
       assert.equal(countOccurrences($("article").text(), "标题" + "长".repeat(45)), 1);
       assert.ok($(".reader-sheet").length); assert.ok($(".sidebar").length); assert.ok($(".article-toc").length);
       const homePage = load(files.get("public/index.html")!.toString());
-      // 首页简介只显示一次：标题下的 home-description 保留，.Content 不再重复简介。
-      assert.equal(homePage(".home-description").length, 1, "home-description");
-      assert.equal(homePage(".home-description").first().text().trim(), "网站介绍");
+      // 仅当前样式显示自己的简介，正文不重复展示。
+      assert.deepEqual(homePage(".home-description").map((_index, element) => homePage(element).text().trim()).get(), ["网站介绍", "网站介绍"]);
       assert.equal(countOccurrences(homePage(".reader-sheet").first().text(), "网站介绍"), 1);
       assert.equal(homePage("meta[name=description]").attr("content"), "网站介绍");
       const iconHref = homePage("link[rel=icon]").attr("href")!;

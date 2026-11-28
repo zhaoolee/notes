@@ -2,24 +2,29 @@ import type { NoteDocument } from "../../types/app.js";
 import { normalizeSiteLogoPath } from "./logo.js";
 
 export const SITE_THEME_ID = "smartisan-blog" as const;
-/** 新草稿的默认静态站点子路径；统一带首尾斜杠，保存过的设置仍以实际值为准。 */
-export const DEFAULT_SITE_BASE_PATH = "/notes/";
+export const JOURNAL_SITE_THEME_ID = "coastal-journal" as const;
 /**
- * 可供选择的站点模板元数据。当前只有经典便签博客一种，面板按列表长度决定是否
- * 渲染“网站样式”选择区；以后接入第二种模板时只需在此追加条目。
+ * 新草稿的默认静态站点子路径：输入框、占位符和提示文案都显示 /notes/。
+ * 预览、导出与发布时仍由 normalizeBasePath 统一补齐首尾斜杠；保存过的设置仍以实际值为准。
  */
-export interface SiteThemeOption {
-  id: string;
-  label: string;
-  description: string;
-}
-export const SITE_THEMES: readonly SiteThemeOption[] = [
+export const DEFAULT_SITE_BASE_PATH = "/notes/";
+export const SITE_THEMES = [
   {
     id: SITE_THEME_ID,
     label: "经典便签博客",
     description: "暖色便签纸质感，包含分类列表、文章页和移动端阅读。",
   },
-];
+  {
+    id: JOURNAL_SITE_THEME_ID,
+    label: "简书2016",
+    description: "海岸摄影封面、带摘要的文章列表与简洁的阅读版式。",
+  },
+] as const;
+export type SiteThemeId = (typeof SITE_THEMES)[number]["id"];
+
+export function isSiteThemeId(value: unknown): value is SiteThemeId {
+  return SITE_THEMES.some((theme) => theme.id === value);
+}
 export interface SiteCategory { id: string; name: string; slug: string }
 export interface SiteSettings {
   title: string;
@@ -29,7 +34,7 @@ export interface SiteSettings {
   basePath: string;
   /** 空串表示默认锤子图标；非空只允许本机图片导入接口生成的 /images/ 路径。 */
   logoPath: string;
-  themeId: typeof SITE_THEME_ID;
+  themeId: SiteThemeId;
 }
 export interface SiteSettingsInput {
   title?: unknown;
@@ -93,7 +98,7 @@ export function normalizeSiteSettings(value: SiteSettingsInput): SiteSettings {
   if (typeof rawBasePath !== "string") throw new Error("网站设置不正确。");
   if (!title.trim() || title.length > 100) throw new Error("网站名称应为 1–100 个字符。");
   if (description.length > 500 || author.length > 100) throw new Error("网站简介或作者名称过长。");
-  if (themeId !== SITE_THEME_ID) throw new Error("不支持此网站样式。");
+  if (!isSiteThemeId(themeId)) throw new Error("不支持此网站样式。");
   const logoPath = normalizeSiteLogoPath(value.logoPath);
   const trimmedOrigin = rawOrigin.trim();
   let origin = "";
@@ -105,7 +110,7 @@ export function normalizeSiteSettings(value: SiteSettingsInput): SiteSettings {
     }
     origin = url.origin;
   }
-  return { title: title.trim(), description: description.trim(), author: author.trim(), origin, basePath: normalizeBasePath(rawBasePath), logoPath, themeId: SITE_THEME_ID };
+  return { title: title.trim(), description: description.trim(), author: author.trim(), origin, basePath: normalizeBasePath(rawBasePath), logoPath, themeId };
 }
 
 export function validateSiteCategories(value: SiteCategory[]): SiteCategory[] {

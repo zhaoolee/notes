@@ -2,7 +2,7 @@ import type { NoteDocument } from "../../types/app.js";
 import { normalizeSiteLogoPath } from "./logo.js";
 import {
   DEFAULT_SITE_CATEGORIES,
-  SITE_THEME_ID,
+  isSiteThemeId,
   createSitePublishDraft,
   validateSiteCategories,
   type SiteCategory,
@@ -89,7 +89,7 @@ function sanitizeSettings(value: unknown, fallback: SiteSettings): SiteSettings 
     // 故意保留原始 basePath：无效输入必须回到 UI 报错，而不是悄悄替换成默认路径。
     basePath: basePath ?? fallback.basePath,
     logoPath,
-    themeId: SITE_THEME_ID,
+    themeId: isSiteThemeId(value.themeId) ? value.themeId : fallback.themeId,
   };
 }
 

@@ -433,13 +433,17 @@
 }
 
 .site-publish-theme-option {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 15px minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   color: var(--ink);
   font-size: 0.8rem;
   font-weight: 600;
+}
+
+.site-publish-theme-option + .site-publish-theme-option {
+  margin-top: 10px;
 }
 
 .site-publish-theme-option input {
@@ -450,7 +454,7 @@
 }
 
 .site-publish-theme-option span {
-  flex: 1 1 100%;
+  grid-column: 2;
   color: var(--muted);
   font-size: 0.73rem;
   font-weight: 400;
